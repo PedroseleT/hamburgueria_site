@@ -40,7 +40,30 @@ export default function Home() {
           z-index: 1;
         }
 
-        /* 📱 AJUSTE MOBILE - TÍTULO NA MADEIRA E CARDÁPIO COMPLETO */
+        /* 🔥 EFEITO DE PREENCHIMENTO DO BOTÃO VER CARDÁPIO */
+        .btn-cardapio-completo {
+          display: inline-block;
+          padding: 15px 40px;
+          background-color: transparent;
+          border: 2px solid #b91c1c;
+          color: #fff;
+          font-size: 18px;
+          font-weight: bold;
+          text-decoration: none;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          border-radius: 5px;
+          transition: all 0.3s ease;
+        }
+
+        .btn-cardapio-completo:hover {
+          background-color: #b91c1c !important;
+          color: #fff !important;
+          transform: scale(1.05);
+          box-shadow: 0 0 20px rgba(185, 28, 28, 0.4);
+        }
+
+        /* 📱 AJUSTE MOBILE DEFINITIVO */
         @media (max-width: 768px) {
           .hero-section {
             height: 85vh !important;
@@ -62,11 +85,6 @@ export default function Home() {
             justify-content: center !important;
           }
 
-          .hero-text {
-            text-align: center !important;
-            width: 100% !important;
-          }
-
           .hero-text h1 {
             font-size: 30px !important; 
             line-height: 1.1 !important;
@@ -76,7 +94,7 @@ export default function Home() {
           }
 
           .hero-text p {
-            display: none !important; /* Remove 'Pedro Burger Grill' no mobile */
+            display: none !important; /* REMOVE APENAS NO MOBILE */
           }
 
           #cardapio {
@@ -84,7 +102,7 @@ export default function Home() {
           }
 
           .cardapio-grid {
-            grid-template-columns: 1fr !important; /* Empilha os cards no mobile */
+            grid-template-columns: 1fr !important;
             gap: 40px !important;
           }
         }
@@ -154,7 +172,7 @@ export default function Home() {
         <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '2px', display: 'block', marginBottom: '5px' }}>Nosso</span>
         <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
         
-        {/* GRID DOS PRODUTOS */}
+        {/* GRID DOS PRODUTOS COM PLACEHOLDERS */}
         <div className="cardapio-grid" style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
@@ -164,35 +182,24 @@ export default function Home() {
         }}>
           <Card 
             foto="[Foto Produto]" 
-            nome="[Nome Produto]" 
+            nome="[Nome/Foto Produto]" 
             desc="[Descrição]" 
           />
           <Card 
             foto="[Foto Produto]" 
-            nome="[Nome Produto]" 
+            nome="[Nome/Foto Produto]" 
             desc="[Descrição]" 
           />
           <Card 
             foto="[Foto Produto]" 
-            nome="[Nome Produto]" 
+            nome="[Nome/Foto Produto]" 
             desc="[Descrição]" 
           />
         </div>
 
         <div style={{ marginTop: '70px' }}>
-          <a href="/cardapio" style={{
-            display: 'inline-block',
-            padding: '15px 40px',
-            backgroundColor: 'transparent',
-            border: '2px solid #b91c1c',
-            color: '#fff',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            textDecoration: 'none',
-            textTransform: 'uppercase',
-            letterSpacing: '2px',
-            borderRadius: '5px'
-          }}>
+          {/* Botão com a classe CSS para o efeito hover vermelho */}
+          <a href="/cardapio" className="btn-cardapio-completo">
             VER CARDÁPIO COMPLETO
           </a>
         </div>
@@ -216,7 +223,11 @@ function Card({ foto, nome, desc }: { foto: string, nome: string, desc: string }
       border: '1px solid #333',
       transition: '0.3s'
     }}>
-      <img src={foto} alt={nome} style={{ width: '220px', height: 'auto', marginBottom: '20px' }} />
+      {/* Placeholder de imagem se não for uma URL de imagem válida */}
+      <div style={{ width: '100%', height: '200px', backgroundColor: '#333', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontWeight: 'bold' }}>
+        {foto}
+      </div>
+      
       <h3 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '15px', textTransform: 'uppercase', color: '#fff' }}>{nome}</h3>
       <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '25px', lineHeight: '1.6', minHeight: '45px' }}>{desc}</p>
       <button style={{
