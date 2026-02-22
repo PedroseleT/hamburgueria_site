@@ -40,30 +40,26 @@ export default function Home() {
           z-index: 1;
         }
 
-        main > section {
-          position: relative;
-          z-index: 2;
-        }
-
-        /* 📱 AJUSTES MOBILE ESPECÍFICOS */
+        /* 📱 AJUSTE MOBILE - TÍTULO NA MADEIRA E CARDÁPIO COMPLETO */
         @media (max-width: 768px) {
           .hero-section {
-            height: 75vh !important; /* Reduzi um pouco a altura para o texto encaixar melhor abaixo */
+            height: 85vh !important;
             background-image: url("/design_mobile.jpg") !important; 
             background-position: center top !important;
             display: flex !important;
-            align-items: flex-end !important;
-            justify-content: center !important;
-            padding-bottom: 0 !important;
+            flex-direction: column !important;
+            justify-content: flex-end !important;
+            overflow: visible !important;
           }
 
           .hero-content {
-            padding-right: 0 !important;
+            padding: 0 !important;
             width: 100% !important;
-            /* Posiciona o texto exatamente na transição da foto para o cardápio */
             position: absolute !important;
-            bottom: -40px !important; 
-            z-index: 10 !important;
+            bottom: -20px !important; 
+            z-index: 100 !important; 
+            display: flex !important;
+            justify-content: center !important;
           }
 
           .hero-text {
@@ -72,20 +68,24 @@ export default function Home() {
           }
 
           .hero-text h1 {
-            font-size: 32px !important;
-            text-shadow: none !important; /* REMOVE A SOMBRA NO MOBILE */
+            font-size: 30px !important; 
+            line-height: 1.1 !important;
+            text-shadow: none !important;
             margin: 0 !important;
-            background-color: transparent !important;
+            padding: 0 15px !important;
           }
 
-          /* ESCONDE O NOME NO MOBILE */
           .hero-text p {
-            display: none !important;
+            display: none !important; /* Remove 'Pedro Burger Grill' no mobile */
           }
 
-          /* Ajuste de margem no cardápio para não colar no texto subido */
           #cardapio {
             padding-top: 100px !important;
+          }
+
+          .cardapio-grid {
+            grid-template-columns: 1fr !important; /* Empilha os cards no mobile */
+            gap: 40px !important;
           }
         }
       `}</style>
@@ -97,8 +97,7 @@ export default function Home() {
         width: '100%',
         display: 'flex',
         alignItems: 'center',
-        overflow: 'hidden',
-        backgroundImage: 'url("/burger-destaque.jpg")',
+        backgroundImage: 'url("/burger-destaque.jpg")', 
         backgroundSize: 'cover',
         backgroundPosition: 'left center',
         backgroundRepeat: 'no-repeat'
@@ -141,25 +140,97 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ================= SEÇÃO CARDÁPIO ================= */}
+      {/* ================= SEÇÃO CARDÁPIO (PRODUTOS) ================= */}
       <section id="cardapio" style={{
         padding: '120px 20px 80px',
         backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
-        textAlign: 'center'
+        textAlign: 'center',
+        position: 'relative',
+        zIndex: 5
       }}>
-        <span style={{ color: '#fff', fontSize: '20px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '2px', display: 'block', marginBottom: '-10px' }}>Nosso</span>
-        <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 50px 0' }}>CARDÁPIO</h2>
+        <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '2px', display: 'block', marginBottom: '5px' }}>Nosso</span>
+        <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
         
-        {/* ... Restante do seu código (Cards, etc) ... */}
+        {/* GRID DOS PRODUTOS */}
+        <div className="cardapio-grid" style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+          gap: '30px', 
+          maxWidth: '1200px', 
+          margin: '0 auto' 
+        }}>
+          <Card 
+            foto="/piscina-cacador.png" 
+            nome="PISCINA CAÇADOR" 
+            desc="Hambúrguer artesanal coberto com uma generosa piscina de cheddar e bacon crocante." 
+          />
+          <Card 
+            foto="/piscina-cacador.png" 
+            nome="REI DA BRASA" 
+            desc="O clássico defumado na lenha com queijo prato, cebola caramelizada e maionese da casa." 
+          />
+          <Card 
+            foto="/piscina-cacador.png" 
+            nome="DUPLO IMPACTO" 
+            desc="Para os fortes: dois blends de 180g, muito queijo e nossa exclusiva geleia de pimenta." 
+          />
+        </div>
+
+        <div style={{ marginTop: '70px' }}>
+          <a href="/cardapio" style={{
+            display: 'inline-block',
+            padding: '15px 40px',
+            backgroundColor: 'transparent',
+            border: '2px solid #b91c1c',
+            color: '#fff',
+            fontSize: '18px',
+            fontWeight: 'bold',
+            textDecoration: 'none',
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+            borderRadius: '5px'
+          }}>
+            VER CARDÁPIO COMPLETO
+          </a>
+        </div>
       </section>
 
       <a href="https://wa.me/seunumero" target="_blank" style={whatsappFloat}>
         <MessageCircle size={35} color="#fff" />
       </a>
     </main>
+  );
+}
+
+// COMPONENTE DO CARD DE PRODUTO
+function Card({ foto, nome, desc }: { foto: string, nome: string, desc: string }) {
+  return (
+    <div style={{
+      backgroundColor: 'rgba(17, 17, 17, 0.95)',
+      padding: '40px 30px',
+      borderRadius: '15px',
+      textAlign: 'center',
+      border: '1px solid #333',
+      transition: '0.3s'
+    }}>
+      <img src={foto} alt={nome} style={{ width: '220px', height: 'auto', marginBottom: '20px' }} />
+      <h3 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '15px', textTransform: 'uppercase', color: '#fff' }}>{nome}</h3>
+      <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '25px', lineHeight: '1.6', minHeight: '45px' }}>{desc}</p>
+      <button style={{
+        padding: '10px 25px',
+        backgroundColor: 'transparent',
+        border: '2px solid #fff',
+        color: '#fff',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        textTransform: 'uppercase'
+      }}>
+        PEDIR AGORA
+      </button>
+    </div>
   );
 }
 
