@@ -55,7 +55,7 @@ export default function Home() {
           .hero-section {
             height: 90vh !important;
             /* 👇 RENOMEIE SUA FOTO NOVA PARA 'burger-mobile.jpg' OU USE O NOME ABAIXO */
-            background-image: url("/Design sem nome.jpg") !important; 
+            background-image: url("/design_mobile.jpg") !important; 
             background-position: center center !important;
             display: flex !important;
             flex-direction: column !important;
