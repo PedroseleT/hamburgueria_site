@@ -49,7 +49,7 @@ export default function Home() {
         @media (max-width: 768px) {
           .hero-section {
             height: 75vh !important; /* Reduzi um pouco a altura para o texto encaixar melhor abaixo */
-            background-image: url("/burger-mobile.jpg") !important; 
+            background-image: url("/design_mobile.jpg") !important; 
             background-position: center top !important;
             display: flex !important;
             align-items: flex-end !important;
