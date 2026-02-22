@@ -163,17 +163,17 @@ export default function Home() {
           margin: '0 auto' 
         }}>
           <Card 
-            foto="/piscina-cacador.png" 
+            foto="[Foto Produto]" 
             nome="[Nome Produto]" 
             desc="[Descrição]" 
           />
           <Card 
-            foto="/piscina-cacador.png" 
+            foto="[Foto Produto]" 
             nome="[Nome Produto]" 
             desc="[Descrição]" 
           />
           <Card 
-            foto="/piscina-cacador.png" 
+            foto="[Foto Produto]" 
             nome="[Nome Produto]" 
             desc="[Descrição]" 
           />
