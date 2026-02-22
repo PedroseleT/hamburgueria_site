@@ -17,6 +17,7 @@ export default function Home() {
       position: 'relative'
     }}>
 
+      {/* 🔥 OVERLAY GLOBAL DE CHAMAS */}
       <div className="flame-overlay"></div>
 
       <style jsx global>{`
@@ -26,6 +27,10 @@ export default function Home() {
           overflow-x: hidden;
           background-color: #0a0a0a;
           scroll-behavior: smooth;
+        }
+
+        * {
+          box-sizing: border-box;
         }
 
         .flame-overlay {
@@ -49,18 +54,23 @@ export default function Home() {
         @media (max-width: 768px) {
           .hero-section {
             height: 90vh !important;
-            background-position: center center !important; /* Centraliza o hambúrguer */
+            /* 👇 RENOMEIE SUA FOTO NOVA PARA 'burger-mobile.jpg' OU USE O NOME ABAIXO */
+            background-image: url("/Design sem nome.jpg") !important; 
+            background-position: center center !important;
             display: flex !important;
             flex-direction: column !important;
-            justify-content: flex-end !important; /* Joga o texto para baixo */
-            padding-bottom: 50px !important;
+            justify-content: flex-end !important; 
+            padding-bottom: 40px !important;
           }
 
           .hero-content {
             padding-right: 0 !important;
             justify-content: center !important;
             text-align: center !important;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8)) !important; /* Gradiente para ler o texto embaixo */
+            /* Gradiente suave para o texto não sumir na madeira */
+            background: linear-gradient(transparent, rgba(0,0,0,0.85) 60%) !important;
+            width: 100% !important;
+            padding: 40px 20px !important;
           }
 
           .hero-text {
@@ -69,16 +79,28 @@ export default function Home() {
           }
 
           .hero-text h1 {
-            font-size: 35px !important; /* Texto menor para não cobrir tudo */
+            font-size: 42px !important;
+            line-height: 0.9 !important;
+          }
+
+          .hero-text p {
+            font-size: 24px !important;
           }
 
           .cardapio-grid {
             grid-template-columns: 1fr !important;
+            padding: 0 15px !important;
+          }
+
+          .banner-title {
+            font-size: 26px !important;
+            padding: 0 10px;
           }
         }
       `}</style>
 
       {/* ================= HERO ================= */}
+
       <section className="hero-section" style={{
         position: 'relative',
         height: '90vh',
@@ -86,7 +108,7 @@ export default function Home() {
         display: 'flex',
         alignItems: 'center',
         overflow: 'hidden',
-        backgroundImage: 'url("/burger-destaque.jpg")',
+        backgroundImage: 'url("/burger-destaque.jpg")', // Foto horizontal original (PC)
         backgroundSize: 'cover',
         backgroundPosition: 'left center',
         backgroundRepeat: 'no-repeat'
@@ -130,6 +152,7 @@ export default function Home() {
       </section>
 
       {/* ================= SEÇÃO CARDÁPIO ================= */}
+
       <section id="cardapio" style={{
         padding: '120px 20px 80px',
         backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")',
@@ -138,7 +161,11 @@ export default function Home() {
         backgroundAttachment: 'fixed',
         textAlign: 'center'
       }}>
-        <span style={{ color: '#fff', fontSize: '20px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '2px', display: 'block', marginBottom: '-10px' }}>Nosso</span>
+        <span style={{
+          color: '#fff', fontSize: '20px', textTransform: 'uppercase',
+          fontWeight: 'bold', letterSpacing: '2px', display: 'block', marginBottom: '-10px'
+        }}>Nosso</span>
+        
         <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 50px 0' }}>CARDÁPIO</h2>
         
         <div className="cardapio-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -149,10 +176,28 @@ export default function Home() {
 
         <div style={{ marginTop: '60px' }}>
           <a href="/cardapio" style={{
-            display: 'inline-block', padding: '15px 40px', backgroundColor: 'transparent', border: '2px solid #b91c1c', color: '#fff', fontSize: '18px', fontWeight: 'bold', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '2px', transition: '0.3s', borderRadius: '5px'
-          }}>VER O CARDÁPIO COMPLETO</a>
+            display: 'inline-block',
+            padding: '15px 40px',
+            backgroundColor: 'transparent',
+            border: '2px solid #b91c1c',
+            color: '#fff',
+            fontSize: '18px',
+            fontWeight: 'bold',
+            textDecoration: 'none',
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+            transition: '0.3s',
+            borderRadius: '5px'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#b91c1c'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            VER O CARDÁPIO COMPLETO
+          </a>
         </div>
       </section>
+
+      {/* ================= BANNER ================= */}
 
       <section style={{
         height: '350px',
@@ -164,13 +209,17 @@ export default function Home() {
         alignItems: 'center',
         justifyContent: 'center'
       }}>
-        <h2 style={{ fontSize: '45px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'center' }}>PREPARE-SE PARA O EXAGERO!</h2>
+        <h2 className="banner-title" style={{ fontSize: '45px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'center' }}>
+          PREPARE-SE PARA O EXAGERO!
+        </h2>
         <button style={btnOrderNow}>FAZER PEDIDO AGORA</button>
       </section>
 
+      {/* WHATSAPP FLOAT */}
       <a href="https://wa.me/seunumero" target="_blank" style={whatsappFloat}>
         <MessageCircle size={35} color="#fff" />
       </a>
+
     </main>
   );
 }
