@@ -21,7 +21,7 @@ export default function Navbar() {
           />
         </Link>
 
-        {/* BOTÃO HAMBÚRGUER - Agora posicionado logo após a logo no mobile */}
+        {/* BOTÃO HAMBÚRGUER */}
         <button 
           onClick={() => setIsOpen(!isOpen)}
           style={menuButtonStyle}
@@ -35,17 +35,17 @@ export default function Navbar() {
           ...navLinksContainerStyle, 
           display: isOpen ? "flex" : "none" 
         }} className="nav-menu">
-          <div style={linksGroupStyle}>
+          <div style={linksGroupStyle} className="links-group">
             <Link href="/" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/") ? "#b91c1c" : "transparent" }}>Início</Link>
             <Link href="/cardapio" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/cardapio") ? "#b91c1c" : "transparent" }}>Cardápio</Link>
             <Link href="/sobre" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/sobre") ? "#b91c1c" : "transparent" }}>Sobre Nós</Link>
             <Link href="/contato" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/contato") ? "#b91c1c" : "transparent" }}>Fale Conosco</Link>
           </div>
 
-          <div style={socialGroupStyle}>
-            <a href="#" style={{ color: "#fff" }}><Facebook size={18} /></a>
-            <a href="#" style={{ color: "#fff" }}><Instagram size={18} /></a>
-            <a href="#" style={{ color: "#fff" }}><MessageCircle size={18} /></a>
+          <div style={socialGroupStyle} className="social-group">
+            <a href="#" style={{ color: "#fff" }}><Facebook size={22} /></a>
+            <a href="#" style={{ color: "#fff" }}><Instagram size={22} /></a>
+            <a href="#" style={{ color: "#fff" }}><MessageCircle size={22} /></a>
           </div>
         </div>
       </div>
@@ -60,14 +60,13 @@ export default function Navbar() {
             width: auto !important;
             height: auto !important;
           }
-          .mobile-menu-btn {
-            display: none !important;
-          }
+          .mobile-menu-btn { display: none !important; }
         }
+
         @media (max-width: 768px) {
           .nav-container {
-            justify-content: flex-start !important; /* Traz tudo para a esquerda */
-            gap: 15px !important; /* Espaço pequeno entre a logo e o botão */
+            justify-content: flex-start !important;
+            gap: 15px !important;
           }
           .nav-menu {
             position: absolute;
@@ -75,14 +74,25 @@ export default function Navbar() {
             left: 0;
             width: 100%;
             background: #000;
+            flex-direction: column !important;
+            padding: 40px 20px;
+            gap: 30px;
+            border-bottom: 3px solid #b91c1c;
+            align-items: center;
+          }
+          .links-group {
             flex-direction: column;
-            padding: 20px;
-            gap: 20px;
-            border-bottom: 2px solid #b91c1c;
+            width: 100%;
+            align-items: center;
+          }
+          .social-group {
+            border-left: none !important; /* REMOVE A LINHA NO MOBILE */
+            padding-left: 0 !important;
+            justify-content: center !important;
+            width: 100%;
           }
           .mobile-menu-btn {
             display: block !important;
-            order: 2; /* Garante que fique depois da logo */
           }
         }
       `}</style>
@@ -91,61 +101,23 @@ export default function Navbar() {
 }
 
 const navStyle: React.CSSProperties = {
-  width: "100%",
-  height: "80px",
-  backgroundColor: "#000",
-  display: "flex",
-  justifyContent: "center",
-  position: "fixed",
-  zIndex: 1000,
-  top: 0,
-  left: 0,
+  width: "100%", height: "80px", backgroundColor: "#000", display: "flex", justifyContent: "center", position: "fixed", zIndex: 1000, top: 0, left: 0
 };
 
 const containerStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: "1250px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "0 20px"
+  width: "100%", maxWidth: "1250px", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 20px"
 };
 
-const navLinksContainerStyle: React.CSSProperties = {
-  alignItems: "center",
-  gap: "30px",
-};
+const navLinksContainerStyle: React.CSSProperties = { alignItems: "center", gap: "30px" };
 
-const linksGroupStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap",
-  justifyContent: "center"
-};
+const linksGroupStyle: React.CSSProperties = { display: "flex", gap: "10px" };
 
-const menuButtonStyle: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#fff",
-  cursor: "pointer",
-  padding: "5px",
-  zIndex: 1100,
-};
+const menuButtonStyle: React.CSSProperties = { background: "none", border: "none", color: "#fff", cursor: "pointer", padding: "5px" };
 
 const linkStyle: React.CSSProperties = {
-  color: "#fff",
-  textDecoration: "none",
-  fontSize: "12px",
-  textTransform: "uppercase",
-  padding: "8px 12px",
-  borderRadius: "4px",
-  fontWeight: "bold",
-  transition: "0.3s"
+  color: "#fff", textDecoration: "none", fontSize: "14px", textTransform: "uppercase", padding: "10px 20px", borderRadius: "4px", fontWeight: "bold"
 };
 
 const socialGroupStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "15px",
-  borderLeft: "1px solid #333",
-  paddingLeft: "20px"
+  display: "flex", gap: "20px", borderLeft: "1px solid #333", paddingLeft: "20px"
 };
