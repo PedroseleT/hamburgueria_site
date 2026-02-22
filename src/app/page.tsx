@@ -1,6 +1,6 @@
 "use client";
 
-import { Instagram, Facebook, MessageCircle } from 'lucide-react'; // Importando os ícones
+import { Instagram, Facebook, MessageCircle } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -15,7 +15,7 @@ export default function Home() {
       fontFamily: '"Oswald", sans-serif',
     }}>
       
-      {/* 1. SEÇÃO HERO */}
+      {/* 1. SEÇÃO HERO (MANTIDA) */}
       <section style={{ position: 'relative', height: '100vh', overflow: 'hidden' }}>
         <div style={{
           position: 'absolute',
@@ -48,9 +48,8 @@ export default function Home() {
           </div>
           <nav style={{ display: 'flex', gap: '25px', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>
             <a href="#cardapio" style={{ textDecoration: 'none', color: '#fff' }}>Cardápio</a>
-            <a href="#historia" style={{ textDecoration: 'none', color: '#fff' }}>História</a>
-            <a href="#" style={{ textDecoration: 'none', color: '#fff' }}>Promoções</a>
-            <a href="#contato" style={{ textDecoration: 'none', color: '#fff' }}>Trabalhe Conosco</a>
+            <a href="#sobre" style={{ textDecoration: 'none', color: '#fff' }}>Sobre Nós</a>
+            <a href="#contato" style={{ textDecoration: 'none', color: '#fff' }}>Contato</a>
           </nav>
         </header>
 
@@ -83,112 +82,183 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. SEÇÃO CARDÁPIO */}
-      <section id="cardapio" style={{ padding: '80px 60px', backgroundColor: '#000', display: 'flex', flexWrap: 'wrap', gap: '40px' }}>
-        <div style={{ flex: '1', minWidth: '300px' }}>
-          <h2 style={{ fontSize: '50px', fontWeight: '900', textTransform: 'uppercase', borderBottom: '4px solid #fff', display: 'inline-block', marginBottom: '30px' }}>
-            NOSSOS BURGERS
-          </h2>
-          <p style={{ fontSize: '18px', color: '#ccc', marginBottom: '40px', lineHeight: '1.6' }}>
-            [ESPAÇO PARA SUA DESCRIÇÃO: Fale sobre a alma da sua hamburgueria, a qualidade da carne e o tempero exclusivo.]
+      {/* 2. SEÇÃO CARDÁPIO (ESTILO IMAGEM 1) */}
+      <section id="cardapio" style={{ 
+        padding: '80px 20px', 
+        backgroundColor: '#0a0a0a', 
+        backgroundImage: 'url("https://www.transparenttextures.com/patterns/black-paper.png")', // Textura de papel escuro
+        textAlign: 'center' 
+      }}>
+        <p style={{ fontSize: '14px', textTransform: 'lowercase', marginBottom: '5px', color: '#ccc' }}>conheça nosso</p>
+        <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 50px 0', textTransform: 'uppercase' }}>CARDÁPIO:</h2>
+
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+          gap: '30px', 
+          maxWidth: '1200px', 
+          margin: '0 auto' 
+        }}>
+          {/* Burger 1 */}
+          <div style={cardStyle}>
+            <img src="/lenda-da-selva.png" alt="Lenda da Selva" style={imgStyle} />
+            <h3 style={titleCardStyle}>LENDA DA SELVA</h3>
+            <p style={textCardStyle}>Suculento hambúrguer artesanal de 150g de carne angus, cheddar inglês derretido, anel de cebola enrolado com bacon, creme de cheddar artesanal e cebola crispy no pão de brioche.</p>
+            <button style={btnCardStyle}>PEDIR AGORA</button>
+          </div>
+
+          {/* Burger 2 */}
+          <div style={cardStyle}>
+            <img src="/piscininha.png" alt="Piscininha do Caçador" style={imgStyle} />
+            <h3 style={titleCardStyle}>PISCININHA DO CAÇADOR</h3>
+            <p style={textCardStyle}>Suculento hambúrguer artesanal de 150g de carne angus, cheddar inglês derretido, bacon cubos e maionese verde artesanal no pão de brioche. Finalizado na churrasqueira.</p>
+            <button style={btnCardStyle}>PEDIR AGORA</button>
+          </div>
+
+          {/* Burger 3 */}
+          <div style={cardStyle}>
+            <img src="/cacador-queijos.png" alt="Caçador de Queijos" style={imgStyle} />
+            <h3 style={titleCardStyle}>CAÇADOR DE QUEIJOS</h3>
+            <p style={textCardStyle}>Suculento hambúrguer artesanal de 150g de carne angus, mix de queijos empanado (cheddar, gorgonzola e mussarela), alface americano, tomate e maionese artesanal.</p>
+            <button style={btnCardStyle}>PEDIR AGORA</button>
+          </div>
+        </div>
+
+        <button style={{ 
+          marginTop: '50px', 
+          padding: '15px 30px', 
+          backgroundColor: '#b91c1c', 
+          color: '#fff', 
+          border: 'none', 
+          borderRadius: '5px',
+          fontWeight: 'bold',
+          cursor: 'pointer'
+        }}>VER CARDÁPIO COMPLETO</button>
+      </section>
+
+      {/* 3. SEÇÃO SOBRE NÓS (ESTILO IMAGEM 2) */}
+      <section id="sobre" style={{ 
+        padding: '100px 60px', 
+        backgroundColor: '#f5f5dc', // Fundo bege claro
+        color: '#000',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '60px',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ 
+          flex: '1', 
+          minWidth: '300px', 
+          maxWidth: '500px',
+          border: '5px solid #333',
+          borderRadius: '20px',
+          overflow: 'hidden',
+          boxShadow: '20px 20px 0px #000'
+        }}>
+          <img src="/burger-sobre.jpg" alt="Sobre Nós" style={{ width: '100%', display: 'block' }} />
+        </div>
+
+        <div style={{ flex: '1', minWidth: '300px', maxWidth: '600px' }}>
+          <h2 style={{ fontSize: '50px', fontWeight: '900', color: '#b91c1c', marginBottom: '20px' }}>SOBRE NÓS:</h2>
+          <p style={{ fontSize: '18px', lineHeight: '1.6', color: '#333', marginBottom: '30px' }}>
+            Somos uma hamburgueria 100% artesanal, focada em proporcionar a melhor experiência para você. 
+            Queremos que passe os seus melhores momentos conosco, sempre acompanhado de suas melhores companhias 
+            e desfrutando das nossas delícias. Esqueça aqueles hambúrgueres industrializados e cheios de conservantes, 
+            aqui é hambúrguer de verdade, 100% artesanal, no ponto que você preferir.
           </p>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <div style={{ border: '1px solid #333', padding: '20px' }}>
-              <h3 style={{ textTransform: 'uppercase', color: '#9c845c' }}>Acompanhamentos</h3>
-              <p>[Sua lista de batatas e entradas]</p>
-            </div>
-            <div style={{ border: '1px solid #333', padding: '20px' }}>
-              <h3 style={{ textTransform: 'uppercase', color: '#9c845c' }}>Sobremesas</h3>
-              <p>[Sua lista de doces e shakes]</p>
-            </div>
-          </div>
-        </div>
-        
-        <div style={{ flex: '1', minWidth: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ 
-            width: '100%', 
-            height: '400px', 
-            backgroundColor: '#111', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            borderRadius: '10px',
-            border: '2px dashed #333' 
-          }}>
-            [ESPAÇO PARA FOTO DO BURGER PRINCIPAL]
-          </div>
+          <p style={{ fontWeight: 'bold', letterSpacing: '2px', marginBottom: '20px' }}>LIBERTE SEU INSTINTO</p>
+          <button style={{ 
+            padding: '12px 25px', 
+            backgroundColor: 'transparent', 
+            border: '2px solid #b91c1c', 
+            color: '#b91c1c', 
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}>LEIA NOSSA DESCRIÇÃO COMPLETA</button>
         </div>
       </section>
 
-      {/* 3. SEÇÃO HISTÓRIA */}
-      <section id="historia" style={{ padding: '100px 60px', backgroundColor: '#fff', color: '#000', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '45px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '20px' }}>NOSSA HISTÓRIA</h2>
-        <div style={{ maxWidth: '800px', margin: '0 auto', fontSize: '20px', lineHeight: '1.8' }}>
-          <p>
-            [CONTE SUA TRAJETÓRIA: Desde a abertura da primeira Garage até o conceito atual de Grill artesanal.]
-          </p>
-          <button style={{ marginTop: '30px', padding: '15px 40px', backgroundColor: '#9c845c', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>
-            Saiba Mais
-          </button>
-        </div>
+      {/* 4. BANNER INTERMEDIÁRIO (ESTILO IMAGEM 3) */}
+      <section style={{ 
+        height: '200px', 
+        backgroundImage: 'url("/banner-fome.jpg")', 
+        backgroundSize: 'cover', 
+        backgroundPosition: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative'
+      }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)' }}></div>
+        <h2 style={{ position: 'relative', zIndex: 2, fontSize: '40px', fontWeight: '900', color: '#fff' }}>LIBERTE A SUA FOME!</h2>
+        <button style={{ 
+          position: 'relative', 
+          zIndex: 2, 
+          marginTop: '15px', 
+          padding: '10px 25px', 
+          backgroundColor: '#b91c1c', 
+          color: '#fff', 
+          border: 'none', 
+          fontWeight: 'bold',
+          borderRadius: '5px'
+        }}>FAZER PEDIDO AGORA</button>
       </section>
 
-      {/* 4. SEÇÃO CONTATO/FOOTER ATUALIZADA */}
-      <section id="contato" style={{ padding: '80px 60px', backgroundColor: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '40px' }}>
-        <div style={{ flex: '1', minWidth: '250px' }}>
-          <h2 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '20px' }}>RECEBA NOVIDADES</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
-            <input type="text" placeholder="NOME" style={inputStyle} />
-            <input type="email" placeholder="E-MAIL" style={inputStyle} />
-            <button style={{ padding: '15px', backgroundColor: '#9c845c', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>ENVIAR</button>
-          </div>
+      {/* FOOTER (MANTIDO) */}
+      <footer id="contato" style={{ padding: '60px', backgroundColor: '#0a0a0a', textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', marginBottom: '30px' }}>
+          <Instagram size={30} />
+          <Facebook size={30} />
+          <MessageCircle size={30} />
         </div>
+        <p style={{ fontSize: '12px', opacity: 0.5 }}>© 2026 Garage Burger Grill - Todos os direitos reservados.</p>
+      </footer>
 
-        <div style={{ flex: '1', textAlign: 'right', minWidth: '250px' }}>
-          <h2 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '10px' }}>ENTRE EM CONTATO</h2>
-          <p style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>[contato]</p>
-          
-          {/* ÍCONES DE REDES SOCIAIS */}
-          <div style={{ display: 'flex', gap: '20px', justifyContent: 'flex-end', marginBottom: '40px' }}>
-            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" style={socialIconStyle}>
-              <Instagram size={24} />
-            </a>
-            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" style={socialIconStyle}>
-              <Facebook size={24} />
-            </a>
-            <a href="https://wa.me/seunumeroaqui" target="_blank" rel="noopener noreferrer" style={socialIconStyle}>
-              <MessageCircle size={24} />
-            </a>
-          </div>
-
-          <div style={{ fontSize: '12px', color: '#444' }}>
-            Copyright© 2026 Garage Burger Grill
-          </div>
-        </div>
-      </section>
-
-      <style jsx global>{`
-        body { margin: 0; background-color: #0a0a0a; scroll-behavior: smooth; }
-        a:hover { opacity: 0.7; transition: 0.3s; }
-      `}</style>
     </main>
   );
 }
 
-const inputStyle = {
-  backgroundColor: 'transparent',
-  border: '1px solid #333',
-  padding: '15px',
-  color: '#fff',
-  fontSize: '14px',
-  outline: 'none'
+// ESTILOS DOS CARDS (IMAGEM 1)
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#111',
+  padding: '40px 30px',
+  borderRadius: '15px',
+  textAlign: 'center',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  border: '1px solid #222'
 };
 
-const socialIconStyle = {
+const imgStyle: React.CSSProperties = {
+  width: '200px',
+  height: 'auto',
+  marginBottom: '20px'
+};
+
+const titleCardStyle: React.CSSProperties = {
+  fontSize: '22px',
+  fontWeight: '900',
+  marginBottom: '15px',
+  color: '#fff'
+};
+
+const textCardStyle: React.CSSProperties = {
+  fontSize: '14px',
+  lineHeight: '1.5',
+  color: '#aaa',
+  marginBottom: '25px',
+  flexGrow: 1
+};
+
+const btnCardStyle: React.CSSProperties = {
+  padding: '10px 30px',
+  backgroundColor: 'transparent',
+  border: '2px solid #fff',
   color: '#fff',
-  transition: 'color 0.3s ease',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center'
+  fontWeight: 'bold',
+  cursor: 'pointer',
+  borderRadius: '5px'
 };
