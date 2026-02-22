@@ -40,7 +40,6 @@ export default function Home() {
           z-index: 1;
         }
 
-        /* 🔥 EFEITO DE PREENCHIMENTO DO BOTÃO VER CARDÁPIO */
         .btn-cardapio-completo {
           display: inline-block;
           padding: 15px 40px;
@@ -63,7 +62,7 @@ export default function Home() {
           box-shadow: 0 0 20px rgba(185, 28, 28, 0.4);
         }
 
-        /* 📱 AJUSTE MOBILE DEFINITIVO */
+        /* 📱 AJUSTE MOBILE - CORREÇÃO DE CENTRALIZAÇÃO */
         @media (max-width: 768px) {
           .hero-section {
             height: 85vh !important;
@@ -72,33 +71,44 @@ export default function Home() {
             display: flex !important;
             flex-direction: column !important;
             justify-content: flex-end !important;
-            overflow: visible !important;
           }
 
           .hero-content {
             padding: 0 !important;
             width: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
             position: absolute !important;
-            bottom: -20px !important; 
+            bottom: 20px !important; 
             z-index: 100 !important; 
             display: flex !important;
             justify-content: center !important;
           }
 
-          .hero-text h1 {
-            font-size: 30px !important; 
-            line-height: 1.1 !important;
-            text-shadow: none !important;
+          .hero-text {
+            text-align: center !important;
+            width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
-            padding: 0 15px !important;
+            padding: 0 !important;
+          }
+
+          .hero-text h1 {
+            font-size: 32px !important; 
+            line-height: 1.1 !important;
+            text-shadow: 2px 2px 10px rgba(0,0,0,0.9) !important;
+            margin: 0 auto !important;
+            padding: 0 10px !important;
+            display: block !important;
+            width: 100% !important;
           }
 
           .hero-text p {
-            display: none !important; /* REMOVE APENAS NO MOBILE */
+            display: none !important;
           }
 
           #cardapio {
-            padding-top: 100px !important;
+            padding-top: 80px !important;
           }
 
           .cardapio-grid {
@@ -158,7 +168,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ================= SEÇÃO CARDÁPIO (PRODUTOS) ================= */}
+      {/* ================= SEÇÃO CARDÁPIO ================= */}
       <section id="cardapio" style={{
         padding: '120px 20px 80px',
         backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")',
@@ -172,7 +182,6 @@ export default function Home() {
         <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '2px', display: 'block', marginBottom: '5px' }}>Nosso</span>
         <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
         
-        {/* GRID DOS PRODUTOS COM PLACEHOLDERS */}
         <div className="cardapio-grid" style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
@@ -198,7 +207,6 @@ export default function Home() {
         </div>
 
         <div style={{ marginTop: '70px' }}>
-          {/* Botão com a classe CSS para o efeito hover vermelho */}
           <a href="/cardapio" className="btn-cardapio-completo">
             VER CARDÁPIO COMPLETO
           </a>
@@ -212,7 +220,6 @@ export default function Home() {
   );
 }
 
-// COMPONENTE DO CARD DE PRODUTO
 function Card({ foto, nome, desc }: { foto: string, nome: string, desc: string }) {
   return (
     <div style={{
@@ -223,8 +230,7 @@ function Card({ foto, nome, desc }: { foto: string, nome: string, desc: string }
       border: '1px solid #333',
       transition: '0.3s'
     }}>
-      {/* Placeholder de imagem se não for uma URL de imagem válida */}
-      <div style={{ width: '100%', height: '200px', backgroundColor: '#333', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontWeight: 'bold' }}>
+      <div style={{ width: '100%', height: '200px', backgroundColor: '#333', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontWeight: 'bold', borderRadius: '10px' }}>
         {foto}
       </div>
       
