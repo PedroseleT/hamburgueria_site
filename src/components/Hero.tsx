@@ -1,47 +1,106 @@
-﻿export default function Hero({ data, theme, contact }: any) {
+﻿import React from 'react';
+
+const Hero = () => {
   return (
-    <section className="relative h-screen w-full flex items-center justify-center overflow-hidden bg-black">
-      {/* Imagem de Fundo Ajustada */}
-      <div 
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-        style={{ 
-          backgroundImage: `url('${data.backgroundImage}')`,
-          filter: 'brightness(0.7)' // Deixa a imagem um pouco mais escura para o texto brilhar
-        }}
-      >
-        {/* Gradiente para suavizar as bordas igual ao site original */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40"></div>
-      </div>
-
-      {/* Conteúdo Centralizado */}
-      <div className="relative z-10 w-full max-w-7xl px-6 flex flex-col md:flex-row items-center justify-between gap-10">
-        <div className="text-left">
-          <h1 className="text-6xl md:text-[120px] font-[900] text-white leading-[0.8] tracking-tighter uppercase italic drop-shadow-2xl">
-            {data.headline.split(' ')[0]} <br />
-            <span className="text-white">{data.headline.split(' ')[1]}</span>
-          </h1>
-          <p className="mt-8 text-lg md:text-xl text-white font-bold uppercase tracking-[0.2em] max-w-md drop-shadow-md">
-            {data.subheadline}
-          </p>
-        </div>
-
-        {/* Botão de Pedido Estilo Selo */}
-        <div className="relative group">
-          <a 
-            href={`https://wa.me/${contact.whatsappNumber}`}
-            className="w-40 h-40 bg-[#d9c5a0] hover:bg-white text-black rounded-full flex items-center justify-center text-center font-black text-2xl leading-tight transition-all uppercase shadow-[0_0_30px_rgba(0,0,0,0.5)] hover:scale-110 active:scale-95"
-          >
-            Fazer <br /> Pedido
-          </a>
-        </div>
-      </div>
+    <section style={styles.heroContainer}>
+      <div style={styles.overlay} />
       
-      {/* Assinatura no Rodapé */}
-      <div className="absolute bottom-12 right-12 z-10 hidden md:block">
-        <p className="text-white font-serif text-4xl italic opacity-90 tracking-tight">
-          Thomas Troisgros
+      <div style={styles.content} className="fade-in-section">
+        <h1 style={styles.title}>PEDRO BURGUER GRILL</h1>
+        <h2 style={styles.subtitle}>O BRASIL EM CADA MORDIDA</h2>
+        <p style={styles.description}>
+          Experiência artesanal com fogo de verdade e ingredientes selecionados.
         </p>
+        <div style={styles.buttonGroup}>
+          <button className="btn-primary" style={styles.mainBtn}>VER CARDÁPIO</button>
+          <button style={styles.secondaryBtn}>NOSSA HISTÓRIA</button>
+        </div>
       </div>
+
+      {/* Overlay de Chamas Obrigatório */}
+      <div className="chamas-overlay" />
     </section>
   );
-}
+};
+
+const styles: { [key: string]: React.CSSProperties } = {
+  heroContainer: {
+    position: 'relative',
+    /* Ocupa a altura total da tela menos os 90px da Navbar */
+    height: 'calc(100vh - 90px)', 
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundImage: "url('/burger-destaque.jpg')",
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    overflow: 'hidden',
+  },
+  overlay: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)', 
+    zIndex: 1,
+  },
+  content: {
+    position: 'relative',
+    zIndex: 2,
+    textAlign: 'center',
+    padding: '0 20px',
+    maxWidth: '900px',
+  },
+  title: {
+    fontSize: 'clamp(2.5rem, 8vw, 5rem)',
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: '-2px',
+    lineHeight: '1',
+    marginBottom: '10px',
+    textShadow: '0 4px 20px rgba(0,0,0,0.8)',
+  },
+  subtitle: {
+    fontSize: 'clamp(1.2rem, 4vw, 2.5rem)',
+    color: '#b91c1c', 
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: '20px',
+  },
+  description: {
+    color: '#ccc',
+    fontSize: '1.1rem',
+    marginBottom: '35px',
+    maxWidth: '600px',
+    marginInline: 'auto',
+  },
+  buttonGroup: {
+    display: 'flex',
+    gap: '20px',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  mainBtn: {
+    padding: '18px 40px',
+    fontSize: '1.1rem',
+    backgroundColor: '#b91c1c',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: '0.3s',
+  },
+  secondaryBtn: {
+    padding: '18px 40px',
+    fontSize: '1.1rem',
+    backgroundColor: 'transparent',
+    color: '#fff',
+    border: '1px solid #fff',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    transition: '0.3s',
+    fontWeight: '600',
+  }
+};
+
+export default Hero;
