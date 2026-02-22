@@ -5,7 +5,7 @@ import { MessageCircle } from 'lucide-react';
 export default function Home() {
 
   return (
-    <main style={{
+    <main className="main-container" style={{
       margin: 0,
       padding: 0,
       paddingTop: '80px',
@@ -49,11 +49,40 @@ export default function Home() {
           position: relative;
           z-index: 2;
         }
+
+        /* 📱 AJUSTES MOBILE */
+        @media (max-width: 768px) {
+          .hero-section {
+            height: 70vh !important;
+            background-position: center center !important;
+            justify-content: center !important;
+          }
+
+          .hero-content {
+            padding-right: 0 !important;
+            justify-content: center !important;
+            text-align: center !important;
+          }
+
+          .hero-text {
+            text-align: center !important;
+            max-width: 100% !important;
+          }
+
+          .cardapio-grid {
+            grid-template-columns: 1fr !important;
+            padding: 0 10px;
+          }
+
+          .banner-title {
+            font-size: 28px !important;
+          }
+        }
       `}</style>
 
       {/* ================= HERO ================= */}
 
-      <section style={{
+      <section className="hero-section" style={{
         position: 'relative',
         height: '90vh',
         width: '100%',
@@ -66,36 +95,7 @@ export default function Home() {
         backgroundRepeat: 'no-repeat'
       }}>
         
-        <header style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '20px 60px',
-          zIndex: 10
-        }}>
-          <div>
-            <div style={{
-              fontSize: '24px',
-              fontWeight: '900',
-              letterSpacing: '1px',
-              lineHeight: '1'
-            }}>
-              PEDRO BURGER<br />
-              <span style={{
-                fontSize: '12px',
-                letterSpacing: '5px'
-              }}>
-                GRILL
-              </span>
-            </div>
-          </div>
-        </header>
-
-        <div style={{
+        <div className="hero-content" style={{
           width: '100%',
           display: 'flex',
           justifyContent: 'flex-end',
@@ -103,7 +103,7 @@ export default function Home() {
           position: 'relative',
           zIndex: 3
         }}>
-          <div style={{
+          <div className="hero-text" style={{
             textAlign: 'right',
             maxWidth: '600px'
           }}>
@@ -132,11 +132,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ================= SEÇÃO CARDÁPIO COM BOTÃO ADICIONADO ================= */}
+      {/* ================= SEÇÃO CARDÁPIO ================= */}
 
       <section id="cardapio" style={{
         padding: '120px 20px 80px',
-        backgroundColor: '#0a0a0a',
+        backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
         textAlign: 'center'
       }}>
         <span style={{
@@ -146,13 +149,12 @@ export default function Home() {
         
         <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 50px 0' }}>CARDÁPIO</h2>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="cardapio-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' }}>
           <Card />
           <Card />
           <Card />
         </div>
 
-        {/* BOTÃO VER CARDÁPIO COMPLETO */}
         <div style={{ marginTop: '60px' }}>
           <a href="/cardapio" style={{
             display: 'inline-block',
@@ -188,7 +190,7 @@ export default function Home() {
         alignItems: 'center',
         justifyContent: 'center'
       }}>
-        <h2 style={{ fontSize: '45px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'center' }}>
+        <h2 className="banner-title" style={{ fontSize: '45px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'center' }}>
           PREPARE-SE PARA O EXAGERO!
         </h2>
         <button style={btnOrderNow}>FAZER PEDIDO AGORA</button>
@@ -213,7 +215,7 @@ function Card() {
   );
 }
 
-const cardStyle: React.CSSProperties = { backgroundColor: 'rgba(17, 17, 17, 0.95)', padding: '40px 30px', borderRadius: '15px', textAlign: 'center', border: '1px solid #222' };
+const cardStyle: React.CSSProperties = { backgroundColor: 'rgba(17, 17, 17, 0.95)', padding: '40px 30px', borderRadius: '15px', textAlign: 'center', border: '1px solid #333' };
 const imgStyle: React.CSSProperties = { width: '180px', marginBottom: '20px' };
 const titleCardStyle: React.CSSProperties = { fontSize: '20px', fontWeight: '900', marginBottom: '15px', textTransform: 'uppercase' };
 const textCardStyle: React.CSSProperties = { fontSize: '13px', color: '#ccc', marginBottom: '25px', lineHeight: '1.4' };
