@@ -164,18 +164,18 @@ export default function Home() {
         }}>
           <Card 
             foto="/piscina-cacador.png" 
-            nome="PISCINA CAÇADOR" 
-            desc="Hambúrguer artesanal coberto com uma generosa piscina de cheddar e bacon crocante." 
+            nome="[Nome Produto]" 
+            desc="[Descrição]" 
           />
           <Card 
             foto="/piscina-cacador.png" 
-            nome="REI DA BRASA" 
-            desc="O clássico defumado na lenha com queijo prato, cebola caramelizada e maionese da casa." 
+            nome="[Nome Produto]" 
+            desc="[Descrição]" 
           />
           <Card 
             foto="/piscina-cacador.png" 
-            nome="DUPLO IMPACTO" 
-            desc="Para os fortes: dois blends de 180g, muito queijo e nossa exclusiva geleia de pimenta." 
+            nome="[Nome Produto]" 
+            desc="[Descrição]" 
           />
         </div>
 
