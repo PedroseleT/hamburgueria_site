@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("postgresql://neondb_owner:npg_wle6BNGUo7ZA@ep-silent-heart-ai91gvu8-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -38,22 +38,22 @@ model Restaurant {
 }
 
 model Menu {
-  id          String   @id @default(uuid())
-  name        String
-  price       Float
-  description String?
-  available   Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id           String   @id @default(uuid())
+  name         String
+  price        Float
+  description  String?
+  available    Boolean  @default(true)
+  createdAt    DateTime @default(now())
 
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   restaurantId String
 }
 
 model Order {
-  id        String   @id @default(uuid())
-  total     Float
-  status    String   @default("PENDING")
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  total        Float
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
 
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   restaurantId String
