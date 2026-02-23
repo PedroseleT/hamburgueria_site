@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -24,10 +25,8 @@ export default function LoginPage() {
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Erro ao entrar");
 
-      // Login sucesso! Redireciona para o cardápio ou home
       router.push("/cardapio");
       router.refresh();
     } catch (err: any) {
@@ -38,58 +37,67 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4">
-      <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-lg">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-zinc-900">Bem-vindo de volta!</h2>
-          <p className="mt-2 text-zinc-600">Entre na sua conta para fazer seu pedido</p>
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4">
+      <div className="w-full max-w-md space-y-6 rounded-2xl bg-zinc-900 p-8 shadow-2xl border border-zinc-800">
+        
+        {/* LOGO AREA */}
+        <div className="flex flex-col items-center">
+          <div className="w-24 h-24 mb-4 relative">
+             {/* Substitua pelo caminho real da sua logo se preferir */}
+            <div className="text-4xl text-center">🔥</div> 
+            <h1 className="text-white font-bold text-xl mt-2 tracking-widest uppercase">The Flame Grill</h1>
+          </div>
+          <h2 className="text-zinc-400 text-sm">Acesse sua conta para pedir</h2>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+        <form className="space-y-5" onSubmit={handleLogin}>
           {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-500 border border-red-200">
+            <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-500 border border-red-500/20 text-center">
               {error}
             </div>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-700">E-mail</label>
-              <input
-                type="email"
-                required
-                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700">Senha</label>
-              <input
-                type="password"
-                required
-                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 ml-1">E-mail</label>
+            <input
+              type="email"
+              required
+              placeholder="exemplo@email.com"
+              className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-3 text-white placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 ml-1">Senha</label>
+            <input
+              type="password"
+              required
+              placeholder="••••••••"
+              className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-3 text-white placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-orange-600 px-4 py-2 text-white font-semibold hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+            className="w-full rounded-xl bg-orange-600 py-3 text-white font-bold uppercase tracking-widest hover:bg-orange-700 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-orange-900/20"
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? "Carregando..." : "Entrar"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-zinc-600">
-          Não tem uma conta?{" "}
-          <Link href="/register" className="font-medium text-orange-600 hover:underline">
-            Cadastre-se aqui
-          </Link>
-        </p>
+        <div className="text-center pt-2">
+          <p className="text-sm text-zinc-500">
+            Ainda não tem conta?{" "}
+            <Link href="/register" className="font-bold text-orange-500 hover:text-orange-400 underline-offset-4 hover:underline">
+              Cadastre-se
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

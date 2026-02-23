@@ -1,3 +1,4 @@
+import "./globals.css"; // A linha que traz o Tailwind para o projeto
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import './globals.css';
