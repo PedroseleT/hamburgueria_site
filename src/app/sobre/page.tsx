@@ -53,11 +53,7 @@ export default function Sobre() {
           fontFamily: '"Oswald", sans-serif',
           textAlign: 'justify'
         }}>
-          A <strong>Pedro Burguer Grill</strong> nasceu da paixão pelo fogo e pela carne de qualidade. 
-          Nossa missão é trazer o verdadeiro sabor do grill para cada cliente, utilizando processos 
-          artesanais e ingredientes selecionados que garantem uma experiência única em cada mordida.
-          O Brasil está presente em nossa essência e no cuidado com que preparamos cada hambúrguer 
-          em nossa grelha.
+          [descrição]
         </p>
       </section>
     </main>
