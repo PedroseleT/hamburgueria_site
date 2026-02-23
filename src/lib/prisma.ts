@@ -1,11 +1,18 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client'
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// 1. Tipagem para o objeto global não dar erro de "property prisma does not exist"
+interface CustomGlobal extends Global {
+  prisma: PrismaClient
+}
 
+declare const global: CustomGlobal
+
+// 2. Criar a instância de forma segura
 export const prisma =
-  globalForPrisma.prisma ||
+  global.prisma ||
   new PrismaClient({
-    log: ["query"],
-  });
+    log: ['error'],
+  })
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// 3. Em desenvolvimento, salva no global para não estourar o limite de conexões do Neon
+if (process.env.NODE_ENV !== 'production') global.prisma = prisma
