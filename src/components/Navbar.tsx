@@ -1,99 +1,109 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Facebook, Instagram, MessageCircle, Menu, X } from 'lucide-react';
+import { Menu, X, ShoppingCart, User } from 'lucide-react';
+import { useCart } from "@/context/CartContext";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLogged, setIsLogged] = useState(false);
   const pathname = usePathname();
-  const isActive = (path: string) => pathname === path;
+  const { cart } = useCart();
+
+  const totalItens = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+  useEffect(() => {
+    const session = document.cookie.includes("user_session");
+    setIsLogged(session);
+  }, [pathname]);
+
+  // Fecha o menu ao mudar de página
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
 
   return (
     <nav style={navStyle}>
-      <div style={containerStyle} className="nav-container">
-        {/* LOGO */}
-        <Link href="/">
+      <div style={containerStyle}>
+        {/* LADO ESQUERDO: LOGO */}
+        <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
           <img 
             src="/logo_hamburgueria.png" 
-            alt="Logo" 
-            style={{ height: "50px", width: "auto", cursor: "pointer" }} 
+            alt="Pedro Burger Grill" 
+            style={{ height: "65px", width: "auto", cursor: "pointer" }} 
           />
         </Link>
 
-        {/* BOTÃO HAMBÚRGUER */}
-        <button 
-          onClick={() => setIsOpen(!isOpen)}
-          style={menuButtonStyle}
-          className="mobile-menu-btn"
-        >
-          {isOpen ? <X size={30} /> : <Menu size={30} />}
-        </button>
-
-        {/* LINKS + SOCIAIS */}
-        <div style={{ 
-          ...navLinksContainerStyle, 
-          display: isOpen ? "flex" : "none" 
-        }} className="nav-menu">
-          <div style={linksGroupStyle} className="links-group">
-            <Link href="/" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/") ? "#b91c1c" : "transparent" }}>Início</Link>
-            <Link href="/cardapio" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/cardapio") ? "#b91c1c" : "transparent" }}>Cardápio</Link>
-            <Link href="/sobre" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/sobre") ? "#b91c1c" : "transparent" }}>Sobre Nós</Link>
-            <Link href="/contato" onClick={() => setIsOpen(false)} style={{ ...linkStyle, backgroundColor: isActive("/contato") ? "#b91c1c" : "transparent" }}>Fale Conosco</Link>
+        {/* LADO DIREITO: CARRINHO + MENU (MOBILE) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          
+          {/* ÍCONE DO CARRINHO - SEMPRE VISÍVEL NO MOBILE AO LADO DO MENU */}
+          <div className="mobile-cart-visible">
+            <Link href="/carrinho" style={{ color: "#fff", position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <ShoppingCart size={30} />
+              {totalItens > 0 && <span style={badgeStyle}>{totalItens}</span>}
+            </Link>
           </div>
 
-          <div style={socialGroupStyle} className="social-group">
-            <a href="#" style={{ color: "#fff" }}><Facebook size={22} /></a>
-            <a href="#" style={{ color: "#fff" }}><Instagram size={22} /></a>
-            <a href="#" style={{ color: "#fff" }}><MessageCircle size={22} /></a>
+          {/* BOTÃO TRÊS PONTINHOS */}
+          <button 
+            onClick={() => setIsOpen(!isOpen)} 
+            style={menuButtonStyle} 
+            className="mobile-btn"
+          >
+            {isOpen ? <X size={35} color="#b91c1c" /> : <Menu size={35} color="#fff" />}
+          </button>
+        </div>
+
+        {/* MENU QUE ABRE/FECHA */}
+        <div style={{ ...navLinksContainerStyle, display: isOpen ? "flex" : "none" }} className="nav-menu">
+          <div style={linksGroupStyle} className="links-group">
+            <Link href="/" style={linkStyle(pathname === "/")}>INÍCIO</Link>
+            <Link href="/cardapio" style={linkStyle(pathname === "/cardapio")}>CARDÁPIO</Link>
+            <Link href="/sobre" style={linkStyle(pathname === "/sobre")}>SOBRE NÓS</Link>
+            <Link href="/contato" style={linkStyle(pathname === "/contato")}>FALE CONOSCO</Link>
+          </div>
+
+          <div style={actionGroupStyle} className="action-group">
+            <Link href={isLogged ? "/perfil" : "/login"} style={{ color: "#fff", display: 'flex', alignItems: 'center' }}>
+              <User size={28} style={{ color: isLogged ? "#b91c1c" : "#fff" }} />
+              <span className="mobile-label">MINHA CONTA</span>
+            </Link>
+            
+            {/* Carrinho dentro do menu Desktop */}
+            <Link href="/carrinho" className="desktop-cart-only" style={{ color: "#fff", position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <ShoppingCart size={28} />
+              {totalItens > 0 && <span style={badgeStyle}>{totalItens}</span>}
+            </Link>
           </div>
         </div>
       </div>
 
       <style jsx>{`
-        @media (min-width: 769px) {
+        /* MOBILE FIRST ADJUSTMENTS */
+        .mobile-cart-visible { display: flex; }
+        .desktop-cart-only { display: none; }
+        .mobile-label { display: none; }
+
+        @media (max-width: 991px) {
           .nav-menu {
-            display: flex !important;
-            flex-direction: row !important;
-            position: static !important;
-            background: transparent !important;
-            width: auto !important;
-            height: auto !important;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            background: #000; flex-direction: column !important; 
+            justify-content: center !important; align-items: center !important;
+            gap: 40px !important; z-index: 999;
           }
-          .mobile-menu-btn { display: none !important; }
+          .links-group { flex-direction: column; gap: 20px; align-items: center; }
+          .action-group { border: none !important; padding: 0 !important; flex-direction: column; gap: 20px; }
+          .mobile-label { display: inline; margin-left: 10px; font-weight: bold; font-size: 18px; }
+          .mobile-btn { z-index: 1001; position: relative; }
         }
 
-        @media (max-width: 768px) {
-          .nav-container {
-            justify-content: flex-start !important;
-            gap: 15px !important;
-          }
-          .nav-menu {
-            position: absolute;
-            top: 80px;
-            left: 0;
-            width: 100%;
-            background: #000;
-            flex-direction: column !important;
-            padding: 40px 20px;
-            gap: 30px;
-            border-bottom: 3px solid #b91c1c;
-            align-items: center;
-          }
-          .links-group {
-            flex-direction: column;
-            width: 100%;
-            align-items: center;
-          }
-          .social-group {
-            border-left: none !important; /* REMOVE A LINHA NO MOBILE */
-            padding-left: 0 !important;
-            justify-content: center !important;
-            width: 100%;
-          }
-          .mobile-menu-btn {
-            display: block !important;
-          }
+        /* DESKTOP ADJUSTMENTS */
+        @media (min-width: 992px) {
+          .nav-menu { display: flex !important; }
+          .mobile-btn, .mobile-cart-visible { display: none !important; }
+          .desktop-cart-only { display: flex !important; }
         }
       `}</style>
     </nav>
@@ -101,23 +111,36 @@ export default function Navbar() {
 }
 
 const navStyle: React.CSSProperties = {
-  width: "100%", height: "80px", backgroundColor: "#000", display: "flex", justifyContent: "center", position: "fixed", zIndex: 1000, top: 0, left: 0
+  width: "100%", height: "90px", backgroundColor: "#000", display: "flex", 
+  justifyContent: "center", position: "fixed", zIndex: 1000, top: 0, left: 0,
+  borderBottom: "1px solid #1a1a1a"
 };
 
 const containerStyle: React.CSSProperties = {
-  width: "100%", maxWidth: "1250px", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 20px"
+  width: "100%", maxWidth: "1300px", display: "flex", justifyContent: "space-between", 
+  alignItems: "center", padding: "0 20px"
 };
 
-const navLinksContainerStyle: React.CSSProperties = { alignItems: "center", gap: "30px" };
+const navLinksContainerStyle: React.CSSProperties = { alignItems: "center", gap: "40px" };
+const linksGroupStyle: React.CSSProperties = { display: "flex", gap: "5px" };
+const menuButtonStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", display: 'flex', alignItems: 'center' };
 
-const linksGroupStyle: React.CSSProperties = { display: "flex", gap: "10px" };
+const linkStyle = (active: boolean): React.CSSProperties => ({
+  color: active ? "#b91c1c" : "#fff",
+  textDecoration: "none",
+  fontSize: "16px",
+  textTransform: "uppercase",
+  padding: "10px 15px",
+  fontWeight: "900",
+  letterSpacing: "1.5px"
+});
 
-const menuButtonStyle: React.CSSProperties = { background: "none", border: "none", color: "#fff", cursor: "pointer", padding: "5px" };
-
-const linkStyle: React.CSSProperties = {
-  color: "#fff", textDecoration: "none", fontSize: "14px", textTransform: "uppercase", padding: "10px 20px", borderRadius: "4px", fontWeight: "bold"
+const actionGroupStyle: React.CSSProperties = {
+  display: "flex", gap: "30px", borderLeft: "2px solid #1a1a1a", paddingLeft: "30px", alignItems: 'center'
 };
 
-const socialGroupStyle: React.CSSProperties = {
-  display: "flex", gap: "20px", borderLeft: "1px solid #333", paddingLeft: "20px"
+const badgeStyle: React.CSSProperties = {
+  position: 'absolute', top: '-8px', right: '-12px', backgroundColor: '#b91c1c',
+  color: '#fff', borderRadius: '50%', width: '20px', height: '20px',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold'
 };

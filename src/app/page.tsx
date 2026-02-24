@@ -1,8 +1,52 @@
 "use client";
 
 import { MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+import { useCart } from '@/context/CartContext';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const { addToCart } = useCart();
+  const router = useRouter();
+
+  const produtos = [
+    {
+      id: "1",
+      nome: "Bacon Handcrafted",
+      desc: "Blend bovino 180g, camadas generosas de queijo cheddar derretido e bacon crocante no pão brioche artesanal.",
+      preco: 38.90,
+      foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg"
+    },
+    {
+      id: "2",
+      nome: "Smoky Texas Grill",
+      desc: "Hambúrguer grelhado na brasa, bacon rústico, queijo prato e molho especial defumado com toque de ervas.",
+      preco: 42.00,
+      foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg"
+    },
+    {
+      id: "3",
+      nome: "Double Cheddar Board",
+      desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.",
+      preco: 45.90,
+      foto: "/still-life-delicious-american-hamburger.jpg"
+    }
+  ];
+
+  // Lógica profissional sem Pop-up
+  const handleAddToCart = (p: any) => {
+    const isLogged = document.cookie.includes("user_session");
+
+    if (!isLogged) {
+      // Se não estiver logado, vai direto para o login sem avisos irritantes
+      router.push("/login?callback=/"); 
+      return;
+    }
+
+    addToCart({ id: p.id, name: p.nome, price: p.preco, image: p.foto });
+    // Opcional: Redirecionar para o carrinho após adicionar, ou apenas deixar o ícone atualizar
+    router.push("/carrinho");
+  };
 
   return (
     <main className="main-container" style={{
@@ -62,7 +106,6 @@ export default function Home() {
           box-shadow: 0 0 20px rgba(185, 28, 28, 0.4);
         }
 
-        /* 📱 AJUSTE MOBILE - CORREÇÃO DE CENTRALIZAÇÃO */
         @media (max-width: 768px) {
           .hero-section {
             height: 85vh !important;
@@ -189,38 +232,33 @@ export default function Home() {
           maxWidth: '1200px', 
           margin: '0 auto' 
         }}>
-          <Card 
-            foto="[Foto Produto]" 
-            nome="[Nome/Foto Produto]" 
-            desc="[Descrição]" 
-          />
-          <Card 
-            foto="[Foto Produto]" 
-            nome="[Nome/Foto Produto]" 
-            desc="[Descrição]" 
-          />
-          <Card 
-            foto="[Foto Produto]" 
-            nome="[Nome/Foto Produto]" 
-            desc="[Descrição]" 
-          />
+          {produtos.map((p) => (
+            <Card 
+              key={p.id}
+              foto={p.foto} 
+              nome={p.nome} 
+              desc={p.desc}
+              preco={p.preco}
+              onAdd={() => handleAddToCart(p)}
+            />
+          ))}
         </div>
 
         <div style={{ marginTop: '70px' }}>
-          <a href="/cardapio" className="btn-cardapio-completo">
+          <Link href="/cardapio" className="btn-cardapio-completo">
             VER CARDÁPIO COMPLETO
-          </a>
+          </Link>
         </div>
       </section>
 
-      <a href="https://wa.me/seunumero" target="_blank" style={whatsappFloat}>
+      <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer" style={whatsappFloat}>
         <MessageCircle size={35} color="#fff" />
       </a>
     </main>
   );
 }
 
-function Card({ foto, nome, desc }: { foto: string, nome: string, desc: string }) {
+function Card({ foto, nome, desc, preco, onAdd }: any) {
   return (
     <div style={{
       backgroundColor: 'rgba(17, 17, 17, 0.95)',
@@ -230,25 +268,52 @@ function Card({ foto, nome, desc }: { foto: string, nome: string, desc: string }
       border: '1px solid #333',
       transition: '0.3s'
     }}>
-      <div style={{ width: '100%', height: '200px', backgroundColor: '#333', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontWeight: 'bold', borderRadius: '10px' }}>
-        {foto}
+      <div style={{ width: '100%', height: '220px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: '10px' }}>
+        <img 
+            src={foto} 
+            alt={nome} 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/400x300/333/999?text=SEM+FOTO"; }} 
+        />
       </div>
       
-      <h3 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '15px', textTransform: 'uppercase', color: '#fff' }}>{nome}</h3>
-      <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '25px', lineHeight: '1.6', minHeight: '45px' }}>{desc}</p>
-      <button style={{
-        padding: '10px 25px',
-        backgroundColor: 'transparent',
-        border: '2px solid #fff',
-        color: '#fff',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        textTransform: 'uppercase'
-      }}>
+      <h3 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '10px', textTransform: 'uppercase', color: '#fff' }}>{nome}</h3>
+      <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '15px', lineHeight: '1.6', minHeight: '45px' }}>{desc}</p>
+      
+      <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#b91c1c', marginBottom: '20px' }}>
+        R$ {preco.toFixed(2).replace('.', ',')}
+      </div>
+
+      <button 
+        onClick={onAdd}
+        style={{
+          padding: '12px 25px',
+          backgroundColor: 'transparent',
+          border: '2px solid #b91c1c',
+          color: '#fff',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          textTransform: 'uppercase',
+          transition: '0.3s',
+          width: '100%',
+          borderRadius: '5px'
+        }}
+        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#b91c1c')}
+        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+      >
         PEDIR AGORA
       </button>
     </div>
   );
 }
 
-const whatsappFloat: React.CSSProperties = { position: 'fixed', bottom: '30px', right: '30px', backgroundColor: '#25d366', padding: '15px', borderRadius: '50%', zIndex: 1000 };
+const whatsappFloat: React.CSSProperties = { 
+    position: 'fixed', 
+    bottom: '30px', 
+    right: '30px', 
+    backgroundColor: '#25d366', 
+    padding: '15px', 
+    borderRadius: '50%', 
+    zIndex: 1000,
+    boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+};

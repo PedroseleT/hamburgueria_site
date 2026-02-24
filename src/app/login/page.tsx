@@ -1,104 +1,112 @@
 "use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  // PROTEÇÃO: Se já estiver logado, não deixa ficar na página de login
+  useEffect(() => {
+    const hasSession = document.cookie.includes("user_session");
+    if (hasSession) {
+      router.push("/");
+    }
+  }, [router]);
+
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData);
 
     try {
-      const res = await fetch("/api/login", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" }
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao entrar");
+      const result = await response.json();
 
-      router.push("/cardapio");
-      router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+      if (response.ok) {
+        // Redireciona e atualiza a página para a Navbar notar o login
+        router.push("/");
+        router.refresh();
+      } else {
+        setError(result.error || "Falha ao entrar. Verifique seus dados.");
+      }
+    } catch (err) {
+      setError("Erro de conexão com o servidor.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4">
-      <div className="w-full max-w-md space-y-6 rounded-2xl bg-zinc-900 p-8 shadow-2xl border border-zinc-800">
-        
-        {/* LOGO AREA */}
-        <div className="flex flex-col items-center">
-          <div className="w-24 h-24 mb-4 relative">
-             {/* Substitua pelo caminho real da sua logo se preferir */}
-            <div className="text-4xl text-center">🔥</div> 
-            <h1 className="text-white font-bold text-xl mt-2 tracking-widest uppercase">The Flame Grill</h1>
-          </div>
-          <h2 className="text-zinc-400 text-sm">Acesse sua conta para pedir</h2>
+    <div style={containerStyle}>
+      <div style={cardStyle}>
+        <div style={logoContainer}>
+          <span style={{ fontSize: "40px" }}>🔥</span>
+          <h1 style={brandStyle}>ENTRAR</h1>
+          <p style={subtitleStyle}>Acesse sua conta para pedir</p>
         </div>
 
-        <form className="space-y-5" onSubmit={handleLogin}>
-          {error && (
-            <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-500 border border-red-500/20 text-center">
-              {error}
-            </div>
-          )}
+        {error && (
+          <div style={errorBoxStyle}>
+            {error}
+          </div>
+        )}
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 ml-1">E-mail</label>
-            <input
-              type="email"
-              required
-              placeholder="exemplo@email.com"
-              className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-3 text-white placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+        <form style={formStyle} onSubmit={handleLogin}>
+          <div style={inputGroup}>
+            <label style={labelStyle}>E-MAIL</label>
+            <input name="email" type="email" placeholder="seu@email.com" style={inputStyle} required />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 ml-1">Senha</label>
-            <input
-              type="password"
-              required
-              placeholder="••••••••"
-              className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-3 text-white placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+          <div style={inputGroup}>
+            <label style={labelStyle}>SENHA</label>
+            <input name="password" type="password" placeholder="••••••••" style={inputStyle} required />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-orange-600 py-3 text-white font-bold uppercase tracking-widest hover:bg-orange-700 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-orange-900/20"
-          >
-            {loading ? "Carregando..." : "Entrar"}
+          <button type="submit" style={buttonStyle} disabled={loading}>
+            {loading ? "CARREGANDO..." : "ENTRAR"}
           </button>
         </form>
 
-        <div className="text-center pt-2">
-          <p className="text-sm text-zinc-500">
-            Ainda não tem conta?{" "}
-            <Link href="/register" className="font-bold text-orange-500 hover:text-orange-400 underline-offset-4 hover:underline">
-              Cadastre-se
-            </Link>
-          </p>
-        </div>
+        <p style={footerTextStyle}>
+          Ainda não tem conta? <Link href="/register" style={linkStyle}>Cadastre-se</Link>
+        </p>
       </div>
     </div>
   );
 }
+
+// ESTILOS MANTIDOS E ALINHADOS COM A MARCA
+const errorBoxStyle: React.CSSProperties = {
+  backgroundColor: "rgba(185, 28, 28, 0.1)",
+  color: "#b91c1c",
+  padding: "10px",
+  borderRadius: "4px",
+  fontSize: "13px",
+  marginBottom: "20px",
+  border: "1px solid #b91c1c",
+  textAlign: "center"
+};
+
+const containerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 20px 40px 20px" };
+const cardStyle: React.CSSProperties = { backgroundColor: "#0a0a0a", padding: "50px 40px", borderRadius: "8px", width: "100%", maxWidth: "420px", border: "1px solid #1a1a1a", textAlign: "center" };
+const brandStyle: React.CSSProperties = { color: "#fff", fontSize: "28px", fontWeight: "900", letterSpacing: "3px", margin: "10px 0" };
+const subtitleStyle: React.CSSProperties = { color: "#666", fontSize: "13px", marginBottom: "40px", textTransform: "uppercase" };
+const formStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: "25px" };
+const inputGroup: React.CSSProperties = { textAlign: "left" };
+const labelStyle: React.CSSProperties = { color: "#999", fontSize: "11px", fontWeight: "bold", marginBottom: "10px", display: "block" };
+const inputStyle: React.CSSProperties = { width: "100%", padding: "15px", backgroundColor: "#111", border: "1px solid #222", borderRadius: "4px", color: "#fff", outline: "none" };
+const buttonStyle: React.CSSProperties = { backgroundColor: "#b91c1c", color: "#fff", padding: "16px", borderRadius: "4px", fontWeight: "bold", border: "none", cursor: "pointer", marginTop: "15px" };
+const footerTextStyle: React.CSSProperties = { color: "#555", fontSize: "13px", marginTop: "30px" };
+const linkStyle: React.CSSProperties = { color: "#b91c1c", fontWeight: "bold", textDecoration: "none" };
+const logoContainer: React.CSSProperties = { marginBottom: "10px" };

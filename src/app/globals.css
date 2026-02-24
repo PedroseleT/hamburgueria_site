@@ -1,9 +1,17 @@
-/* src/app/globals.css */
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;700;900&display=swap');
+@import "tailwindcss";
 
-:root {
-  --background: #0a0a0a;
+@theme {
+  --color-primary-red: #b91c1c;
+  --font-oswald: var(--font-oswald);
 }
+
+/* O resto do seu CSS (flame-overlay, btn-cardapio-completo, etc.) continua igual abaixo */
+
+/* O resto do seu CSS original aqui embaixo */
+
+/* Mantenha o resto do seu código original abaixo */
+
+/* Mantenha o restante do seu CSS original abaixo */
 
 * {
   box-sizing: border-box;

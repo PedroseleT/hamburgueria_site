@@ -12,48 +12,50 @@ enum Role {
   ADMIN
 }
 
-model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(CLIENT)
-  createdAt DateTime @default(now())
+// Fique atento ao modelo User e Restaurant abaixo:
 
+model User {
+  id       String  @id @default(cuid())
+  name     String
+  email    String  @unique
+  phone    String? // Campo de telefone adicionado
+  password String
+  role     String  @default("CLIENT")
+
+  // ESSA LINHA RESOLVE O ERRO P1012:
   restaurant Restaurant?
+
+  createdAt DateTime @default(now())
 }
 
 model Restaurant {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  phone       String
-  createdAt   DateTime @default(now())
+  id   String @id @default(cuid())
+  name String
+  // ... outros campos que você já tenha ...
 
-  owner   User   @relation(fields: [ownerId], references: [id])
-  ownerId String @unique
-
-  menus  Menu[]
-  orders Order[]
+  owner   User    @relation(fields: [ownerId], references: [id])
+  ownerId String  @unique
+  Menu    Menu[]
+  Order   Order[]
 }
 
 model Menu {
-  id           String   @id @default(uuid())
-  name         String
-  price        Float
-  description  String?
-  available    Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id          String   @id @default(uuid())
+  name        String
+  price       Float
+  description String?
+  available   Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   restaurantId String
 }
 
 model Order {
-  id           String   @id @default(uuid())
-  total        Float
-  status       String   @default("PENDING")
-  createdAt    DateTime @default(now())
+  id        String   @id @default(uuid())
+  total     Float
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
 
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   restaurantId String

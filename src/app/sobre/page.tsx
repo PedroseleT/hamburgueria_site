@@ -11,55 +11,44 @@ export default function Sobre() {
       margin: 0,
       padding: 0,
       width: '100%',
-      overflowX: 'hidden'
+      overflowX: 'hidden',
+      paddingTop: '80px'
     }}>
-      {/* SEÇÃO DE CABEÇALHO COM IMAGEM DE FUNDO */}
+      {/* CABEÇALHO */}
       <section style={headerSection}>
-        <h1 style={{ 
-          fontSize: 'clamp(40px, 8vw, 80px)', 
-          fontWeight: '900', 
-          color: '#b91c1c', 
-          fontFamily: 'Impact, sans-serif',
-          margin: 0,
-          textTransform: 'uppercase'
-        }}>
-          SOBRE NÓS
-        </h1>
+        <span style={subtitleStyle}>Conheça nossa</span>
+        <h1 style={titleStyle}>HISTÓRIA</h1>
       </section>
 
-      {/* CONTEÚDO DE TEXTO */}
-      <section style={{ 
-        padding: '80px 20px', 
-        maxWidth: '900px', 
-        margin: '0 auto', 
-        textAlign: 'center' 
-      }}>
-        <div style={{ marginBottom: '30px' }}>
-          <span style={{ 
-            color: '#fff', 
-            fontSize: '18px', 
-            textTransform: 'uppercase', 
-            letterSpacing: '4px',
-            fontWeight: '300'
-          }}>
-            Nossa História
+      {/* CONTEÚDO COM TEXTO E FOTO */}
+      <section style={contentSectionStyle}>
+        
+        {/* LADO ESQUERDO: TEXTO */}
+        <div style={textContainerStyle}>
+          <p style={paragraphStyle}>
+            A **Pedro Burger Grill** nasceu do desejo de resgatar a essência do churrasco feito na brasa e transformá-la em uma experiência única entre dois pães artesanais. Localizada no coração da cidade, nossa jornada começou com um objetivo simples, mas ambicioso.
+          </p>
+          <p style={paragraphStyle}>
+            Diferente das grandes redes, aqui o tempo corre de outra forma. Respeitamos o ponto da carne, selecionamos cada blend diariamente e utilizamos apenas ingredientes frescos de produtores locais.
+          </p>
+          <p style={paragraphStyle}>
+            Para nós, cada hambúrguer é um compromisso com o seu paladar. Não entregamos apenas comida; entregamos dedicação, suculência e o orgulho de sermos especialistas no que fazemos.
+          </p>
+        </div>
+
+        {/* LADO DIREITO: ESPAÇO PARA FOTO */}
+        <div style={photoPlaceholderStyle}>
+          <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#666' }}>
+            SUA FOTO AQUI
           </span>
         </div>
-        
-        <p style={{ 
-          fontSize: '22px', 
-          lineHeight: '1.8', 
-          color: '#ccc',
-          fontFamily: '"Oswald", sans-serif',
-          textAlign: 'justify'
-        }}>
-          [descrição]
-        </p>
+
       </section>
     </main>
   );
 }
 
+// ESTILOS ATUALIZADOS
 const headerSection: React.CSSProperties = {
   height: "400px",
   width: "100%",
@@ -71,4 +60,60 @@ const headerSection: React.CSSProperties = {
   backgroundSize: "cover",
   backgroundPosition: "center",
   margin: 0
+};
+
+const contentSectionStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap', // Para ficar um embaixo do outro no celular
+  gap: '40px',
+  padding: '80px 20px',
+  maxWidth: '1100px',
+  margin: '0 auto',
+  alignItems: 'center',
+  justifyContent: 'center'
+};
+
+const textContainerStyle: React.CSSProperties = {
+  flex: '1',
+  minWidth: '300px'
+};
+
+const photoPlaceholderStyle: React.CSSProperties = {
+  flex: '1',
+  minWidth: '300px',
+  height: '400px',
+  backgroundColor: '#1a1a1a', // Cinza escuro
+  border: '2px dashed #333', // Borda tracejada para indicar placeholder
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: '10px'
+};
+
+const paragraphStyle: React.CSSProperties = {
+  fontSize: '20px',
+  lineHeight: '1.6',
+  color: '#ccc',
+  fontFamily: '"Oswald", sans-serif',
+  textAlign: 'justify',
+  marginBottom: '20px'
+};
+
+const subtitleStyle: React.CSSProperties = { 
+  color: '#fff', 
+  fontSize: '18px', 
+  textTransform: 'uppercase', 
+  fontWeight: 'bold', 
+  letterSpacing: '4px', 
+  display: 'block', 
+  marginBottom: '5px' 
+};
+
+const titleStyle: React.CSSProperties = { 
+  fontSize: 'clamp(40px, 8vw, 80px)', 
+  fontWeight: '900', 
+  color: '#b91c1c', 
+  margin: 0,
+  textTransform: 'uppercase',
+  fontFamily: 'Impact, sans-serif'
 };
