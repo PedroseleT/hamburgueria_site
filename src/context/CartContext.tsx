@@ -8,13 +8,19 @@ interface CartItem {
   price: number;
   image: string;
   quantity: number;
+  customization?: {
+    molhos?: string[];
+    extras?: string[];
+    obs?: string;
+  };
 }
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (item: Omit<CartItem, "quantity">) => void;
+  addToCart: (product: CartItem) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
+  updateItemCustomization: (id: string, newCustomization: any, newPrice: number) => void;
   clearCart: () => void;
 }
 
@@ -23,34 +29,27 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Carregar carrinho do localStorage ao iniciar
   useEffect(() => {
-    const savedCart = localStorage.getItem("cart");
+    const savedCart = localStorage.getItem("pedro-burger-cart");
     if (savedCart) setCart(JSON.parse(savedCart));
   }, []);
 
-  // Salvar no localStorage sempre que mudar
   useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart));
+    localStorage.setItem("pedro-burger-cart", JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (newItem: Omit<CartItem, "quantity">) => {
-    // SEGUNDA TRAVA: Verifica se o cookie de sessão existe
-    const isLogged = typeof document !== 'undefined' && document.cookie.includes("user_session");
-    
-    if (!isLogged) {
-      // Se não estiver logado, não altera o estado do carrinho
-      return;
-    }
-
+  const addToCart = (product: CartItem) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === newItem.id);
+      const existing = prev.find((item) => 
+        item.id === product.id && 
+        JSON.stringify(item.customization) === JSON.stringify(product.customization)
+      );
       if (existing) {
         return prev.map((item) =>
-          item.id === newItem.id ? { ...item, quantity: item.quantity + 1 } : item
+          item === existing ? { ...item, quantity: item.quantity + product.quantity } : item
         );
       }
-      return [...prev, { ...newItem, quantity: 1 }];
+      return [...prev, product];
     });
   };
 
@@ -59,19 +58,23 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const updateQuantity = (id: string, quantity: number) => {
-    if (quantity < 1) {
-      removeFromCart(id);
-      return;
-    }
     setCart((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+      prev.map((item) => (item.id === id ? { ...item, quantity: Math.max(1, quantity) } : item))
+    );
+  };
+
+  const updateItemCustomization = (id: string, newCustomization: any, newPrice: number) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, customization: newCustomization, price: newPrice } : item
+      )
     );
   };
 
   const clearCart = () => setCart([]);
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart }}>
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, updateItemCustomization, clearCart }}>
       {children}
     </CartContext.Provider>
   );

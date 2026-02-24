@@ -3,7 +3,7 @@ import { Oswald } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { CartProvider } from "@/context/CartContext"; // Adicionado
+import { CartProvider } from "../context/CartContext";
 
 const oswald = Oswald({
   subsets: ["latin"],
