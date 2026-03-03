@@ -10,77 +10,80 @@ export default function RegisterPage() {
   const [codes, setCodes] = useState({ server: "", user: "" });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Validação profissional campo a campo
+  // Validação robusta campo a campo
   const validate = () => {
     let newErrors: { [key: string]: string } = {};
 
     if (!formData.name.trim()) newErrors.name = "O nome é obrigatório.";
-    if (!formData.email.includes("@")) newErrors.email = "E-mail inválido.";
-    if (formData.phone.length < 10) newErrors.phone = "Número de WhatsApp inválido.";
-    if (!status.verified) newErrors.phone = "Você precisa validar o WhatsApp primeiro.";
+    if (!formData.email.includes("@")) newErrors.email = "Digite um e-mail válido.";
+    if (!status.verified) newErrors.email = "Você precisa validar seu e-mail com o código primeiro.";
     if (formData.password.length < 6) newErrors.password = "A senha deve ter pelo menos 6 caracteres.";
+    
+    // Telefone opcional, mas se preencher, validamos o tamanho mínimo
+    if (formData.phone && formData.phone.length < 10) {
+        newErrors.phone = "Número de telefone inválido.";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Envio do código via Z-API
   const handleSendCode = async () => {
-    if (formData.phone.length < 10) {
-      setErrors({ ...errors, phone: "Digite um WhatsApp válido para validar." });
+    if (!formData.email.includes("@")) {
+      setErrors({ ...errors, email: "Digite um e-mail válido para receber o código." });
       return;
     }
+    
+    setErrors({ ...errors, email: "" }); // Limpa erro anterior
     setStatus({ ...status, loading: true });
-    setErrors({ ...errors, phone: "" });
 
     try {
-      const res = await fetch("/api/auth/send-sms", {
+      const res = await fetch("/api/auth/send-email", {
         method: "POST",
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
       const data = await res.json();
       if (res.ok) {
         setCodes({ ...codes, server: data.code });
         setStatus({ ...status, sent: true, loading: false });
+      } else {
+        setErrors({ ...errors, email: "Erro ao enviar e-mail. Tente novamente." });
+        setStatus({ ...status, loading: false });
       }
     } catch {
       setStatus({ ...status, loading: false });
-      setErrors({ ...errors, phone: "Erro ao conectar com o serviço de SMS." });
+      setErrors({ ...errors, email: "Erro de conexão com o servidor de e-mail." });
     }
   };
 
   const handleVerify = () => {
     if (codes.user === codes.server && codes.server !== "") {
       setStatus({ ...status, verified: true });
-      setErrors({ ...errors, phone: "" });
+      setErrors({ ...errors, email: "" }); // Limpa erro ao validar
     } else {
-      setErrors({ ...errors, phone: "Código de verificação incorreto." });
+      setErrors({ ...errors, email: "Código de verificação incorreto." });
     }
   };
 
-  // SALVAR NO BANCO DE DADOS (PRISMA)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (validate()) {
       setStatus({ ...status, loading: true });
       try {
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            password: formData.password
-          }),
+          body: JSON.stringify(formData),
         });
 
         if (res.ok) {
-          alert("🍟 Cadastro realizado com sucesso!");
-          window.location.href = "/"; // Redireciona e atualiza os cookies da sessão
+          // REDIRECIONAMENTO DIRETO (SEM JANELA)
+          router.push("/");
+          router.refresh();
         } else {
           const errorData = await res.json();
-          setErrors({ ...errors, email: errorData.error || "Erro ao cadastrar. Verifique os dados." });
+          setErrors({ ...errors, email: errorData.error || "Erro no cadastro." });
         }
       } catch (err) {
         setErrors({ ...errors, email: "Erro de conexão com o servidor." });
@@ -94,19 +97,23 @@ export default function RegisterPage() {
     <div style={containerStyle}>
       <div style={cardStyle}>
         <div style={logoContainer}>
-          <img src="/logo_hamburgueria.png" alt="Logo" style={{ height: "60px", marginBottom: "10px" }} />
+          <span style={{ fontSize: "40px" }}>🔥</span>
           <h1 style={brandStyle}>CADASTRO</h1>
-          <p style={subtitleStyle}>O BRASIL EM CADA MORDIDA</p>
+          <p style={subtitleStyle}>VALIDE SEU ACESSO POR E-MAIL</p>
         </div>
 
-        <form style={formStyle} onSubmit={handleSubmit}>
+        <form style={formStyle} onSubmit={handleSubmit} noValidate>
           {/* NOME */}
           <div style={inputGroup}>
             <label style={labelStyle}>NOME COMPLETO</label>
             <input 
               style={{...inputStyle, border: errors.name ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
               placeholder="Ex: Pedro Silva"
-              onChange={e => setFormData({...formData, name: e.target.value})}
+              value={formData.name}
+              onChange={e => {
+                setFormData({...formData, name: e.target.value});
+                if(errors.name) setErrors({...errors, name: ""});
+              }}
             />
             {errors.name && <span style={errorTextStyle}>{errors.name}</span>}
           </div>
@@ -114,24 +121,17 @@ export default function RegisterPage() {
           {/* EMAIL */}
           <div style={inputGroup}>
             <label style={labelStyle}>E-MAIL</label>
-            <input 
-              type="email" 
-              style={{...inputStyle, border: errors.email ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
-              placeholder="seu@email.com"
-              onChange={e => setFormData({...formData, email: e.target.value})}
-            />
-            {errors.email && <span style={errorTextStyle}>{errors.email}</span>}
-          </div>
-
-          {/* WHATSAPP */}
-          <div style={inputGroup}>
-            <label style={labelStyle}>WHATSAPP (DDD)</label>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input 
-                style={{...inputStyle, border: status.verified ? "1px solid #15803d" : errors.phone ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
-                placeholder="11999999999"
+                type="email" 
+                style={{...inputStyle, border: status.verified ? "1px solid #15803d" : errors.email ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
+                placeholder="seu@email.com"
                 disabled={status.verified}
-                onChange={e => setFormData({...formData, phone: e.target.value})}
+                value={formData.email}
+                onChange={e => {
+                    setFormData({...formData, email: e.target.value});
+                    if(errors.email) setErrors({...errors, email: ""});
+                }}
               />
               {!status.verified && (
                 <button type="button" onClick={handleSendCode} style={verifyButtonStyle}>
@@ -139,13 +139,13 @@ export default function RegisterPage() {
                 </button>
               )}
             </div>
-            {errors.phone && <span style={errorTextStyle}>{errors.phone}</span>}
+            {errors.email && <span style={errorTextStyle}>{errors.email}</span>}
           </div>
 
           {/* BOX DE CÓDIGO */}
           {status.sent && !status.verified && (
             <div style={verifyBox}>
-              <p style={{fontSize: '11px', color: '#999', marginBottom: '10px'}}>DIGITE O CÓDIGO DO WHATSAPP:</p>
+              <p style={{fontSize: '11px', color: '#999', marginBottom: '10px'}}>DIGITE O CÓDIGO QUE ENVIAMOS:</p>
               <div style={{display: 'flex', gap: '10px', justifyContent: 'center'}}>
                 <input 
                   maxLength={4} 
@@ -158,19 +158,38 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* WHATSAPP */}
+          <div style={inputGroup}>
+            <label style={labelStyle}>WHATSAPP (DDD)</label>
+            <input 
+              style={{...inputStyle, border: errors.phone ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
+              placeholder="11999999999"
+              value={formData.phone}
+              onChange={e => {
+                setFormData({...formData, phone: e.target.value});
+                if(errors.phone) setErrors({...errors, phone: ""});
+              }}
+            />
+            {errors.phone && <span style={errorTextStyle}>{errors.phone}</span>}
+          </div>
+
           {/* SENHA */}
           <div style={inputGroup}>
-            <label style={labelStyle}>SUA SENHA</label>
+            <label style={labelStyle}>CRIE UMA SENHA</label>
             <input 
               type="password" 
               style={{...inputStyle, border: errors.password ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
               placeholder="••••••••"
-              onChange={e => setFormData({...formData, password: e.target.value})}
+              value={formData.password}
+              onChange={e => {
+                setFormData({...formData, password: e.target.value});
+                if(errors.password) setErrors({...errors, password: ""});
+              }}
             />
             {errors.password && <span style={errorTextStyle}>{errors.password}</span>}
           </div>
 
-          <button type="submit" style={buttonStyle} disabled={status.loading}>
+          <button type="submit" style={{...buttonStyle, opacity: status.verified ? 1 : 0.6}} disabled={status.loading}>
             {status.loading ? "PROCESSANDO..." : "FINALIZAR CADASTRO"}
           </button>
         </form>
@@ -183,7 +202,7 @@ export default function RegisterPage() {
   );
 }
 
-// ESTILOS PREMIUM BASEADOS NAS IMAGENS
+// Estilos mantidos para consistência visual
 const containerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 20px" };
 const cardStyle: React.CSSProperties = { backgroundColor: "#0a0a0a", padding: "50px 40px", borderRadius: "12px", width: "100%", maxWidth: "450px", border: "1px solid #1a1a1a", textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" };
 const brandStyle: React.CSSProperties = { color: "#fff", fontSize: "32px", fontWeight: "900", letterSpacing: "2px", margin: "10px 0" };

@@ -2,7 +2,7 @@
 INFORMAÇÕES DO PROJETO
 ================================================================================
 
-Data da exportação: 2026-02-27 21:23:09.382654
+Data da exportação: 2026-03-03 00:12:12.460708
 
 ================================================================================
 ESTRUTURA DE PASTAS
@@ -10,6 +10,7 @@ ESTRUTURA DE PASTAS
 
 ./
   .gitignore
+  a.txt
   eslint.config.mjs
   exportar_para_ia_pro.py
   next-env.d.ts
@@ -19,6 +20,8 @@ ESTRUTURA DE PASTAS
   README.md
   tailwind.config.ts
   tsconfig.json
+  .vscode/
+    settings.json
   prisma/
     schema.prisma
     migrations/
@@ -31,6 +34,8 @@ ESTRUTURA DE PASTAS
     burger-destaque.jpg
     chamas-overlay.png
     design_mobile.jpg
+    design_mordida.png
+    design_mordida2.png
     file.svg
     globe.svg
     grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg
@@ -56,7 +61,7 @@ ESTRUTURA DE PASTAS
             route.ts
           register/
             route.ts
-          send-sms/
+          send-email/
             route.ts
           update-profile/
             route.ts
@@ -289,6 +294,7 @@ ARQUIVO: .\package.json
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.447.0",
     "next": "15.1.9",
+    "nodemailer": "^8.0.1",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
@@ -297,6 +303,7 @@ ARQUIVO: .\package.json
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^20.17.10",
+    "@types/nodemailer": "^7.0.11",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
     "eslint": "^9.0.0",
@@ -307,6 +314,7 @@ ARQUIVO: .\package.json
     "typescript": "^5.7.2"
   }
 }
+
 
 
 --------------------------------------------------------------------------------
@@ -422,6 +430,15 @@ ARQUIVO: .\tsconfig.json
   ]
 }
 
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\.vscode\settings.json
+--------------------------------------------------------------------------------
+
+{
+    "python-envs.defaultEnvManager": "ms-python.python:system"
+}
 
 
 --------------------------------------------------------------------------------
@@ -624,12 +641,22 @@ export default function RootLayout({
           padding: 0, 
           backgroundColor: '#0a0a0a', 
           color: 'white',
-          minHeight: '100vh'
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh', // Garante que o corpo ocupe a tela toda
         }}
       >
-        <CartProvider> {/* Envolvendo para o carrinho funcionar */}
+        <CartProvider>
+          {/* A Navbar fica no topo de todas as páginas */}
           <Navbar />
-          {children}
+          
+          {/* O children representa o conteúdo de cada página (/cardapio, /sobre, etc) */}
+          {/* O flex: 1 faz com que o conteúdo empurre o rodapé para o fim da página */}
+          <main style={{ flex: 1 }}>
+            {children}
+          </main>
+
+          {/* O Footer aqui será replicado em ABSOLUTAMENTE TODAS as páginas */}
           <Footer />
         </CartProvider>
       </body>
@@ -645,7 +672,7 @@ ARQUIVO: .\src\app\page.tsx
 "use client";
 
 import React, { useState } from "react";
-import { MessageCircle, X, Plus, Minus, ShoppingBasket } from 'lucide-react';
+import { MessageCircle, X, Plus, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
@@ -654,10 +681,9 @@ export default function Home() {
   const { addToCart } = useCart();
   const router = useRouter();
 
-  // Estados para o Modal e Customização
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
-  const [customOptions, setCustomOptions] = useState<any[]>([]); // Agora armazena {nome, preco, qtd}
+  const [customOptions, setCustomOptions] = useState<any[]>([]);
   const [observacao, setObservacao] = useState("");
 
   const produtos = [
@@ -666,7 +692,6 @@ export default function Home() {
     { id: "3", nome: "Double Cheddar Board", desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
   ];
 
-  // Listas sincronizadas com nomes padronizados para o Carrinho
   const molhosGratis = [
     { nome: "Ketchup", preco: 0 },
     { nome: "Mostarda", preco: 0 },
@@ -698,7 +723,6 @@ export default function Home() {
     setObservacao("");
   };
 
-  // NOVA FUNÇÃO: Gerencia contadores e limites de seção
   const updateOptionQtd = (item: any, delta: number, limit: number, sectionItems: any[]) => {
     const currentInSection = customOptions.filter(opt => sectionItems.some(s => s.nome === opt.nome));
     const totalInSection = currentInSection.reduce((acc, curr) => acc + curr.qtd, 0);
@@ -729,7 +753,6 @@ export default function Home() {
       image: selectedProduct.foto,
       quantity: quantity,
       customization: {
-        // Formato "1x Nome" para o Carrinho conseguir ler na edição
         extras: customOptions.map(o => `${o.qtd}x ${o.nome}`),
         obs: observacao
       }
@@ -741,18 +764,42 @@ export default function Home() {
 
   return (
     <main className="main-container" style={mainStyle}>
+      {/* Fundo de chamas ajustado para ficar REALMENTE atrás (zIndex: 1) */}
       <div className="flame-overlay"></div>
 
       <style jsx global>{`
         body, html { margin: 0; padding: 0; overflow-x: hidden; background-color: #0a0a0a; scroll-behavior: smooth; }
-        .flame-overlay { position: fixed; inset: 0; background-image: url("/chamas-overlay.png"); background-size: cover; opacity: 0.15; mix-blend-mode: screen; pointer-events: none; z-index: 1; }
-        .btn-cardapio-completo { display: inline-block; padding: 15px 40px; border: 2px solid #b91c1c; color: #fff; font-size: 18px; font-weight: bold; text-decoration: none; text-transform: uppercase; border-radius: 5px; transition: 0.3s; }
+        
+        /* Chamas agora são fixas no fundo, com opacidade baixa e z-index mínimo */
+        .flame-overlay { 
+          position: fixed; 
+          inset: 0; 
+          background-image: url("/chamas-overlay.png"); 
+          background-size: cover; 
+          opacity: 0.12; 
+          mix-blend-mode: screen; 
+          pointer-events: none; 
+          z-index: 1; 
+        }
+        
+        .btn-cardapio-completo { display: inline-block; padding: 15px 40px; border: 2px solid #b91c1c; color: #fff; font-size: 18px; font-weight: bold; text-decoration: none; text-transform: uppercase; border-radius: 5px; transition: 0.3s; position: relative; z-index: 10; }
         .btn-cardapio-completo:hover { background-color: #b91c1c; transform: scale(1.05); }
+        
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; backdrop-filter: blur(5px); }
         .modal-content { background: #111; width: 100%; max-width: 480px; border-radius: 20px; overflow-y: auto; max-height: 85vh; position: relative; border: 1px solid #333; color: #fff; }
-        .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; }
+        
+        .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; transition: 0.2s; }
+        .btn-confirmar:hover { background: #991b1b; }
+
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; }
+
+        .burger-card { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; z-index: 10; }
+        .burger-card:hover { transform: translateY(-10px); border-color: #b91c1c !important; box-shadow: 0 10px 30px rgba(185, 28, 28, 0.2); }
+        .burger-card:hover .img-hover { transform: scale(1.1); }
+        .btn-pedir { transition: all 0.3s ease; }
+        .btn-pedir:hover { background-color: #b91c1c !important; color: #fff !important; }
+
         @media (max-width: 768px) {
           .hero-section { height: 85vh !important; background-image: url("/design_mobile.jpg") !important; }
           .hero-content { justify-content: center !important; padding: 0 !important; bottom: 20px !important; position: absolute !important; width: 100% !important; }
@@ -762,50 +809,53 @@ export default function Home() {
         }
       `}</style>
 
-      {/* HERO */}
+      {/* Hero Section */}
       <section className="hero-section" style={heroSectionStyle}>
         <div className="hero-content" style={heroContentStyle}>
-          <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px' }}>
+          <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px', position: 'relative', zIndex: 20 }}>
             <h1 style={heroTitleStyle}>O BRASIL EM<br />CADA MORDIDA</h1>
             <p style={heroSubtitleStyle}>Pedro Burger Grill</p>
           </div>
         </div>
+
+        <div style={divisorOndaStyle}>
+          <svg viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ width: '100%', height: '100px', display: 'block' }}>
+            <path 
+              fill="#0a0a0a" 
+              d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z"
+            ></path>
+          </svg>
+        </div>
       </section>
 
-      {/* CARDÁPIO NA HOME */}
+      {/* Seção Cardápio */}
       <section id="cardapio" style={sectionCardapioStyle}>
-        <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
-        <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
-        
-        <div className="cardapio-grid" style={gridStyle}>
-          {produtos.map((p) => (
-            <Card 
-              key={p.id}
-              foto={p.foto} 
-              nome={p.nome} 
-              desc={p.desc}
-              preco={p.preco}
-              onAdd={() => handleOpenModal(p)}
-            />
-          ))}
-        </div>
+        <div style={{ position: 'relative', zIndex: 20 }}>
+          <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
+          <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
+          <div className="cardapio-grid" style={gridStyle}>
+            {produtos.map((p) => (
+              <Card key={p.id} foto={p.foto} nome={p.nome} desc={p.desc} preco={p.preco} onAdd={() => handleOpenModal(p)} />
+            ))}
+          </div>
 
-        <div style={{ marginTop: '70px' }}>
-          <Link href="/cardapio" className="btn-cardapio-completo">VER CARDÁPIO COMPLETO</Link>
+          <div style={{ marginTop: '120px', position: 'relative', top: '-60px' }}>
+            <Link href="/cardapio" className="btn-cardapio-completo">VER CARDÁPIO COMPLETO</Link>
+          </div>
         </div>
       </section>
 
-      {/* MODAL DE CUSTOMIZAÇÃO ATUALIZADO */}
+      {/* Modal e WhatsApp Float permanecem com z-index alto */}
       {selectedProduct && (
         <div className="modal-overlay">
           <div className="modal-content custom-scrollbar">
-            <button style={closeBtn} onClick={() => setSelectedProduct(null)}><X size={20}/></button>
+            <button style={closeBtn} onClick={() => setSelectedProduct(null)} aria-label="Fechar">
+              <X size={20} style={{ display: 'block' }} />
+            </button>
             <img src={selectedProduct.foto} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
-            
             <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
               <h2 style={{ fontSize: '22px', fontWeight: '900', marginBottom: '5px' }}>{selectedProduct.nome}</h2>
               <p style={{ color: '#888', fontSize: '13px', marginBottom: '20px' }}>{selectedProduct.desc}</p>
-              
               {[
                 { title: "MOLHOS (GRÁTIS)", items: molhosGratis },
                 { title: "MOLHOS DA CASA", items: molhosCasa },
@@ -828,17 +878,10 @@ export default function Home() {
                   ))}
                 </div>
               ))}
-
               <div style={modalSection}>
                 <h4 style={sectionTitle}>OBSERVAÇÕES</h4>
-                <textarea 
-                  value={observacao} 
-                  onChange={(e) => setObservacao(e.target.value)} 
-                  placeholder="Ex: Ponto da carne, sem cebola..."
-                  style={textareaStyle}
-                />
+                <textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: Ponto da carne, sem cebola..." style={textareaStyle} />
               </div>
-
               <div style={footerModal}>
                 <div style={qtyContainer}>
                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={qtyBtn}><Minus size={16}/></button>
@@ -863,25 +906,49 @@ export default function Home() {
 
 function Card({ foto, nome, desc, preco, onAdd }: any) {
   return (
-    <div style={cardContainerStyle}>
+    <div className="burger-card" style={cardContainerStyle}>
       <div style={imgWrapperStyle}>
-        <img src={foto} alt={nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img className="img-hover" src={foto} alt={nome} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: '0.5s' }} />
       </div>
       <h3 style={cardTitleStyle}>{nome}</h3>
       <p style={cardDescStyle}>{desc}</p>
       <div style={cardPriceStyle}>R$ {preco.toFixed(2).replace('.', ',')}</div>
-      <button onClick={onAdd} style={cardBtnStyle}>PEDIR AGORA</button>
+      <button className="btn-pedir" onClick={onAdd} style={cardBtnStyle}>PEDIR AGORA</button>
     </div>
   );
 }
 
-// Estilos mantidos e otimizados
+// Estilos
 const mainStyle: React.CSSProperties = { margin: 0, padding: 0, paddingTop: '80px', backgroundColor: '#0a0a0a', minHeight: '100vh', width: '100%', color: '#fff', position: 'relative' };
-const heroSectionStyle: React.CSSProperties = { position: 'relative', height: '90vh', width: '100%', display: 'flex', alignItems: 'center', backgroundImage: 'url("/burger-destaque.jpg")', backgroundSize: 'cover', backgroundPosition: 'left center' };
-const heroContentStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'flex-end', paddingRight: '8%', position: 'relative', zIndex: 3 };
+
+const heroSectionStyle: React.CSSProperties = { 
+  position: 'relative', 
+  height: '90vh', 
+  width: '100%', 
+  display: 'flex', 
+  alignItems: 'center', 
+  backgroundImage: 'url("/burger-destaque.jpg")', 
+  backgroundSize: 'cover', 
+  backgroundPosition: 'left 60%', 
+  overflow: 'visible',
+  zIndex: 5 
+};
+
+const divisorOndaStyle: React.CSSProperties = { position: 'absolute', bottom: '-1px', left: 0, width: '100%', zIndex: 10, lineHeight: 0 };
+const heroContentStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'flex-end', paddingRight: '8%', position: 'relative', zIndex: 15 };
 const heroTitleStyle: React.CSSProperties = { fontSize: 'clamp(40px, 7vw, 90px)', lineHeight: '0.85', fontWeight: '900', textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', textShadow: '3px 3px 15px rgba(0,0,0,0.8)' };
 const heroSubtitleStyle: React.CSSProperties = { marginTop: '15px', fontSize: '28px', fontFamily: '"Brush Script MT", cursive', color: '#eee' };
-const sectionCardapioStyle: React.CSSProperties = { padding: '120px 20px 80px', backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")', backgroundSize: 'cover', backgroundAttachment: 'fixed', textAlign: 'center', position: 'relative', zIndex: 5 };
+
+const sectionCardapioStyle: React.CSSProperties = { 
+  padding: '100px 20px 160px', 
+  backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")', 
+  backgroundSize: 'cover', 
+  backgroundPosition: 'center',
+  textAlign: 'center', 
+  position: 'relative', 
+  zIndex: 10 
+};
+
 const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' };
 const cardContainerStyle: React.CSSProperties = { backgroundColor: 'rgba(17, 17, 17, 0.95)', padding: '40px 30px', borderRadius: '15px', border: '1px solid #333' };
 const imgWrapperStyle: React.CSSProperties = { width: '100%', height: '220px', marginBottom: '20px', overflow: 'hidden', borderRadius: '10px' };
@@ -890,7 +957,8 @@ const cardDescStyle: React.CSSProperties = { fontSize: '14px', color: '#ccc', ma
 const cardPriceStyle: React.CSSProperties = { fontSize: '22px', fontWeight: 'bold', color: '#b91c1c', marginBottom: '20px' };
 const cardBtnStyle: React.CSSProperties = { padding: '12px 25px', backgroundColor: 'transparent', border: '2px solid #b91c1c', color: '#fff', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase', width: '100%', borderRadius: '5px' };
 const whatsappFloat: React.CSSProperties = { position: 'fixed', bottom: '30px', right: '30px', backgroundColor: '#25d366', padding: '15px', borderRadius: '50%', zIndex: 1000 };
-const closeBtn: React.CSSProperties = { position: 'absolute', top: '15px', right: '15px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 10 };
+
+const closeBtn: React.CSSProperties = { position: 'absolute', top: '15px', right: '15px', background: 'rgba(0,0,0,0.8)', border: 'none', color: '#fff', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(0,0,0,0.5)' };
 const modalSection: React.CSSProperties = { marginBottom: '20px', textAlign: 'left' };
 const sectionTitle: React.CSSProperties = { fontSize: '12px', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '15px', fontWeight: 'bold' };
 const optionRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #222', fontSize: '14px' };
@@ -1158,57 +1226,101 @@ export async function POST(request: Request) {
 
 
 --------------------------------------------------------------------------------
-ARQUIVO: .\src\app\api\auth\send-sms\route.ts
+ARQUIVO: .\src\app\api\auth\send-email\route.ts
 --------------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
+import nodemailer from "nodemailer";
 
 export async function POST(req: Request) {
   try {
-    const { phone } = await req.json();
+    const { email } = await req.json();
+    if (!email) return NextResponse.json({ error: "E-mail é obrigatório" }, { status: 400 });
 
     const verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
-
-    const cleanPhone = phone.replace(/\D/g, "");
-    const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-
-    const INSTANCE_ID = "3EF3B65968D2A17FE2CDDE26C08F8D63";
-    const INSTANCE_TOKEN = "6D16D8E4D4392F6F5CA15AA5"; // Ajustado para o token da instância que enviou antes
-    const CLIENT_TOKEN = "Fe9e6ea45b0384ad1883b7d4072f31eebS"; 
-
-    const API_URL = `https://api.z-api.io/instances/${INSTANCE_ID}/token/${INSTANCE_TOKEN}/send-text`;
-
-    // NOVA VERSÃO DA MENSAGEM - Mais amigável
-    const message = `🍟 *BEM-VINDO À NOSSA COMUNIDADE!* \n\n` +
-                    `Para garantir sua segurança e finalizar seu cadastro, aqui está seu código de acesso:\n\n` +
-                    `🔑 *CÓDIGO:* ${verificationCode}\n\n` +
-                    `_Digite esse código na tela para continuar._\n\n` +
-                    `Se não foi você quem solicitou, apenas ignore esta mensagem. 👋`;
-
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "client-token": CLIENT_TOKEN
-      },
-      body: JSON.stringify({
-        phone: formattedPhone,
-        message: message
-      }),
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
     });
 
-    const result = await response.json();
+    const mailOptions = {
+      from: `"The Flame Grill" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "🔑 Seu código de acesso - The Flame Grill",
+      html: `
+        <!DOCTYPE html>
+        <html lang="pt-br" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta name="color-scheme" content="dark only">
+          <meta name="supported-color-schemes" content="dark only">
+          <style>
+            /* Remove espaços extras aplicados por alguns clientes de e-mail */
+            body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+            table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+            img { -ms-interpolation-mode: bicubic; }
 
-    if (!response.ok) {
-      console.error("Erro Z-API Detalhado:", result);
-      return NextResponse.json({ error: "Erro ao enviar mensagem" }, { status: response.status });
-    }
+            /* Hack para Gmail não inverter as cores no Modo Escuro do Celular */
+            u + .body .gmail-blend-screen { background: #000000; mix-blend-mode: screen; }
+            u + .body .gmail-blend-difference { background: #000000; mix-blend-mode: difference; }
+          </style>
+        </head>
+        <body class="body" style="margin: 0 !important; padding: 0 !important; background-color: #000000 !important;">
+          <center style="width: 100%; background-color: #000000 !important;">
+            <div style="background-color: #000000 !important; padding: 0px;">
+              
+              <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 500px; background-color: #0a0a0a !important; border: 2px solid #b91c1c !important; border-radius: 20px; margin-top: 40px; margin-bottom: 40px;">
+                <tr>
+                  <td align="center" style="padding: 50px 20px; background-color: #0a0a0a !important; border-radius: 20px;">
+                    
+                    <div style="font-size: 50px; margin-bottom: 10px;">🔥</div>
+                    
+                    <h1 style="color: #ffffff !important; font-family: Arial, sans-serif; font-size: 28px; margin: 0; font-weight: 900; text-transform: uppercase;">
+                      THE FLAME GRILL
+                    </h1>
+                    
+                    <p style="color: #b91c1c !important; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; letter-spacing: 3px; margin: 10px 0 30px 0;">
+                      O SABOR DO FOGO NA SUA TELA
+                    </p>
 
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #000000 !important; border: 1px solid #1a1a1a; border-radius: 12px;">
+                      <tr>
+                        <td align="center" style="padding: 30px; background-color: #000000 !important; border-radius: 10px;">
+                          <p style="color: #888888 !important; font-size: 11px; margin-bottom: 15px; text-transform: uppercase;">SEU CÓDIGO:</p>
+                          <span style="color: #b91c1c !important; font-family: monospace; font-size: 48px; font-weight: bold; letter-spacing: 10px;">
+                            ${verificationCode}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="color: #ffffff !important; font-family: Arial, sans-serif; font-size: 14px; margin-top: 35px; line-height: 1.5;">
+                      Copie o código acima para confirmar sua identidade no <br>
+                      <strong style="color: #b91c1c !important;">The Flame Grill</strong>.
+                    </p>
+
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #1a1a1a;">
+                      <p style="color: #444444 !important; font-size: 10px; text-transform: uppercase;">
+                        © 2026 THE FLAME GRILL • PREMIUM EXPERIENCE
+                      </p>
+                    </div>
+
+                  </td>
+                </tr>
+              </table>
+
+            </div>
+          </center>
+        </body>
+        </html>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
     return NextResponse.json({ code: verificationCode });
-
   } catch (error) {
-    console.error("Erro interno no servidor:", error);
-    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
 
@@ -1217,45 +1329,46 @@ export async function POST(req: Request) {
 ARQUIVO: .\src\app\api\auth\update-profile\route.ts
 --------------------------------------------------------------------------------
 
-import { prisma } from "@/lib/prisma"; // Use a instância global
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 
 export async function POST(req: Request) {
   try {
-    const { name, email, phone, password, originalEmail } = await req.json();
+    const { email } = await req.json();
+    const verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
 
-    const updateData: any = { name, email, phone };
-    
-    if (password && password.trim() !== "") {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
-    }
-
-    const updatedUser = await prisma.user.update({
-      where: { email: originalEmail },
-      data: updateData,
+    // CONFIGURAÇÃO DO TRANSPORTE (Exemplo com Gmail/Outlook)
+    // Para produção, use variáveis de ambiente (.env)
+    const transporter = nodemailer.createTransport({
+      service: "gmail", 
+      auth: {
+        user: process.env.EMAIL_USER, // Seu e-mail (ex: contato@hamburgueria.com)
+        pass: process.env.EMAIL_PASS, // Sua senha de app
+      },
     });
 
-    const sessionData = JSON.stringify({
-      id: updatedUser.id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      phone: updatedUser.phone,
-      role: updatedUser.role // Adicionado para manter a consistência
-    });
+    const mailOptions = {
+      from: '"Burguer Art" <seu-email@gmail.com>',
+      to: email,
+      subject: "🔑 Seu código de acesso - Burguer Art",
+      html: `
+        <div style="font-family: sans-serif; background-color: #000; color: #fff; padding: 40px; border-radius: 10px; text-align: center;">
+          <h1 style="color: #b91c1c; font-size: 30px;">BEM-VINDO!</h1>
+          <p style="font-size: 16px; color: #ccc;">Use o código abaixo para validar seu e-mail e finalizar o cadastro:</p>
+          <div style="background: #111; padding: 20px; border: 2px dashed #b91c1c; display: inline-block; margin: 20px 0;">
+            <span style="font-size: 40px; font-weight: bold; letter-spacing: 10px; color: #fff;">${verificationCode}</span>
+          </div>
+          <p style="font-size: 12px; color: #666;">Se não foi você quem solicitou, ignore este e-mail.</p>
+        </div>
+      `,
+    };
 
-    const cookieStore = await cookies();
-    cookieStore.set("user_session", sessionData, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      httpOnly: false, // Importante para o front-end ler
-    });
+    await transporter.sendMail(mailOptions);
 
-    return NextResponse.json({ message: "Sucesso" }, { status: 200 });
+    return NextResponse.json({ code: verificationCode });
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao atualizar" }, { status: 500 });
+    console.error("Erro ao enviar e-mail:", error);
+    return NextResponse.json({ error: "Erro ao enviar e-mail de verificação" }, { status: 500 });
   }
 }
 
@@ -1450,28 +1563,13 @@ export default function CardapioCompleto() {
     { id: "3", nome: "Double Cheddar Board", desc: "Dois smash burgers e fritas.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
   ];
 
-  // Listas sincronizadas com o Carrinho e Home
-  const molhosGratis = [
-    { nome: "Ketchup", preco: 0 },
-    { nome: "Mostarda", preco: 0 },
-    { nome: "Maionese Tradicional", preco: 0 }
-  ];
-
-  const molhosCasa = [
-    { nome: "Maionese Artesanal 30ml", preco: 3.50 },
-    { nome: "Barbecue Defumado 30ml", preco: 4.00 },
-    { nome: "Chipotle Picante 30ml", preco: 4.50 }
-  ];
-
-  const complementos = [
-    { nome: "Hambúrguer Extra 180g", preco: 12.00 },
-    { nome: "Bacon em Tiras", preco: 6.00 },
-    { nome: "Queijo Cheddar", preco: 5.00 },
-    { nome: "Salada Fresca", preco: 3.00 }
+  const secoesMenu = [
+    { title: "MOLHOS (GRÁTIS)", items: [{ nome: "Ketchup", preco: 0 }, { nome: "Mostarda", preco: 0 }, { nome: "Maionese Tradicional", preco: 0 }] },
+    { title: "MOLHOS DA CASA", items: [{ nome: "Maionese Artesanal 30ml", preco: 3.50 }, { nome: "Barbecue Defumado 30ml", preco: 4.00 }, { nome: "Chipotle Picante 30ml", preco: 4.50 }] },
+    { title: "ADICIONAIS", items: [{ nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }] }
   ];
 
   const handleOpenModal = (p: any) => {
-    // Verifica login (opcional, mantido conforme seu original)
     const isLogged = document.cookie.includes("user_session");
     if (!isLogged) { router.push("/login?callback=/cardapio"); return; }
     
@@ -1507,11 +1605,10 @@ export default function CardapioCompleto() {
     addToCart({
       id: `${selectedProduct.id}-${Date.now()}`,
       name: selectedProduct.nome,
-      price: selectedProduct.preco + adicionalTotal, // Preço com extras
+      price: selectedProduct.preco + adicionalTotal,
       image: selectedProduct.foto,
       quantity: quantity,
       customization: {
-        // PADRÃO DE SALVAMENTO: "1x Nome" (Crucial para a edição funcionar)
         extras: customOptions.map(o => `${o.qtd}x ${o.nome}`),
         obs: observacao
       }
@@ -1522,7 +1619,7 @@ export default function CardapioCompleto() {
   };
 
   return (
-    <div style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingBottom: "100px", paddingTop: '80px' }}>
+    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "60px", paddingTop: '80px' }}>
       <section style={headerSection}>
         <span style={subtitleStyle}>Escolha seu Burger</span>
         <h1 style={titleStyle}>CARDÁPIO</h1>
@@ -1531,13 +1628,15 @@ export default function CardapioCompleto() {
       <div style={{ padding: "40px 20px" }}>
         <div className="menu-grid">
           {produtos.map((p) => (
-            <div key={p.id} style={cardStyle}>
-              <img src={p.foto} alt={p.nome} style={imgStyle} />
-              <h3 style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px' }}>{p.nome}</h3>
+            <div key={p.id} className="card-item" style={cardStyle}>
+              <div style={imgWrapperStyle}>
+                <img src={p.foto} alt={p.nome} style={imgStyle} />
+              </div>
+              <h3 style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px', textTransform: 'uppercase' }}>{p.nome}</h3>
               <div style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
                 R$ {p.preco.toFixed(2).replace(".", ",")}
               </div>
-              <button onClick={() => handleOpenModal(p)} style={btnPedirStyle}>
+              <button onClick={() => handleOpenModal(p)} className="btn-pedir-hover" style={btnPedirStyle}>
                 <ShoppingBasket size={18} /> PEDIR AGORA
               </button>
             </div>
@@ -1549,15 +1648,12 @@ export default function CardapioCompleto() {
         <div className="modal-overlay">
           <div className="modal-content custom-scrollbar">
             <button className="close-btn" onClick={() => setSelectedProduct(null)}><X size={20}/></button>
-            <img src={selectedProduct.foto} style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
+            <img src={selectedProduct.foto} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
             <div style={{ padding: '20px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '900' }}>{selectedProduct.nome}</h2>
+              <p style={{ color: '#888', fontSize: '13px', marginBottom: '20px' }}>{selectedProduct.desc}</p>
               
-              {[
-                { title: "MOLHOS (GRÁTIS)", items: molhosGratis },
-                { title: "MOLHOS DA CASA", items: molhosCasa },
-                { title: "ADICIONAIS", items: complementos }
-              ].map(section => (
+              {secoesMenu.map(section => (
                 <div key={section.title} style={{ marginBottom: '20px' }}>
                   <h4 style={sectionTitleStyle}>{section.title} <small style={{float:'right', color:'#888'}}>Limite: 5</small></h4>
                   {section.items.map(item => (
@@ -1594,11 +1690,52 @@ export default function CardapioCompleto() {
       )}
 
       <style jsx>{`
-        .menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; max-width: 1200px; margin: 0 auto; }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(5px); }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; max-width: 1200px; margin: 0 auto; }
+        
+        /* ANIMAÇÃO DOS CARDS */
+        .card-item {
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .card-item:hover {
+          transform: translateY(-10px);
+          box-shadow: 0 15px 30px rgba(185, 28, 28, 0.15);
+          border-color: #b91c1c !important;
+        }
+        .card-item img {
+          transition: transform 0.6s ease;
+        }
+        .card-item:hover img {
+          transform: scale(1.1);
+        }
+
+        .btn-pedir-hover { transition: 0.3s; }
+        .btn-pedir-hover:hover { background: #991b1b !important; transform: scale(1.02); }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; backdrop-filter: blur(5px); }
         .modal-content { background: #111; width: 100%; max-width: 480px; border-radius: 20px; overflow-y: auto; max-height: 85vh; border: 1px solid #333; position: relative; color: #fff; }
-        .close-btn { position: absolute; top: 15px; right: 15px; background: #000; border: none; color: #fff; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; }
-        .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; }
+        
+        /* BOTÃO X CENTRALIZADO */
+        .close-btn { 
+          position: absolute; 
+          top: 15px; 
+          right: 15px; 
+          background: rgba(0,0,0,0.8); 
+          border: none; 
+          color: #fff; 
+          border-radius: 50%; 
+          width: 36px; 
+          height: 36px; 
+          cursor: pointer; 
+          z-index: 10; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          padding: 0;
+        }
+
+        .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; transition: 0.3s; }
+        .btn-confirmar:hover { background: #991b1b; }
+        
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; }
       `}</style>
@@ -1607,20 +1744,21 @@ export default function CardapioCompleto() {
 }
 
 // Estilos Cardápio
-const headerSection: React.CSSProperties = { height: "250px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", backgroundSize: "cover" };
-const subtitleStyle: React.CSSProperties = { color: '#fff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '4px' };
-const titleStyle: React.CSSProperties = { fontSize: '60px', fontWeight: '900', color: '#b91c1c', fontFamily: 'Impact' };
-const cardStyle: React.CSSProperties = { background: "#111", padding: "20px", borderRadius: "15px", border: "1px solid #222", textAlign: "center" };
-const imgStyle: React.CSSProperties = { width: "100%", height: "200px", objectFit: "cover", borderRadius: '8px' };
-const btnPedirStyle: React.CSSProperties = { width: "100%", padding: "14px", color: "#fff", background: "#b91c1c", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' };
-const sectionTitleStyle: React.CSSProperties = { fontSize: '13px', borderLeft: '4px solid #b91c1c', paddingLeft: '10px', marginBottom: '15px', fontWeight: 'bold', textTransform: 'uppercase' };
+const headerSection: React.CSSProperties = { height: "300px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", backgroundSize: "cover", backgroundPosition: 'center' };
+const subtitleStyle: React.CSSProperties = { color: '#fff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '4px', marginBottom: '10px' };
+const titleStyle: React.CSSProperties = { fontSize: '70px', fontWeight: '900', color: '#b91c1c', fontFamily: 'Impact, sans-serif' };
+const cardStyle: React.CSSProperties = { background: "#111", padding: "30px 20px", borderRadius: "15px", border: "1px solid #222", textAlign: "center", cursor: 'pointer' };
+const imgWrapperStyle: React.CSSProperties = { width: '100%', height: '200px', overflow: 'hidden', borderRadius: '10px', marginBottom: '10px' };
+const imgStyle: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
+const btnPedirStyle: React.CSSProperties = { width: "100%", padding: "14px", color: "#fff", background: "#b91c1c", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', textTransform: 'uppercase' };
+const sectionTitleStyle: React.CSSProperties = { fontSize: '12px', borderLeft: '4px solid #b91c1c', paddingLeft: '10px', marginBottom: '15px', fontWeight: 'bold', textTransform: 'uppercase' };
 const optionRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #222' };
 const counterStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', background: '#000', padding: '5px 12px', borderRadius: '20px', border: '1px solid #333' };
-const miniBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
-const textareaStyle: React.CSSProperties = { width: '100%', background: '#000', border: '1px solid #333', borderRadius: '8px', padding: '12px', color: '#fff', height: '60px', margin: '15px 0' };
+const miniBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', display: 'flex', alignItems: 'center' };
+const textareaStyle: React.CSSProperties = { width: '100%', background: '#000', border: '1px solid #333', borderRadius: '8px', padding: '12px', color: '#fff', height: '60px', margin: '15px 0', fontSize: '13px' };
 const footerModalStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', borderTop: '1px solid #222', paddingTop: '15px' };
 const qtyContainerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#1a1a1a', padding: '10px 15px', borderRadius: '10px' };
-const qtyBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
+const qtyBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', display: 'flex', alignItems: 'center' };
 
 
 --------------------------------------------------------------------------------
@@ -1867,13 +2005,13 @@ import React from 'react';
 
 export default function Contato() {
   return (
-    <main style={{ backgroundColor: '#0a0a0a', minHeight: '100vh', color: '#fff' }}>
+    <div style={{ backgroundColor: '#0a0a0a', color: '#fff' }}>
       <section style={headerSection}>
         <span style={subtitleStyle}>Fale</span>
         <h1 style={titleStyle}>CONOSCO</h1>
       </section>
 
-      <section style={{ padding: "60px 20px", textAlign: "center" }}>
+      <section style={{ padding: "80px 20px", textAlign: "center", position: 'relative', zIndex: 2 }}>
         <p style={{ color: "#ccc", maxWidth: "600px", margin: "0 auto 40px" }}>
           Quer falar com a gente?
           Envie sua dúvida, sugestão, elogio ou venha fazer parte do nosso time!
@@ -1891,10 +2029,15 @@ export default function Contato() {
           <input placeholder="Seu nome" style={inputStyle} />
           <input placeholder="Seu e-mail" style={inputStyle} />
           <textarea placeholder="Sua mensagem..." style={textareaStyle} />
-          <button style={btnStyle}>ENVIAR</button>
+          <button style={btnStyle} className="btn-enviar-hover">ENVIAR</button>
         </form>
       </section>
-    </main>
+
+      <style jsx>{`
+        .btn-enviar-hover { transition: all 0.3s ease; }
+        .btn-enviar-hover:hover { background-color: #991b1b !important; transform: scale(1.02); }
+      `}</style>
+    </div>
   );
 }
 
@@ -1905,17 +2048,61 @@ const headerSection: React.CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", // Usando o mesmo banner para manter o padrão
+  backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')",
   backgroundSize: "cover",
   backgroundPosition: "center",
 };
 
-const subtitleStyle: React.CSSProperties = { color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '4px', display: 'block', marginBottom: '5px' };
-const titleStyle: React.CSSProperties = { fontSize: 'clamp(40px, 8vw, 80px)', fontWeight: '900', color: '#b91c1c', margin: 0, textTransform: 'uppercase', fontFamily: 'Impact, sans-serif' };
+const subtitleStyle: React.CSSProperties = { 
+  color: '#fff', 
+  fontSize: '18px', 
+  textTransform: 'uppercase', 
+  fontWeight: 'bold', 
+  letterSpacing: '4px', 
+  display: 'block', 
+  marginBottom: '5px' 
+};
 
-const inputStyle = { padding: "15px", background: "#111", border: "1px solid #333", color: "#fff", borderRadius: "5px" };
-const textareaStyle = { padding: "15px", height: "150px", background: "#111", border: "1px solid #333", color: "#fff", borderRadius: "5px" };
-const btnStyle = { padding: "15px", background: "#b91c1c", border: "none", color: "#fff", fontWeight: "bold", borderRadius: "5px", cursor: "pointer" };
+const titleStyle: React.CSSProperties = { 
+  fontSize: 'clamp(40px, 8vw, 80px)', 
+  fontWeight: '900', 
+  color: '#b91c1c', 
+  margin: 0, 
+  textTransform: 'uppercase', 
+  fontFamily: 'Impact, sans-serif' 
+};
+
+const inputStyle = { 
+  padding: "15px", 
+  background: "#111", 
+  border: "1px solid #333", 
+  color: "#fff", 
+  borderRadius: "5px",
+  outline: 'none'
+};
+
+const textareaStyle = { 
+  padding: "15px", 
+  height: "150px", 
+  background: "#111", 
+  border: "1px solid #333", 
+  color: "#fff", 
+  borderRadius: "5px",
+  outline: 'none',
+  resize: 'none' as const
+};
+
+const btnStyle = { 
+  padding: "15px", 
+  background: "#b91c1c", 
+  border: "none", 
+  color: "#fff", 
+  fontWeight: "bold" as const, 
+  borderRadius: "5px", 
+  cursor: "pointer",
+  fontSize: '16px',
+  letterSpacing: '1px'
+};
 
 
 --------------------------------------------------------------------------------
@@ -2047,12 +2234,12 @@ import { useRouter } from "next/navigation";
 export default function ProfilePage() {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
-  // Adicionado password ao formData
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "" });
   const [originalData, setOriginalData] = useState({ email: "", phone: "" });
   const [status, setStatus] = useState({ sent: false, verified: true, loading: false });
   const [codes, setCodes] = useState({ server: "", user: "" });
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const maskPhone = (value: string) => {
     return value
@@ -2071,8 +2258,8 @@ export default function ProfilePage() {
           const formattedData = {
             name: data.name || "",
             email: data.email || "",
-            phone: data.phone || "",
-            password: "" // Senha sempre limpa por segurança
+            phone: data.phone ? maskPhone(data.phone) : "",
+            password: "" 
           };
           setFormData(formattedData);
           setOriginalData({ email: formattedData.email, phone: formattedData.phone });
@@ -2087,18 +2274,20 @@ export default function ProfilePage() {
   const handleEditClick = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsEditing(true);
+    setSuccessMessage("");
   };
 
+  // AGORA VALIDA O E-MAIL EM VEZ DO SMS
   const handleSendCode = async () => {
-    if (formData.phone.length < 15) {
-      setError("Digite o novo número completo.");
+    if (!formData.email.includes("@")) {
+      setError("Digite um e-mail válido.");
       return;
     }
     setStatus({ ...status, loading: true });
     try {
-      const res = await fetch("/api/auth/send-sms", {
+      const res = await fetch("/api/auth/send-email", {
         method: "POST",
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -2108,14 +2297,14 @@ export default function ProfilePage() {
       }
     } catch {
       setStatus({ ...status, loading: false });
-      setError("Erro ao enviar código.");
+      setError("Erro ao enviar código de verificação.");
     }
   };
 
   const handleVerify = () => {
     if (codes.user === codes.server && codes.server !== "") {
       setStatus({ ...status, verified: true, sent: false });
-      setOriginalData({ ...originalData, phone: formData.phone });
+      setOriginalData({ ...originalData, email: formData.email });
       setError("");
     } else {
       setError("Código incorreto.");
@@ -2125,11 +2314,13 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!status.verified) {
-      setError("Valide o novo número primeiro.");
+      setError("Valide o novo e-mail primeiro.");
       return;
     }
     
     setStatus({ ...status, loading: true });
+    setError("");
+
     try {
       const res = await fetch("/api/auth/update-profile", {
         method: "POST",
@@ -2142,11 +2333,10 @@ export default function ProfilePage() {
 
       if (res.ok) {
         setIsEditing(false);
-        // Limpa o campo de senha após salvar
         setFormData(prev => ({ ...prev, password: "" }));
         setOriginalData({ email: formData.email, phone: formData.phone });
         setStatus({ ...status, loading: false });
-        alert("Perfil atualizado com sucesso!");
+        setSuccessMessage("Dados atualizados com sucesso!");
         router.refresh(); 
       } else {
         const data = await res.json();
@@ -2176,40 +2366,40 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* E-MAIL */}
+          {/* E-MAIL (COM VALIDAÇÃO AGORA) */}
           <div style={inputGroup}>
             <label style={labelStyle}>E-MAIL</label>
-            <input 
-              value={formData.email || ""} 
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-              readOnly={!isEditing}
-              style={{...inputStyle, opacity: isEditing ? 1 : 0.6, border: isEditing ? "1px solid #b91c1c" : "1px solid #222"}} 
-            />
-          </div>
-
-          {/* WHATSAPP */}
-          <div style={inputGroup}>
-            <label style={labelStyle}>WHATSAPP</label>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                value={formData.phone || ""} 
+                <input 
+                value={formData.email || ""} 
                 onChange={(e) => {
-                  const newPhone = maskPhone(e.target.value);
-                  setFormData({ ...formData, phone: newPhone });
-                  setStatus({ ...status, verified: newPhone === originalData.phone });
+                    const newEmail = e.target.value;
+                    setFormData({...formData, email: newEmail});
+                    setStatus({ ...status, verified: newEmail === originalData.email });
                 }}
                 readOnly={!isEditing}
                 style={{...inputStyle, flex: 1, opacity: isEditing ? 1 : 0.6, border: !status.verified && isEditing ? "1px solid #f59e0b" : isEditing ? "1px solid #b91c1c" : "1px solid #222"}} 
-              />
-              {isEditing && !status.verified && (
+                />
+                {isEditing && !status.verified && (
                 <button type="button" onClick={handleSendCode} style={verifyButtonStyle}>
-                  {status.loading ? "..." : "VALIDAR"}
+                    {status.loading ? "..." : "VALIDAR"}
                 </button>
-              )}
+                )}
             </div>
           </div>
 
-          {/* NOVO: CAMPO DE SENHA (SÓ APARECE EM MODO EDIÇÃO) */}
+          {/* WHATSAPP (APENAS MÁSCARA, SEM TRAVA DE SMS) */}
+          <div style={inputGroup}>
+            <label style={labelStyle}>WHATSAPP</label>
+            <input 
+                value={formData.phone || ""} 
+                onChange={(e) => setFormData({ ...formData, phone: maskPhone(e.target.value) })}
+                readOnly={!isEditing}
+                placeholder="(00) 00000-0000"
+                style={{...inputStyle, opacity: isEditing ? 1 : 0.6, border: isEditing ? "1px solid #b91c1c" : "1px solid #222"}} 
+            />
+          </div>
+
           {isEditing && (
             <div style={inputGroup}>
               <label style={labelStyle}>NOVA SENHA (DEIXE EM BRANCO PARA MANTER)</label>
@@ -2225,7 +2415,7 @@ export default function ProfilePage() {
 
           {status.sent && (
             <div style={verifyBox}>
-              <p style={{fontSize: '10px', color: '#666', marginBottom: '8px'}}>CÓDIGO ENVIADO PARA O NOVO NÚMERO:</p>
+              <p style={{fontSize: '10px', color: '#666', marginBottom: '8px'}}>CÓDIGO ENVIADO PARA O NOVO E-MAIL:</p>
               <div style={{display: 'flex', gap: '5px', justifyContent: 'center'}}>
                 <input 
                   maxLength={4} 
@@ -2239,6 +2429,7 @@ export default function ProfilePage() {
           )}
 
           {error && <span style={errorTextStyle}>{error}</span>}
+          {successMessage && <span style={successTextStyle}>{successMessage}</span>}
 
           {!isEditing ? (
             <button type="button" onClick={handleEditClick} style={buttonStyle}>EDITAR MEUS DADOS</button>
@@ -2248,7 +2439,7 @@ export default function ProfilePage() {
               style={{...saveButtonStyle, opacity: status.verified ? 1 : 0.5, cursor: (status.verified && !status.loading) ? "pointer" : "not-allowed"}}
               disabled={!status.verified || status.loading}
             >
-              {status.loading ? "SALVANDO..." : status.verified ? "SALVAR ALTERAÇÕES" : "AGUARDANDO VALIDAÇÃO"}
+              {status.loading ? "SALVANDO..." : status.verified ? "SALVAR ALTERAÇÕES" : "AGUARDANDO VALIDAÇÃO DE E-MAIL"}
             </button>
           )}
           
@@ -2275,6 +2466,7 @@ const verifyButtonStyle: React.CSSProperties = { backgroundColor: "#b91c1c", col
 const confirmButtonStyle: React.CSSProperties = { backgroundColor: "#15803d", color: "#fff", border: "none", padding: "0 20px", borderRadius: "4px", cursor: "pointer" };
 const verifyBox: React.CSSProperties = { padding: "15px", backgroundColor: "#050505", borderRadius: "4px", border: "1px dashed #333" };
 const errorTextStyle: React.CSSProperties = { color: "#b91c1c", fontSize: "11px", fontWeight: "bold" };
+const successTextStyle: React.CSSProperties = { color: "#15803d", fontSize: "11px", fontWeight: "bold" };
 const logoutButtonStyle: React.CSSProperties = { backgroundColor: "transparent", color: "#555", padding: "10px", cursor: "pointer", border: "none", fontSize: "12px", marginTop: "10px" };
 
 
@@ -2294,77 +2486,80 @@ export default function RegisterPage() {
   const [codes, setCodes] = useState({ server: "", user: "" });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Validação profissional campo a campo
+  // Validação robusta campo a campo
   const validate = () => {
     let newErrors: { [key: string]: string } = {};
 
     if (!formData.name.trim()) newErrors.name = "O nome é obrigatório.";
-    if (!formData.email.includes("@")) newErrors.email = "E-mail inválido.";
-    if (formData.phone.length < 10) newErrors.phone = "Número de WhatsApp inválido.";
-    if (!status.verified) newErrors.phone = "Você precisa validar o WhatsApp primeiro.";
+    if (!formData.email.includes("@")) newErrors.email = "Digite um e-mail válido.";
+    if (!status.verified) newErrors.email = "Você precisa validar seu e-mail com o código primeiro.";
     if (formData.password.length < 6) newErrors.password = "A senha deve ter pelo menos 6 caracteres.";
+    
+    // Telefone opcional, mas se preencher, validamos o tamanho mínimo
+    if (formData.phone && formData.phone.length < 10) {
+        newErrors.phone = "Número de telefone inválido.";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Envio do código via Z-API
   const handleSendCode = async () => {
-    if (formData.phone.length < 10) {
-      setErrors({ ...errors, phone: "Digite um WhatsApp válido para validar." });
+    if (!formData.email.includes("@")) {
+      setErrors({ ...errors, email: "Digite um e-mail válido para receber o código." });
       return;
     }
+    
+    setErrors({ ...errors, email: "" }); // Limpa erro anterior
     setStatus({ ...status, loading: true });
-    setErrors({ ...errors, phone: "" });
 
     try {
-      const res = await fetch("/api/auth/send-sms", {
+      const res = await fetch("/api/auth/send-email", {
         method: "POST",
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
       const data = await res.json();
       if (res.ok) {
         setCodes({ ...codes, server: data.code });
         setStatus({ ...status, sent: true, loading: false });
+      } else {
+        setErrors({ ...errors, email: "Erro ao enviar e-mail. Tente novamente." });
+        setStatus({ ...status, loading: false });
       }
     } catch {
       setStatus({ ...status, loading: false });
-      setErrors({ ...errors, phone: "Erro ao conectar com o serviço de SMS." });
+      setErrors({ ...errors, email: "Erro de conexão com o servidor de e-mail." });
     }
   };
 
   const handleVerify = () => {
     if (codes.user === codes.server && codes.server !== "") {
       setStatus({ ...status, verified: true });
-      setErrors({ ...errors, phone: "" });
+      setErrors({ ...errors, email: "" }); // Limpa erro ao validar
     } else {
-      setErrors({ ...errors, phone: "Código de verificação incorreto." });
+      setErrors({ ...errors, email: "Código de verificação incorreto." });
     }
   };
 
-  // SALVAR NO BANCO DE DADOS (PRISMA)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (validate()) {
       setStatus({ ...status, loading: true });
       try {
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            password: formData.password
-          }),
+          body: JSON.stringify(formData),
         });
 
         if (res.ok) {
-          alert("🍟 Cadastro realizado com sucesso!");
-          window.location.href = "/"; // Redireciona e atualiza os cookies da sessão
+          // REDIRECIONAMENTO DIRETO (SEM JANELA)
+          router.push("/");
+          router.refresh();
         } else {
           const errorData = await res.json();
-          setErrors({ ...errors, email: errorData.error || "Erro ao cadastrar. Verifique os dados." });
+          setErrors({ ...errors, email: errorData.error || "Erro no cadastro." });
         }
       } catch (err) {
         setErrors({ ...errors, email: "Erro de conexão com o servidor." });
@@ -2378,19 +2573,23 @@ export default function RegisterPage() {
     <div style={containerStyle}>
       <div style={cardStyle}>
         <div style={logoContainer}>
-          <img src="/logo_hamburgueria.png" alt="Logo" style={{ height: "60px", marginBottom: "10px" }} />
+          <span style={{ fontSize: "40px" }}>🔥</span>
           <h1 style={brandStyle}>CADASTRO</h1>
-          <p style={subtitleStyle}>O BRASIL EM CADA MORDIDA</p>
+          <p style={subtitleStyle}>VALIDE SEU ACESSO POR E-MAIL</p>
         </div>
 
-        <form style={formStyle} onSubmit={handleSubmit}>
+        <form style={formStyle} onSubmit={handleSubmit} noValidate>
           {/* NOME */}
           <div style={inputGroup}>
             <label style={labelStyle}>NOME COMPLETO</label>
             <input 
               style={{...inputStyle, border: errors.name ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
               placeholder="Ex: Pedro Silva"
-              onChange={e => setFormData({...formData, name: e.target.value})}
+              value={formData.name}
+              onChange={e => {
+                setFormData({...formData, name: e.target.value});
+                if(errors.name) setErrors({...errors, name: ""});
+              }}
             />
             {errors.name && <span style={errorTextStyle}>{errors.name}</span>}
           </div>
@@ -2398,24 +2597,17 @@ export default function RegisterPage() {
           {/* EMAIL */}
           <div style={inputGroup}>
             <label style={labelStyle}>E-MAIL</label>
-            <input 
-              type="email" 
-              style={{...inputStyle, border: errors.email ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
-              placeholder="seu@email.com"
-              onChange={e => setFormData({...formData, email: e.target.value})}
-            />
-            {errors.email && <span style={errorTextStyle}>{errors.email}</span>}
-          </div>
-
-          {/* WHATSAPP */}
-          <div style={inputGroup}>
-            <label style={labelStyle}>WHATSAPP (DDD)</label>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input 
-                style={{...inputStyle, border: status.verified ? "1px solid #15803d" : errors.phone ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
-                placeholder="11999999999"
+                type="email" 
+                style={{...inputStyle, border: status.verified ? "1px solid #15803d" : errors.email ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
+                placeholder="seu@email.com"
                 disabled={status.verified}
-                onChange={e => setFormData({...formData, phone: e.target.value})}
+                value={formData.email}
+                onChange={e => {
+                    setFormData({...formData, email: e.target.value});
+                    if(errors.email) setErrors({...errors, email: ""});
+                }}
               />
               {!status.verified && (
                 <button type="button" onClick={handleSendCode} style={verifyButtonStyle}>
@@ -2423,13 +2615,13 @@ export default function RegisterPage() {
                 </button>
               )}
             </div>
-            {errors.phone && <span style={errorTextStyle}>{errors.phone}</span>}
+            {errors.email && <span style={errorTextStyle}>{errors.email}</span>}
           </div>
 
           {/* BOX DE CÓDIGO */}
           {status.sent && !status.verified && (
             <div style={verifyBox}>
-              <p style={{fontSize: '11px', color: '#999', marginBottom: '10px'}}>DIGITE O CÓDIGO DO WHATSAPP:</p>
+              <p style={{fontSize: '11px', color: '#999', marginBottom: '10px'}}>DIGITE O CÓDIGO QUE ENVIAMOS:</p>
               <div style={{display: 'flex', gap: '10px', justifyContent: 'center'}}>
                 <input 
                   maxLength={4} 
@@ -2442,19 +2634,38 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* WHATSAPP */}
+          <div style={inputGroup}>
+            <label style={labelStyle}>WHATSAPP (DDD)</label>
+            <input 
+              style={{...inputStyle, border: errors.phone ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
+              placeholder="11999999999"
+              value={formData.phone}
+              onChange={e => {
+                setFormData({...formData, phone: e.target.value});
+                if(errors.phone) setErrors({...errors, phone: ""});
+              }}
+            />
+            {errors.phone && <span style={errorTextStyle}>{errors.phone}</span>}
+          </div>
+
           {/* SENHA */}
           <div style={inputGroup}>
-            <label style={labelStyle}>SUA SENHA</label>
+            <label style={labelStyle}>CRIE UMA SENHA</label>
             <input 
               type="password" 
               style={{...inputStyle, border: errors.password ? "1px solid #b91c1c" : "1px solid #1a1a1a"}} 
               placeholder="••••••••"
-              onChange={e => setFormData({...formData, password: e.target.value})}
+              value={formData.password}
+              onChange={e => {
+                setFormData({...formData, password: e.target.value});
+                if(errors.password) setErrors({...errors, password: ""});
+              }}
             />
             {errors.password && <span style={errorTextStyle}>{errors.password}</span>}
           </div>
 
-          <button type="submit" style={buttonStyle} disabled={status.loading}>
+          <button type="submit" style={{...buttonStyle, opacity: status.verified ? 1 : 0.6}} disabled={status.loading}>
             {status.loading ? "PROCESSANDO..." : "FINALIZAR CADASTRO"}
           </button>
         </form>
@@ -2467,7 +2678,7 @@ export default function RegisterPage() {
   );
 }
 
-// ESTILOS PREMIUM BASEADOS NAS IMAGENS
+// Estilos mantidos para consistência visual
 const containerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 20px" };
 const cardStyle: React.CSSProperties = { backgroundColor: "#0a0a0a", padding: "50px 40px", borderRadius: "12px", width: "100%", maxWidth: "450px", border: "1px solid #1a1a1a", textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" };
 const brandStyle: React.CSSProperties = { color: "#fff", fontSize: "32px", fontWeight: "900", letterSpacing: "2px", margin: "10px 0" };
@@ -2618,14 +2829,36 @@ ARQUIVO: .\src\components\Footer.tsx
 "use client";
 
 import React from 'react';
-import Link from 'next/link';
-import { Instagram, Facebook, Youtube, MapPin, Phone, Clock } from 'lucide-react';
+import { Instagram, Facebook, Youtube, MapPin, Phone, Clock, CreditCard, Banknote, Landmark, Smartphone } from 'lucide-react';
 
 const Footer = () => {
   return (
     <footer style={styles.footer}>
+      
+      {/* DIVISOR DE ONDA ANIMADO */}
+      <div style={styles.divisorOndaAnimado}>
+        <svg 
+          viewBox="0 24 150 28" 
+          preserveAspectRatio="none" 
+          shapeRendering="auto" 
+          style={styles.svgOnda}
+        >
+          <defs>
+            <path 
+              id="gentle-wave" 
+              d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" 
+            />
+          </defs>
+          <g className="parallax">
+            <use xlinkHref="#gentle-wave" x="48" y="0" fill="rgba(185, 28, 28, 0.3)" />
+            <use xlinkHref="#gentle-wave" x="48" y="3" fill="rgba(185, 28, 28, 0.5)" />
+            <use xlinkHref="#gentle-wave" x="48" y="5" fill="rgba(185, 28, 28, 0.7)" />
+            <use xlinkHref="#gentle-wave" x="48" y="7" fill="#000000" />
+          </g>
+        </svg>
+      </div>
+
       <div style={styles.container}>
-        {/* COLUNA 1 – MARCA */}
         <div style={styles.column}>
           <h2 style={styles.brandTitle}>
             PEDRO BURGER <span style={{ color: '#b91c1c' }}>GRILL</span>
@@ -2636,37 +2869,25 @@ const Footer = () => {
           </p>
         </div>
 
-        {/* COLUNA 2 – CONTATO */}
         <div style={styles.column}>
           <h3 style={styles.columnTitle}>Contato</h3>
           <ul style={styles.list}>
-            <li style={styles.listItem}>
-              <MapPin size={18} color="#b91c1c" /> 
-              <span>Av. Principal, 1234 - Centro</span>
-            </li>
-            <li style={styles.listItem}>
-              <Phone size={18} color="#b91c1c" /> 
-              <span>(11) 99999-9999</span>
-            </li>
-            <li style={styles.listItem}>
-              <Clock size={18} color="#b91c1c" /> 
-              <span>Seg à Dom – 18h às 23h</span>
-            </li>
+            <li style={styles.listItem}><MapPin size={18} color="#b91c1c" /> <span>Av. Principal, 1234 - Centro</span></li>
+            <li style={styles.listItem}><Phone size={18} color="#b91c1c" /> <span>(11) 99999-9999</span></li>
+            <li style={styles.listItem}><Clock size={18} color="#b91c1c" /> <span>Seg à Dom – 18h às 23h</span></li>
           </ul>
         </div>
 
-        {/* COLUNA 3 – LINKS RÁPIDOS */}
-        <div style={styles.column}>
-          <h3 style={styles.columnTitle}>Links Rápidos</h3>
-          <nav style={styles.list}>
-            <Link href="/" style={styles.link}>Início</Link>
-            <Link href="/cardapio" style={styles.link}>Cardápio</Link>
-            <Link href="/sobre" style={styles.link}>Sobre Nós</Link>
-            <Link href="/contato" style={styles.link}>Fale Conosco</Link>
-          </nav>
+        <div style={styles.columnPayment}>
+          <h3 style={styles.columnTitle}>Pagamento</h3>
+          <div style={styles.paymentIconsRow}>
+            <div style={styles.iconBox}><Smartphone size={24} color="#32bcad" /><span style={styles.miniLabel}>PIX</span></div>
+            <div style={styles.iconBox}><CreditCard size={24} color="#ccc" /><span style={styles.miniLabel}>CARTÃO</span></div>
+            <div style={styles.iconBox}><Landmark size={24} color="#f59e0b" /><span style={styles.miniLabel}>VR/VA</span></div>
+            <div style={styles.iconBox}><Banknote size={24} color="#22c55e" /><span style={styles.miniLabel}>DINHEIRO</span></div>
+          </div>
         </div>
 
-        {/* COLUNA 4 – REDES SOCIAIS */}
         <div style={styles.column}>
           <h3 style={styles.columnTitle}>Siga-nos</h3>
           <div style={styles.socialGroup}>
@@ -2678,23 +2899,29 @@ const Footer = () => {
       </div>
 
       <div style={styles.bottomBar}>
-        <p style={styles.copyright}>
-          © 2026 PEDRO BURGER GRILL – Todos os direitos reservados.
-        </p>
+        <p style={styles.copyright}>© 2026 PEDRO BURGER GRILL – Todos os direitos reservados.</p>
       </div>
 
       <style jsx>{`
-        .social-hover {
-          transition: all 0.3s ease;
-          background-color: #111;
-          color: white;
+        .social-hover { transition: all 0.3s ease; background-color: #111; color: white; }
+        .social-hover:hover { background-color: #b91c1c; transform: translateY(-3px); }
+        
+        .parallax > use {
+          animation: move-forever 25s cubic-bezier(.55,.5,.45,.5) infinite;
         }
-        .social-hover:hover {
-          background-color: #b91c1c;
-          transform: translateY(-3px);
+        .parallax > use:nth-child(1) { animation-delay: -2s; animation-duration: 7s; }
+        .parallax > use:nth-child(2) { animation-delay: -3s; animation-duration: 10s; }
+        .parallax > use:nth-child(3) { animation-delay: -4s; animation-duration: 13s; }
+        .parallax > use:nth-child(4) { animation-delay: -5s; animation-duration: 20s; }
+
+        @keyframes move-forever {
+          0% { transform: translate3d(-90px,0,0); }
+          100% { transform: translate3d(85px,0,0); }
         }
-        a:hover {
-          color: #b91c1c !important;
+
+        @media (max-width: 768px) {
+          .svgOnda { height: 40px; min-height: 40px; }
+          .divisorOndaAnimado { top: -40px; }
         }
       `}</style>
     </footer>
@@ -2704,92 +2931,50 @@ const Footer = () => {
 const styles: { [key: string]: React.CSSProperties } = {
   footer: {
     backgroundColor: '#000',
-    borderTop: '1px solid #222',
-    padding: '80px 60px 20px 60px',
     color: '#fff',
     width: '100%',
+    position: 'relative',
+    marginTop: '50px', // Espaço para a onda não bater no botão do cardápio
+  },
+  divisorOndaAnimado: {
+    position: 'absolute',
+    top: '-100px', 
+    left: 0,
+    width: '100%',
+    height: '100px',
+    zIndex: 10,
+    lineHeight: 0,
+  },
+  svgOnda: {
+    width: '100%',
+    height: '100px',
+    minHeight: '100px',
   },
   container: {
     maxWidth: '1200px',
     margin: '0 auto',
+    padding: '40px 60px 60px 60px', 
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '40px',
+    position: 'relative',
+    zIndex: 11
   },
-  column: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '15px',
-  },
-  brandTitle: {
-    fontSize: '1.5rem',
-    fontWeight: '900',
-    letterSpacing: '1px',
-    margin: 0,
-  },
-  tagline: {
-    color: '#b91c1c',
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    fontSize: '0.9rem',
-  },
-  description: {
-    color: '#ccc',
-    fontSize: '0.9rem',
-    lineHeight: '1.6',
-  },
-  columnTitle: {
-    fontSize: '1.1rem',
-    textTransform: 'uppercase',
-    letterSpacing: '2px',
-    marginBottom: '10px',
-    borderLeft: '4px solid #b91c1c',
-    paddingLeft: '10px',
-  },
-  list: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-    listStyle: 'none',
-    padding: 0,
-  },
-  listItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    color: '#ccc',
-    fontSize: '0.9rem',
-  },
-  link: {
-    color: '#ccc',
-    textDecoration: 'none',
-    fontSize: '0.9rem',
-    transition: '0.3s',
-  },
-  socialGroup: {
-    display: 'flex',
-    gap: '12px',
-  },
-  socialBtn: {
-    width: '40px',
-    height: '40px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '4px',
-    textDecoration: 'none',
-  },
-  bottomBar: {
-    marginTop: '60px',
-    paddingTop: '20px',
-    borderTop: '1px solid #222',
-    textAlign: 'center',
-  },
-  copyright: {
-    fontSize: '0.75rem',
-    color: '#777',
-    letterSpacing: '1px',
-  },
+  column: { display: 'flex', flexDirection: 'column', gap: '15px' },
+  columnPayment: { display: 'flex', flexDirection: 'column', gap: '15px' },
+  brandTitle: { fontSize: '1.5rem', fontWeight: '900', margin: 0 },
+  tagline: { color: '#b91c1c', fontWeight: 'bold', fontSize: '0.9rem' },
+  description: { color: '#ccc', fontSize: '0.85rem', lineHeight: '1.6' },
+  columnTitle: { fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '2px', borderLeft: '4px solid #b91c1c', paddingLeft: '10px' },
+  list: { display: 'flex', flexDirection: 'column', gap: '12px', listStyle: 'none', padding: 0 },
+  listItem: { display: 'flex', alignItems: 'center', gap: '10px', color: '#ccc', fontSize: '0.9rem' },
+  paymentIconsRow: { display: 'flex', gap: '15px', flexWrap: 'wrap' },
+  iconBox: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' },
+  miniLabel: { fontSize: '0.6rem', color: '#666', fontWeight: 'bold' },
+  socialGroup: { display: 'flex', gap: '12px' },
+  socialBtn: { width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px' },
+  bottomBar: { marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #222', textAlign: 'center' },
+  copyright: { fontSize: '0.75rem', color: '#777', paddingBottom: '20px' },
 };
 
 export default Footer;
@@ -2813,110 +2998,13 @@ const Hero = () => {
           Experiência artesanal com fogo de verdade e ingredientes selecionados.
         </p>
         <div style={styles.buttonGroup}>
-          <button className="btn-primary" style={styles.mainBtn}>
-            VER CARDÁPIO
-          </button>
-          <button style={styles.secondaryBtn}>
-            NOSSA HISTÓRIA
-          </button>
+          <button className="btn-primary" style={styles.mainBtn}>VER CARDÁPIO</button>
+          <button style={styles.secondaryBtn}>NOSSA HISTÓRIA</button>
         </div>
       </div>
 
-      {/* Overlay de Chamas */}
+      {/* Overlay de Chamas Obrigatório */}
       <div className="chamas-overlay" />
-
-      {/* ===== MORDIDA PREMIUM - APENAS MOBILE ===== */}
-      <div className="mobile-bite-divider">
-        <svg viewBox="0 0 1440 220" preserveAspectRatio="none">
-          <defs>
-            {/* Textura artesanal */}
-            <filter id="grainMobile">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.9"
-                numOctaves="2"
-                stitchTiles="stitch"
-              />
-              <feColorMatrix type="saturate" values="0" />
-            </filter>
-
-            {/* Sombra interna profunda */}
-            <filter id="innerShadowMobile" x="-50%" y="-50%" width="200%" height="200%">
-              <feOffset dx="0" dy="8" />
-              <feGaussianBlur stdDeviation="10" result="offset-blur" />
-              <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
-              <feFlood floodColor="#000000" floodOpacity="0.85" />
-              <feComposite operator="in" in2="inverse" />
-              <feComposite operator="over" in2="SourceGraphic" />
-            </filter>
-          </defs>
-
-          {/* Mordida orgânica */}
-          <path
-            d="
-              M0,0
-              C120,120 220,140 320,60
-              C380,10 480,10 560,100
-              C640,170 760,150 860,70
-              C940,20 1040,40 1140,120
-              C1240,180 1340,150 1440,90
-              L1440,220
-              L0,220
-              Z"
-            fill="#0a0a0a"
-            filter="url(#innerShadowMobile)"
-          />
-
-          {/* Textura sutil */}
-          <rect
-            width="100%"
-            height="100%"
-            filter="url(#grainMobile)"
-            opacity="0.06"
-          />
-        </svg>
-      </div>
-
-      <style jsx>{`
-        .mobile-bite-divider {
-          display: none;
-        }
-
-        @media (max-width: 768px) {
-          .mobile-bite-divider {
-            display: block;
-            position: absolute;
-            bottom: -1px;
-            left: 0;
-            width: 100%;
-            line-height: 0;
-            z-index: 3;
-          }
-
-          .mobile-bite-divider svg {
-            width: 100%;
-            height: 130px;
-            display: block;
-          }
-
-          /* Profundidade extra */
-          .mobile-bite-divider::after {
-            content: "";
-            position: absolute;
-            bottom: -3px;
-            left: 0;
-            width: 100%;
-            height: 50px;
-            background: radial-gradient(
-              ellipse at top,
-              rgba(0,0,0,0.7) 0%,
-              rgba(0,0,0,0.4) 40%,
-              transparent 75%
-            );
-            pointer-events: none;
-          }
-        }
-      `}</style>
     </section>
   );
 };
@@ -2924,7 +3012,8 @@ const Hero = () => {
 const styles: { [key: string]: React.CSSProperties } = {
   heroContainer: {
     position: 'relative',
-    height: 'calc(100vh - 90px)',
+    /* Ocupa a altura total da tela menos os 90px da Navbar */
+    height: 'calc(100vh - 90px)', 
     width: '100%',
     display: 'flex',
     alignItems: 'center',
@@ -2937,7 +3026,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   overlay: {
     position: 'absolute',
     inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.6)', 
     zIndex: 1,
   },
   content: {
@@ -2958,7 +3047,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   subtitle: {
     fontSize: 'clamp(1.2rem, 4vw, 2.5rem)',
-    color: '#b91c1c',
+    color: '#b91c1c', 
     fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: '20px',
@@ -3464,5 +3553,5 @@ if (process.env.NODE_ENV !== 'production') global.prisma = prisma
 RESUMO
 ================================================================================
 
-Total de arquivos exportados: 37
-Total de linhas de código: 3103
+Total de arquivos exportados: 38
+Total de linhas de código: 3180

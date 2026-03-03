@@ -10,10 +10,9 @@ export default function Home() {
   const { addToCart } = useCart();
   const router = useRouter();
 
-  // Estados para o Modal e Customização
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
-  const [customOptions, setCustomOptions] = useState<any[]>([]); // Agora armazena {nome, preco, qtd}
+  const [customOptions, setCustomOptions] = useState<any[]>([]);
   const [observacao, setObservacao] = useState("");
 
   const produtos = [
@@ -22,7 +21,6 @@ export default function Home() {
     { id: "3", nome: "Double Cheddar Board", desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
   ];
 
-  // Listas sincronizadas com nomes padronizados para o Carrinho
   const molhosGratis = [
     { nome: "Ketchup", preco: 0 },
     { nome: "Mostarda", preco: 0 },
@@ -54,7 +52,6 @@ export default function Home() {
     setObservacao("");
   };
 
-  // NOVA FUNÇÃO: Gerencia contadores e limites de seção
   const updateOptionQtd = (item: any, delta: number, limit: number, sectionItems: any[]) => {
     const currentInSection = customOptions.filter(opt => sectionItems.some(s => s.nome === opt.nome));
     const totalInSection = currentInSection.reduce((acc, curr) => acc + curr.qtd, 0);
@@ -85,7 +82,6 @@ export default function Home() {
       image: selectedProduct.foto,
       quantity: quantity,
       customization: {
-        // Formato "1x Nome" para o Carrinho conseguir ler na edição
         extras: customOptions.map(o => `${o.qtd}x ${o.nome}`),
         obs: observacao
       }
@@ -101,14 +97,21 @@ export default function Home() {
 
       <style jsx global>{`
         body, html { margin: 0; padding: 0; overflow-x: hidden; background-color: #0a0a0a; scroll-behavior: smooth; }
-        .flame-overlay { position: fixed; inset: 0; background-image: url("/chamas-overlay.png"); background-size: cover; opacity: 0.15; mix-blend-mode: screen; pointer-events: none; z-index: 1; }
-        .btn-cardapio-completo { display: inline-block; padding: 15px 40px; border: 2px solid #b91c1c; color: #fff; font-size: 18px; font-weight: bold; text-decoration: none; text-transform: uppercase; border-radius: 5px; transition: 0.3s; }
+        .flame-overlay { position: fixed; inset: 0; background-image: url("/chamas-overlay.png"); background-size: cover; opacity: 0.12; mix-blend-mode: screen; pointer-events: none; z-index: 1; }
+        .btn-cardapio-completo { display: inline-block; padding: 15px 40px; border: 2px solid #b91c1c; color: #fff; font-size: 18px; font-weight: bold; text-decoration: none; text-transform: uppercase; border-radius: 5px; transition: 0.3s; position: relative; z-index: 10; }
         .btn-cardapio-completo:hover { background-color: #b91c1c; transform: scale(1.05); }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; backdrop-filter: blur(5px); }
         .modal-content { background: #111; width: 100%; max-width: 480px; border-radius: 20px; overflow-y: auto; max-height: 85vh; position: relative; border: 1px solid #333; color: #fff; }
-        .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; }
+        .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; transition: 0.2s; }
+        .btn-confirmar:hover { background: #991b1b; }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; }
+        .burger-card { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; z-index: 10; }
+        .burger-card:hover { transform: translateY(-10px); border-color: #b91c1c !important; box-shadow: 0 10px 30px rgba(185, 28, 28, 0.2); }
+        .burger-card:hover .img-hover { transform: scale(1.1); }
+        .btn-pedir { transition: all 0.3s ease; }
+        .btn-pedir:hover { background-color: #b91c1c !important; color: #fff !important; }
+
         @media (max-width: 768px) {
           .hero-section { height: 85vh !important; background-image: url("/design_mobile.jpg") !important; }
           .hero-content { justify-content: center !important; padding: 0 !important; bottom: 20px !important; position: absolute !important; width: 100% !important; }
@@ -118,43 +121,67 @@ export default function Home() {
         }
       `}</style>
 
-      {/* HERO */}
-{/* HERO */} <section className="hero-section relative overflow-hidden flex flex-col justify-center" style={{ ...heroSectionStyle, position: 'relative' }}> <div className="hero-content" style={{ ...heroContentStyle, zIndex: 30, position: 'relative' }}> {/* O z-index 30 mantém o texto na frente se houver sobreposição visual */} <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px' }}> <h1 style={heroTitleStyle}>O BRASIL EM<br />CADA MORDIDA</h1> <p style={heroSubtitleStyle}>Pedro Burger Grill</p> </div> </div> {/* Novo Efeito: Mordida Realista com Migalhas (Somente Mobile) */} <div className="hidden max-[768px]:block absolute bottom-0 left-0 w-full z-10 pointer-events-none leading-[0]"> <svg viewBox="0 0 1440 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-[100px]" > <defs> {/* Filtro de Textura Orgânica para o Pão (Brioche) [cite: 7] */} <filter id="bread-texture" x="0" y="0" width="100%" height="100%"> <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" stitchTiles="stitch" /> <feColorMatrix type="saturate" values="0" /> <feComponentTransfer> <feFuncA type="linear" slope="0.06" /> </feComponentTransfer> <feComposite operator="in" in2="SourceGraphic" /> </filter> {/* Sombra Interna Profunda para dar volume à mordida [cite: 7] */} <filter id="inner-shadow"> <feOffset dx="0" dy="8" /> <feGaussianBlur stdDeviation="5" result="offset-blur" /> <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" /> <feFlood floodColor="black" floodOpacity="0.8" result="color" /> <feComposite operator="in" in="color" in2="inverse" result="shadow" /> <feComposite operator="over" in="shadow" in2="SourceGraphic" /> </filter> </defs> {/* Path da Mordida com Marcas de Dentes - Fundo #0a0a0a [cite: 51] */} <path d="M0,0 L0,50 C100,45 150,110 220,105 C260,102 280,75 320,75 C360,75 380,105 420,105 C490,105 540,40 640,45 C740,50 790,115 860,110 C900,107 920,80 960,80 C1000,80 1020,110 1060,110 C1130,110 1180,45 1280,50 C1380,55 1440,30 1440,30 L1440,150 L0,150 Z" fill="#0a0a0a" filter="url(#inner-shadow)" /> {/* Camada de Textura de Pão [cite: 7] */} <path d="M0,0 L0,50 C100,45 150,110 220,105 C260,102 280,75 320,75 C360,75 380,105 420,105 C490,105 540,40 640,45 C740,50 790,115 860,110 C900,107 920,80 960,80 C1000,80 1020,110 1060,110 C1130,110 1180,45 1280,50 C1380,55 1440,30 1440,30 L1440,150 L0,150 Z" fill="white" filter="url(#bread-texture)" style={{ mixBlendMode: 'overlay' }} /> {/* Migalhas - Pequenas formas irregulares flutuando nas bordas da mordida [cite: 52] */} <g fill="#c4a77d" opacity="0.8"> {/* Cor de migalha de pão tostado [cite: 52] */} {/* Grupo 1 (Esquerda) [cite: 52] */} <ellipse cx="180" cy="95" rx="3" ry="5" transform="rotate(15 180 95)" /> <rect x="230" y="85" width="4" height="4" rx="1" transform="rotate(-10 232 87)" /> <ellipse cx="280" cy="115" rx="2" ry="3" /> {/* Grupo 2 (Centro) [cite: 52] */} <rect x="680" y="80" width="3" height="3" rx="1" /> <ellipse cx="730" cy="100" rx="4" ry="2" transform="rotate(30 730 100)" /> {/* Grupo 3 (Direita) [cite: 52] */} <ellipse cx="1100" cy="90" rx="3" ry="4" transform="rotate(-20 1100 90)" /> <rect x="1150" y="105" width="5" height="3" rx="1.5" transform="rotate(10 1152 106)" /> <ellipse cx="1200" cy="85" rx="2" ry="2" /> </g> </svg> </div> </section>
-
-      {/* CARDÁPIO NA HOME */}
-      <section id="cardapio" style={sectionCardapioStyle}>
-        <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
-        <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
-        
-        <div className="cardapio-grid" style={gridStyle}>
-          {produtos.map((p) => (
-            <Card 
-              key={p.id}
-              foto={p.foto} 
-              nome={p.nome} 
-              desc={p.desc}
-              preco={p.preco}
-              onAdd={() => handleOpenModal(p)}
-            />
-          ))}
+      {/* HERO SECTION */}
+      <section className="hero-section relative overflow-hidden flex flex-col justify-center" style={heroSectionStyle}>
+        <div className="hero-content" style={heroContentStyle}>
+          <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px', position: 'relative', zIndex: 30 }}>
+            <h1 style={heroTitleStyle}>O BRASIL EM<br />CADA MORDIDA</h1>
+            <p style={heroSubtitleStyle}>Pedro Burger Grill</p>
+          </div>
         </div>
 
-        <div style={{ marginTop: '70px' }}>
-          <Link href="/cardapio" className="btn-cardapio-completo">VER CARDÁPIO COMPLETO</Link>
+        {/* EFEITO DE MORDIDA REALISTA COM TRANSIÇÃO NATURAL (SOMENTE MOBILE) */}
+        <div className="hidden max-[768px]:block absolute bottom-0 left-0 w-full z-10 pointer-events-none leading-[0]">
+          <svg viewBox="0 0 1440 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-[120px]">
+            <defs>
+              <filter id="inner-shadow">
+                <feOffset dx="0" dy="8" />
+                <feGaussianBlur stdDeviation="5" result="offset-blur" />
+                <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
+                <feFlood floodColor="black" floodOpacity="0.8" result="color" />
+                <feComposite operator="in" in="color" in2="inverse" result="shadow" />
+                <feComposite operator="over" in="shadow" in2="SourceGraphic" />
+              </filter>
+            </defs>
+            {/* O preenchimento fill="#0a0a0a" garante que a mordida revele o fundo preto da próxima seção */}
+            <path d="M0,0 L0,50 C100,45 150,110 220,105 C260,102 280,75 320,75 C360,75 380,105 420,105 C490,105 540,40 640,45 C740,50 790,115 860,110 C900,107 920,80 960,80 C1000,80 1020,110 1060,110 C1130,110 1180,45 1280,50 C1380,55 1440,30 1440,30 L1440,150 L0,150 Z" fill="#0a0a0a" filter="url(#inner-shadow)" />
+          </svg>
+        </div>
+
+        {/* DIVISOR DE ONDA COM TRANSIÇÃO NATURAL (DESKTOP) */}
+        <div className="max-[768px]:hidden" style={divisorOndaStyle}>
+          <svg viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ width: '100%', height: '100px', display: 'block' }}>
+            {/* O fill="#0a0a0a" conecta perfeitamente a hero com o fundo preto do cardápio */}
+            <path fill="#0a0a0a" d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z"></path>
+          </svg>
         </div>
       </section>
 
-      {/* MODAL DE CUSTOMIZAÇÃO ATUALIZADO */}
+      {/* SEÇÃO CARDÁPIO COM FUNDO PRETO LISO */}
+      <section id="cardapio" style={sectionCardapioStyle}>
+        <div style={{ position: 'relative', zIndex: 20 }}>
+          <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
+          <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
+          <div className="cardapio-grid" style={gridStyle}>
+            {produtos.map((p) => (
+              <Card key={p.id} foto={p.foto} nome={p.nome} desc={p.desc} preco={p.preco} onAdd={() => handleOpenModal(p)} />
+            ))}
+          </div>
+          <div style={{ marginTop: '120px', position: 'relative', top: '-60px' }}>
+            <Link href="/cardapio" className="btn-cardapio-completo">VER CARDÁPIO COMPLETO</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* MODAL E OUTROS COMPONENTES PERMANECEM IGUAIS */}
       {selectedProduct && (
         <div className="modal-overlay">
           <div className="modal-content custom-scrollbar">
-            <button style={closeBtn} onClick={() => setSelectedProduct(null)}><X size={20}/></button>
+            <button style={closeBtn} onClick={() => setSelectedProduct(null)} aria-label="Fechar"><X size={20} /></button>
             <img src={selectedProduct.foto} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
-            
             <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
               <h2 style={{ fontSize: '22px', fontWeight: '900', marginBottom: '5px' }}>{selectedProduct.nome}</h2>
               <p style={{ color: '#888', fontSize: '13px', marginBottom: '20px' }}>{selectedProduct.desc}</p>
-              
               {[
                 { title: "MOLHOS (GRÁTIS)", items: molhosGratis },
                 { title: "MOLHOS DA CASA", items: molhosCasa },
@@ -177,17 +204,10 @@ export default function Home() {
                   ))}
                 </div>
               ))}
-
               <div style={modalSection}>
                 <h4 style={sectionTitle}>OBSERVAÇÕES</h4>
-                <textarea 
-                  value={observacao} 
-                  onChange={(e) => setObservacao(e.target.value)} 
-                  placeholder="Ex: Ponto da carne, sem cebola..."
-                  style={textareaStyle}
-                />
+                <textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: Ponto da carne, sem cebola..." style={textareaStyle} />
               </div>
-
               <div style={footerModal}>
                 <div style={qtyContainer}>
                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={qtyBtn}><Minus size={16}/></button>
@@ -212,25 +232,35 @@ export default function Home() {
 
 function Card({ foto, nome, desc, preco, onAdd }: any) {
   return (
-    <div style={cardContainerStyle}>
+    <div className="burger-card" style={cardContainerStyle}>
       <div style={imgWrapperStyle}>
-        <img src={foto} alt={nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img className="img-hover" src={foto} alt={nome} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: '0.5s' }} />
       </div>
       <h3 style={cardTitleStyle}>{nome}</h3>
       <p style={cardDescStyle}>{desc}</p>
       <div style={cardPriceStyle}>R$ {preco.toFixed(2).replace('.', ',')}</div>
-      <button onClick={onAdd} style={cardBtnStyle}>PEDIR AGORA</button>
+      <button className="btn-pedir" onClick={onAdd} style={cardBtnStyle}>PEDIR AGORA</button>
     </div>
   );
 }
 
-// Estilos mantidos e otimizados
+// ESTILOS COM FOCO NA TRANSIÇÃO PROFISSIONAL
 const mainStyle: React.CSSProperties = { margin: 0, padding: 0, paddingTop: '80px', backgroundColor: '#0a0a0a', minHeight: '100vh', width: '100%', color: '#fff', position: 'relative' };
-const heroSectionStyle: React.CSSProperties = { position: 'relative', height: '90vh', width: '100%', display: 'flex', alignItems: 'center', backgroundImage: 'url("/burger-destaque.jpg")', backgroundSize: 'cover', backgroundPosition: 'left center' };
-const heroContentStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'flex-end', paddingRight: '8%', position: 'relative', zIndex: 3 };
+const heroSectionStyle: React.CSSProperties = { position: 'relative', height: '90vh', width: '100%', display: 'flex', alignItems: 'center', backgroundImage: 'url("/burger-destaque.jpg")', backgroundSize: 'cover', backgroundPosition: 'left 60%', overflow: 'visible', zIndex: 5 };
+const heroContentStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'flex-end', paddingRight: '8%', position: 'relative', zIndex: 15 };
 const heroTitleStyle: React.CSSProperties = { fontSize: 'clamp(40px, 7vw, 90px)', lineHeight: '0.85', fontWeight: '900', textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', textShadow: '3px 3px 15px rgba(0,0,0,0.8)' };
 const heroSubtitleStyle: React.CSSProperties = { marginTop: '15px', fontSize: '28px', fontFamily: '"Brush Script MT", cursive', color: '#eee' };
-const sectionCardapioStyle: React.CSSProperties = { padding: '120px 20px 80px', backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")', backgroundSize: 'cover', backgroundAttachment: 'fixed', textAlign: 'center', position: 'relative', zIndex: 5 };
+const divisorOndaStyle: React.CSSProperties = { position: 'absolute', bottom: '-1px', left: 0, width: '100%', zIndex: 10, lineHeight: 0 };
+
+// CUSTOMIZAÇÃO DA SEÇÃO DO CARDÁPIO: Fundo preto sólido para conexão direta com os divisores
+const sectionCardapioStyle: React.CSSProperties = { 
+  padding: '120px 20px 80px', 
+  backgroundColor: '#0a0a0a', // Fundo preto sólido para transição perfeita
+  textAlign: 'center', 
+  position: 'relative', 
+  zIndex: 5 
+};
+
 const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' };
 const cardContainerStyle: React.CSSProperties = { backgroundColor: 'rgba(17, 17, 17, 0.95)', padding: '40px 30px', borderRadius: '15px', border: '1px solid #333' };
 const imgWrapperStyle: React.CSSProperties = { width: '100%', height: '220px', marginBottom: '20px', overflow: 'hidden', borderRadius: '10px' };
@@ -239,7 +269,7 @@ const cardDescStyle: React.CSSProperties = { fontSize: '14px', color: '#ccc', ma
 const cardPriceStyle: React.CSSProperties = { fontSize: '22px', fontWeight: 'bold', color: '#b91c1c', marginBottom: '20px' };
 const cardBtnStyle: React.CSSProperties = { padding: '12px 25px', backgroundColor: 'transparent', border: '2px solid #b91c1c', color: '#fff', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase', width: '100%', borderRadius: '5px' };
 const whatsappFloat: React.CSSProperties = { position: 'fixed', bottom: '30px', right: '30px', backgroundColor: '#25d366', padding: '15px', borderRadius: '50%', zIndex: 1000 };
-const closeBtn: React.CSSProperties = { position: 'absolute', top: '15px', right: '15px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 10 };
+const closeBtn: React.CSSProperties = { position: 'absolute', top: '15px', right: '15px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const modalSection: React.CSSProperties = { marginBottom: '20px', textAlign: 'left' };
 const sectionTitle: React.CSSProperties = { fontSize: '12px', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '15px', fontWeight: 'bold' };
 const optionRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #222', fontSize: '14px' };
@@ -249,3 +279,4 @@ const textareaStyle: React.CSSProperties = { width: '100%', background: '#000', 
 const footerModal: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '20px', borderTop: '1px solid #222', paddingTop: '15px' };
 const qtyContainer: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#000', padding: '8px 15px', borderRadius: '8px' };
 const qtyBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
+

@@ -30,12 +30,22 @@ export default function RootLayout({
           padding: 0, 
           backgroundColor: '#0a0a0a', 
           color: 'white',
-          minHeight: '100vh'
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh', // Garante que o corpo ocupe a tela toda
         }}
       >
-        <CartProvider> {/* Envolvendo para o carrinho funcionar */}
+        <CartProvider>
+          {/* A Navbar fica no topo de todas as páginas */}
           <Navbar />
-          {children}
+          
+          {/* O children representa o conteúdo de cada página (/cardapio, /sobre, etc) */}
+          {/* O flex: 1 faz com que o conteúdo empurre o rodapé para o fim da página */}
+          <main style={{ flex: 1 }}>
+            {children}
+          </main>
+
+          {/* O Footer aqui será replicado em ABSOLUTAMENTE TODAS as páginas */}
           <Footer />
         </CartProvider>
       </body>

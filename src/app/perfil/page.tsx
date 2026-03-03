@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 export default function ProfilePage() {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
-  // Adicionado password ao formData
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "" });
   const [originalData, setOriginalData] = useState({ email: "", phone: "" });
   const [status, setStatus] = useState({ sent: false, verified: true, loading: false });
   const [codes, setCodes] = useState({ server: "", user: "" });
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const maskPhone = (value: string) => {
     return value
@@ -29,8 +29,8 @@ export default function ProfilePage() {
           const formattedData = {
             name: data.name || "",
             email: data.email || "",
-            phone: data.phone || "",
-            password: "" // Senha sempre limpa por segurança
+            phone: data.phone ? maskPhone(data.phone) : "",
+            password: "" 
           };
           setFormData(formattedData);
           setOriginalData({ email: formattedData.email, phone: formattedData.phone });
@@ -45,18 +45,20 @@ export default function ProfilePage() {
   const handleEditClick = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsEditing(true);
+    setSuccessMessage("");
   };
 
+  // AGORA VALIDA O E-MAIL EM VEZ DO SMS
   const handleSendCode = async () => {
-    if (formData.phone.length < 15) {
-      setError("Digite o novo número completo.");
+    if (!formData.email.includes("@")) {
+      setError("Digite um e-mail válido.");
       return;
     }
     setStatus({ ...status, loading: true });
     try {
-      const res = await fetch("/api/auth/send-sms", {
+      const res = await fetch("/api/auth/send-email", {
         method: "POST",
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -66,14 +68,14 @@ export default function ProfilePage() {
       }
     } catch {
       setStatus({ ...status, loading: false });
-      setError("Erro ao enviar código.");
+      setError("Erro ao enviar código de verificação.");
     }
   };
 
   const handleVerify = () => {
     if (codes.user === codes.server && codes.server !== "") {
       setStatus({ ...status, verified: true, sent: false });
-      setOriginalData({ ...originalData, phone: formData.phone });
+      setOriginalData({ ...originalData, email: formData.email });
       setError("");
     } else {
       setError("Código incorreto.");
@@ -83,11 +85,13 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!status.verified) {
-      setError("Valide o novo número primeiro.");
+      setError("Valide o novo e-mail primeiro.");
       return;
     }
     
     setStatus({ ...status, loading: true });
+    setError("");
+
     try {
       const res = await fetch("/api/auth/update-profile", {
         method: "POST",
@@ -100,11 +104,10 @@ export default function ProfilePage() {
 
       if (res.ok) {
         setIsEditing(false);
-        // Limpa o campo de senha após salvar
         setFormData(prev => ({ ...prev, password: "" }));
         setOriginalData({ email: formData.email, phone: formData.phone });
         setStatus({ ...status, loading: false });
-        alert("Perfil atualizado com sucesso!");
+        setSuccessMessage("Dados atualizados com sucesso!");
         router.refresh(); 
       } else {
         const data = await res.json();
@@ -134,40 +137,40 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* E-MAIL */}
+          {/* E-MAIL (COM VALIDAÇÃO AGORA) */}
           <div style={inputGroup}>
             <label style={labelStyle}>E-MAIL</label>
-            <input 
-              value={formData.email || ""} 
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-              readOnly={!isEditing}
-              style={{...inputStyle, opacity: isEditing ? 1 : 0.6, border: isEditing ? "1px solid #b91c1c" : "1px solid #222"}} 
-            />
-          </div>
-
-          {/* WHATSAPP */}
-          <div style={inputGroup}>
-            <label style={labelStyle}>WHATSAPP</label>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                value={formData.phone || ""} 
+                <input 
+                value={formData.email || ""} 
                 onChange={(e) => {
-                  const newPhone = maskPhone(e.target.value);
-                  setFormData({ ...formData, phone: newPhone });
-                  setStatus({ ...status, verified: newPhone === originalData.phone });
+                    const newEmail = e.target.value;
+                    setFormData({...formData, email: newEmail});
+                    setStatus({ ...status, verified: newEmail === originalData.email });
                 }}
                 readOnly={!isEditing}
                 style={{...inputStyle, flex: 1, opacity: isEditing ? 1 : 0.6, border: !status.verified && isEditing ? "1px solid #f59e0b" : isEditing ? "1px solid #b91c1c" : "1px solid #222"}} 
-              />
-              {isEditing && !status.verified && (
+                />
+                {isEditing && !status.verified && (
                 <button type="button" onClick={handleSendCode} style={verifyButtonStyle}>
-                  {status.loading ? "..." : "VALIDAR"}
+                    {status.loading ? "..." : "VALIDAR"}
                 </button>
-              )}
+                )}
             </div>
           </div>
 
-          {/* NOVO: CAMPO DE SENHA (SÓ APARECE EM MODO EDIÇÃO) */}
+          {/* WHATSAPP (APENAS MÁSCARA, SEM TRAVA DE SMS) */}
+          <div style={inputGroup}>
+            <label style={labelStyle}>WHATSAPP</label>
+            <input 
+                value={formData.phone || ""} 
+                onChange={(e) => setFormData({ ...formData, phone: maskPhone(e.target.value) })}
+                readOnly={!isEditing}
+                placeholder="(00) 00000-0000"
+                style={{...inputStyle, opacity: isEditing ? 1 : 0.6, border: isEditing ? "1px solid #b91c1c" : "1px solid #222"}} 
+            />
+          </div>
+
           {isEditing && (
             <div style={inputGroup}>
               <label style={labelStyle}>NOVA SENHA (DEIXE EM BRANCO PARA MANTER)</label>
@@ -183,7 +186,7 @@ export default function ProfilePage() {
 
           {status.sent && (
             <div style={verifyBox}>
-              <p style={{fontSize: '10px', color: '#666', marginBottom: '8px'}}>CÓDIGO ENVIADO PARA O NOVO NÚMERO:</p>
+              <p style={{fontSize: '10px', color: '#666', marginBottom: '8px'}}>CÓDIGO ENVIADO PARA O NOVO E-MAIL:</p>
               <div style={{display: 'flex', gap: '5px', justifyContent: 'center'}}>
                 <input 
                   maxLength={4} 
@@ -197,6 +200,7 @@ export default function ProfilePage() {
           )}
 
           {error && <span style={errorTextStyle}>{error}</span>}
+          {successMessage && <span style={successTextStyle}>{successMessage}</span>}
 
           {!isEditing ? (
             <button type="button" onClick={handleEditClick} style={buttonStyle}>EDITAR MEUS DADOS</button>
@@ -206,7 +210,7 @@ export default function ProfilePage() {
               style={{...saveButtonStyle, opacity: status.verified ? 1 : 0.5, cursor: (status.verified && !status.loading) ? "pointer" : "not-allowed"}}
               disabled={!status.verified || status.loading}
             >
-              {status.loading ? "SALVANDO..." : status.verified ? "SALVAR ALTERAÇÕES" : "AGUARDANDO VALIDAÇÃO"}
+              {status.loading ? "SALVANDO..." : status.verified ? "SALVAR ALTERAÇÕES" : "AGUARDANDO VALIDAÇÃO DE E-MAIL"}
             </button>
           )}
           
@@ -233,4 +237,5 @@ const verifyButtonStyle: React.CSSProperties = { backgroundColor: "#b91c1c", col
 const confirmButtonStyle: React.CSSProperties = { backgroundColor: "#15803d", color: "#fff", border: "none", padding: "0 20px", borderRadius: "4px", cursor: "pointer" };
 const verifyBox: React.CSSProperties = { padding: "15px", backgroundColor: "#050505", borderRadius: "4px", border: "1px dashed #333" };
 const errorTextStyle: React.CSSProperties = { color: "#b91c1c", fontSize: "11px", fontWeight: "bold" };
+const successTextStyle: React.CSSProperties = { color: "#15803d", fontSize: "11px", fontWeight: "bold" };
 const logoutButtonStyle: React.CSSProperties = { backgroundColor: "transparent", color: "#555", padding: "10px", cursor: "pointer", border: "none", fontSize: "12px", marginTop: "10px" };
