@@ -6,7 +6,7 @@ const Hero = () => {
       <div style={styles.overlay} />
       
       <div style={styles.content} className="fade-in-section">
-        <h1 style={styles.title}>PEDRO BURGUER GRILL</h1>
+        <h1 style={styles.title}>THE FLAME GRILL</h1>
         <h2 style={styles.subtitle}>O BRASIL EM CADA MORDIDA</h2>
         <p style={styles.description}>
           Experiência artesanal com fogo de verdade e ingredientes selecionados.

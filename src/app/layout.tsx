@@ -12,7 +12,7 @@ const oswald = Oswald({
 });
 
 export const metadata: Metadata = {
-  title: "Pedro Burger Grill",
+  title: "The Flame Grill",
   description: "O Brasil em cada mordida",
 };
 

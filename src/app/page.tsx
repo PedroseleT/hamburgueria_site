@@ -126,7 +126,7 @@ export default function Home() {
         <div className="hero-content" style={heroContentStyle}>
           <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px', position: 'relative', zIndex: 30 }}>
             <h1 style={heroTitleStyle}>O BRASIL EM<br />CADA MORDIDA</h1>
-            <p style={heroSubtitleStyle}>Pedro Burger Grill</p>
+            <p style={heroSubtitleStyle}>The Flame Grill</p>
           </div>
         </div>
 

@@ -33,7 +33,7 @@ const Footer = () => {
       <div style={styles.container}>
         <div style={styles.column}>
           <h2 style={styles.brandTitle}>
-            PEDRO BURGER <span style={{ color: '#b91c1c' }}>GRILL</span>
+            THE FLAME <span style={{ color: '#b91c1c' }}>GRILL</span>
           </h2>
           <p style={styles.tagline}>"O Brasil em cada mordida."</p>
           <p style={styles.description}>
@@ -71,7 +71,7 @@ const Footer = () => {
       </div>
 
       <div style={styles.bottomBar}>
-        <p style={styles.copyright}>© 2026 PEDRO BURGER GRILL – Todos os direitos reservados.</p>
+        <p style={styles.copyright}>© 2026 THE FLAME GRILL – Todos os direitos reservados.</p>
       </div>
 
       <style jsx>{`
