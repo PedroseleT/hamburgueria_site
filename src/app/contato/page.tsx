@@ -4,14 +4,21 @@ import React from 'react';
 
 export default function Contato() {
   return (
-    <div style={{ backgroundColor: '#0a0a0a', color: '#fff' }}>
+    <div style={{ 
+      backgroundColor: '#0a0a0a', 
+      color: '#fff', 
+      minHeight: '100vh', 
+      paddingTop: '80px',
+      paddingBottom: '120px' // Espaçamento igual ao do cardápio antes do footer
+    }}>
+      {/* CABEÇALHO - AGORA IGUAL AO CARDÁPIO */}
       <section style={headerSection}>
         <span style={subtitleStyle}>Fale</span>
         <h1 style={titleStyle}>CONOSCO</h1>
       </section>
 
       <section style={{ padding: "80px 20px", textAlign: "center", position: 'relative', zIndex: 2 }}>
-        <p style={{ color: "#ccc", maxWidth: "600px", margin: "0 auto 40px" }}>
+        <p style={{ color: "#ccc", maxWidth: "600px", margin: "0 auto 40px", fontSize: '18px' }}>
           Quer falar com a gente?
           Envie sua dúvida, sugestão, elogio ou venha fazer parte do nosso time!
         </p>
@@ -40,8 +47,9 @@ export default function Contato() {
   );
 }
 
+// ESTILOS SINCRONIZADOS COM O CARDÁPIO
 const headerSection: React.CSSProperties = {
-  height: "400px",
+  height: "300px", 
   width: "100%",
   display: "flex",
   flexDirection: "column",
@@ -50,20 +58,19 @@ const headerSection: React.CSSProperties = {
   backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')",
   backgroundSize: "cover",
   backgroundPosition: "center",
+  margin: 0
 };
 
 const subtitleStyle: React.CSSProperties = { 
   color: '#fff', 
-  fontSize: '18px', 
+  fontSize: '14px', 
   textTransform: 'uppercase', 
-  fontWeight: 'bold', 
   letterSpacing: '4px', 
-  display: 'block', 
-  marginBottom: '5px' 
+  marginBottom: '10px' 
 };
 
 const titleStyle: React.CSSProperties = { 
-  fontSize: 'clamp(40px, 8vw, 80px)', 
+  fontSize: '70px', 
   fontWeight: '900', 
   color: '#b91c1c', 
   margin: 0, 

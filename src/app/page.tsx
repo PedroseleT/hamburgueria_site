@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { MessageCircle, X, Plus, Minus, ShoppingBasket } from 'lucide-react';
+import { MessageCircle, X, Plus, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
@@ -16,9 +16,27 @@ export default function Home() {
   const [observacao, setObservacao] = useState("");
 
   const produtos = [
-    { id: "1", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, camadas generosas de queijo cheddar derretido e bacon crocante no pão brioche artesanal.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
-    { id: "2", nome: "Smoky Texas Grill", desc: "Hambúrguer grelhado na brasa, bacon rústico, queijo prato e molho especial defumado com toque de ervas.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
-    { id: "3", nome: "Double Cheddar Board", desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
+    { 
+      id: "cmmctdp4l0001nsgzj9x6zi5y", 
+      nome: "Bacon Handcrafted", 
+      desc: "Blend bovino 180g, camadas generosas de queijo cheddar derretido e bacon crocante no pão brioche artesanal.", 
+      preco: 38.90, 
+      foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" 
+    },
+    { 
+      id: "cmmcqmzlf0000nsgza56yn8g1", 
+      nome: "Smoky Texas Grill", 
+      desc: "Hambúrguer grelhado na brasa, bacon rústico, queijo prato e molho especial defumado com toque de ervas.", 
+      preco: 42.00, 
+      foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" 
+    },
+    { 
+      id: "cmmcte9zh0002nsgzqh3hoffv", 
+      nome: "Double Cheddar Board", 
+      desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", 
+      preco: 45.90, 
+      foto: "/still-life-delicious-american-hamburger.jpg" 
+    }
   ];
 
   const molhosGratis = [
@@ -77,6 +95,7 @@ export default function Home() {
 
     addToCart({
       id: `${selectedProduct.id}-${Date.now()}`, 
+      productId: selectedProduct.id, 
       name: selectedProduct.nome,
       price: selectedProduct.preco + totalAdicionais,
       image: selectedProduct.foto,
@@ -121,7 +140,6 @@ export default function Home() {
         }
       `}</style>
 
-      {/* HERO SECTION */}
       <section className="hero-section relative overflow-hidden flex flex-col justify-center" style={heroSectionStyle}>
         <div className="hero-content" style={heroContentStyle}>
           <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px', position: 'relative', zIndex: 30 }}>
@@ -130,7 +148,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* EFEITO DE MORDIDA REALISTA COM TRANSIÇÃO NATURAL (SOMENTE MOBILE) */}
         <div className="hidden max-[768px]:block absolute bottom-0 left-0 w-full z-10 pointer-events-none leading-[0]">
           <svg viewBox="0 0 1440 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-[120px]">
             <defs>
@@ -143,21 +160,17 @@ export default function Home() {
                 <feComposite operator="over" in="shadow" in2="SourceGraphic" />
               </filter>
             </defs>
-            {/* O preenchimento fill="#0a0a0a" garante que a mordida revele o fundo preto da próxima seção */}
             <path d="M0,0 L0,50 C100,45 150,110 220,105 C260,102 280,75 320,75 C360,75 380,105 420,105 C490,105 540,40 640,45 C740,50 790,115 860,110 C900,107 920,80 960,80 C1000,80 1020,110 1060,110 C1130,110 1180,45 1280,50 C1380,55 1440,30 1440,30 L1440,150 L0,150 Z" fill="#0a0a0a" filter="url(#inner-shadow)" />
           </svg>
         </div>
 
-        {/* DIVISOR DE ONDA COM TRANSIÇÃO NATURAL (DESKTOP) */}
         <div className="max-[768px]:hidden" style={divisorOndaStyle}>
           <svg viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ width: '100%', height: '100px', display: 'block' }}>
-            {/* O fill="#0a0a0a" conecta perfeitamente a hero com o fundo preto do cardápio */}
             <path fill="#0a0a0a" d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z"></path>
           </svg>
         </div>
       </section>
 
-      {/* SEÇÃO CARDÁPIO COM FUNDO PRETO LISO */}
       <section id="cardapio" style={sectionCardapioStyle}>
         <div style={{ position: 'relative', zIndex: 20 }}>
           <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
@@ -173,7 +186,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* MODAL E OUTROS COMPONENTES PERMANECEM IGUAIS */}
       {selectedProduct && (
         <div className="modal-overlay">
           <div className="modal-content custom-scrollbar">
@@ -244,23 +256,14 @@ function Card({ foto, nome, desc, preco, onAdd }: any) {
   );
 }
 
-// ESTILOS COM FOCO NA TRANSIÇÃO PROFISSIONAL
+// ESTILOS ORIGINAIS PRESERVADOS
 const mainStyle: React.CSSProperties = { margin: 0, padding: 0, paddingTop: '80px', backgroundColor: '#0a0a0a', minHeight: '100vh', width: '100%', color: '#fff', position: 'relative' };
 const heroSectionStyle: React.CSSProperties = { position: 'relative', height: '90vh', width: '100%', display: 'flex', alignItems: 'center', backgroundImage: 'url("/burger-destaque.jpg")', backgroundSize: 'cover', backgroundPosition: 'left 60%', overflow: 'visible', zIndex: 5 };
 const heroContentStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'flex-end', paddingRight: '8%', position: 'relative', zIndex: 15 };
 const heroTitleStyle: React.CSSProperties = { fontSize: 'clamp(40px, 7vw, 90px)', lineHeight: '0.85', fontWeight: '900', textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', textShadow: '3px 3px 15px rgba(0,0,0,0.8)' };
 const heroSubtitleStyle: React.CSSProperties = { marginTop: '15px', fontSize: '28px', fontFamily: '"Brush Script MT", cursive', color: '#eee' };
 const divisorOndaStyle: React.CSSProperties = { position: 'absolute', bottom: '-1px', left: 0, width: '100%', zIndex: 10, lineHeight: 0 };
-
-// CUSTOMIZAÇÃO DA SEÇÃO DO CARDÁPIO: Fundo preto sólido para conexão direta com os divisores
-const sectionCardapioStyle: React.CSSProperties = { 
-  padding: '120px 20px 80px', 
-  backgroundColor: '#0a0a0a', // Fundo preto sólido para transição perfeita
-  textAlign: 'center', 
-  position: 'relative', 
-  zIndex: 5 
-};
-
+const sectionCardapioStyle: React.CSSProperties = { padding: '120px 20px 80px', backgroundColor: '#0a0a0a', textAlign: 'center', position: 'relative', zIndex: 5 };
 const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' };
 const cardContainerStyle: React.CSSProperties = { backgroundColor: 'rgba(17, 17, 17, 0.95)', padding: '40px 30px', borderRadius: '15px', border: '1px solid #333' };
 const imgWrapperStyle: React.CSSProperties = { width: '100%', height: '220px', marginBottom: '20px', overflow: 'hidden', borderRadius: '10px' };
@@ -279,4 +282,3 @@ const textareaStyle: React.CSSProperties = { width: '100%', background: '#000', 
 const footerModal: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '20px', borderTop: '1px solid #222', paddingTop: '15px' };
 const qtyContainer: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#000', padding: '8px 15px', borderRadius: '8px' };
 const qtyBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
-

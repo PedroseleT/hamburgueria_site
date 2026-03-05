@@ -12,18 +12,15 @@ export default function Sobre() {
       padding: 0,
       width: '100%',
       overflowX: 'hidden',
-      paddingTop: '80px'
+      paddingTop: '80px',
+      paddingBottom: "120px" // Igual ao cardápio
     }}>
-      {/* CABEÇALHO */}
       <section style={headerSection}>
         <span style={subtitleStyle}>Conheça nossa</span>
         <h1 style={titleStyle}>HISTÓRIA</h1>
       </section>
 
-      {/* CONTEÚDO COM TEXTO E FOTO */}
       <section style={contentSectionStyle}>
-        
-        {/* LADO ESQUERDO: TEXTO */}
         <div style={textContainerStyle}>
           <p style={paragraphStyle}>
             A **Pedro Burger Grill** nasceu do desejo de resgatar a essência do churrasco feito na brasa e transformá-la em uma experiência única entre dois pães artesanais. Localizada no coração da cidade, nossa jornada começou com um objetivo simples, mas ambicioso.
@@ -36,21 +33,18 @@ export default function Sobre() {
           </p>
         </div>
 
-        {/* LADO DIREITO: ESPAÇO PARA FOTO */}
         <div style={photoPlaceholderStyle}>
           <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#666' }}>
             SUA FOTO AQUI
           </span>
         </div>
-
       </section>
     </main>
   );
 }
 
-// ESTILOS ATUALIZADOS
 const headerSection: React.CSSProperties = {
-  height: "400px",
+  height: "300px",
   width: "100%",
   display: "flex",
   flexDirection: "column",
@@ -62,28 +56,41 @@ const headerSection: React.CSSProperties = {
   margin: 0
 };
 
+const subtitleStyle: React.CSSProperties = { 
+  color: '#fff', 
+  fontSize: '14px', 
+  textTransform: 'uppercase', 
+  letterSpacing: '4px', 
+  marginBottom: '10px' 
+};
+
+const titleStyle: React.CSSProperties = { 
+  fontSize: '70px', 
+  fontWeight: '900', 
+  color: '#b91c1c', 
+  margin: 0,
+  textTransform: 'uppercase',
+  fontFamily: 'Impact, sans-serif'
+};
+
 const contentSectionStyle: React.CSSProperties = {
   display: 'flex',
-  flexWrap: 'wrap', // Para ficar um embaixo do outro no celular
+  flexWrap: 'wrap',
   gap: '40px',
-  padding: '80px 20px',
+  padding: '80px 20px', // O padding top/bottom de 80px mantém a simetria do cardápio
   maxWidth: '1100px',
   margin: '0 auto',
   alignItems: 'center',
   justifyContent: 'center'
 };
 
-const textContainerStyle: React.CSSProperties = {
-  flex: '1',
-  minWidth: '300px'
-};
-
+const textContainerStyle: React.CSSProperties = { flex: '1', minWidth: '300px' };
 const photoPlaceholderStyle: React.CSSProperties = {
   flex: '1',
   minWidth: '300px',
   height: '400px',
-  backgroundColor: '#1a1a1a', // Cinza escuro
-  border: '2px dashed #333', // Borda tracejada para indicar placeholder
+  backgroundColor: '#1a1a1a',
+  border: '2px dashed #333',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -97,23 +104,4 @@ const paragraphStyle: React.CSSProperties = {
   fontFamily: '"Oswald", sans-serif',
   textAlign: 'justify',
   marginBottom: '20px'
-};
-
-const subtitleStyle: React.CSSProperties = { 
-  color: '#fff', 
-  fontSize: '18px', 
-  textTransform: 'uppercase', 
-  fontWeight: 'bold', 
-  letterSpacing: '4px', 
-  display: 'block', 
-  marginBottom: '5px' 
-};
-
-const titleStyle: React.CSSProperties = { 
-  fontSize: 'clamp(40px, 8vw, 80px)', 
-  fontWeight: '900', 
-  color: '#b91c1c', 
-  margin: 0,
-  textTransform: 'uppercase',
-  fontFamily: 'Impact, sans-serif'
 };

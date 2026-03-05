@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { CartProvider } from "../context/CartContext";
+import CookieBanner from "@/components/CookieBanner"; // Importando o novo componente
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -32,21 +33,20 @@ export default function RootLayout({
           color: 'white',
           display: 'flex',
           flexDirection: 'column',
-          minHeight: '100vh', // Garante que o corpo ocupe a tela toda
+          minHeight: '100vh',
         }}
       >
         <CartProvider>
-          {/* A Navbar fica no topo de todas as páginas */}
           <Navbar />
           
-          {/* O children representa o conteúdo de cada página (/cardapio, /sobre, etc) */}
-          {/* O flex: 1 faz com que o conteúdo empurre o rodapé para o fim da página */}
           <main style={{ flex: 1 }}>
             {children}
           </main>
 
-          {/* O Footer aqui será replicado em ABSOLUTAMENTE TODAS as páginas */}
           <Footer />
+          
+          {/* O Banner aparece em todas as páginas */}
+          <CookieBanner />
         </CartProvider>
       </body>
     </html>

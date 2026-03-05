@@ -2,8 +2,10 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+// Definição da interface do item do carrinho
 interface CartItem {
-  id: string;
+  id: string;        // ID único para controle de lista (ex: id-timestamp)
+  productId: string; // ID real do produto no banco de dados (Prisma)
   name: string;
   price: number;
   image: string;
@@ -22,6 +24,7 @@ interface CartContextType {
   updateQuantity: (id: string, quantity: number) => void;
   updateItemCustomization: (id: string, newCustomization: any, newPrice: number) => void;
   clearCart: () => void;
+  createOrder: (paymentMethod: string, notes?: string, restaurantId?: string) => Promise<any>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -29,11 +32,20 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  // 1. Carregar carrinho do LocalStorage ao iniciar
   useEffect(() => {
     const savedCart = localStorage.getItem("pedro-burger-cart");
-    if (savedCart) setCart(JSON.parse(savedCart));
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (e) {
+        console.error("Erro ao carregar dados do carrinho:", e);
+        setCart([]);
+      }
+    }
   }, []);
 
+  // 2. Salvar no LocalStorage sempre que o carrinho mudar
   useEffect(() => {
     localStorage.setItem("pedro-burger-cart", JSON.stringify(cart));
   }, [cart]);
@@ -41,9 +53,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const addToCart = (product: CartItem) => {
     setCart((prev) => {
       const existing = prev.find((item) => 
-        item.id === product.id && 
+        item.productId === product.productId && 
         JSON.stringify(item.customization) === JSON.stringify(product.customization)
       );
+
       if (existing) {
         return prev.map((item) =>
           item === existing ? { ...item, quantity: item.quantity + product.quantity } : item
@@ -71,10 +84,71 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  const clearCart = () => setCart([]);
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem("pedro-burger-cart");
+  };
+
+  // 3. Função para criar o pedido enviando para a API (Sem trava de login para teste)
+  const createOrder = async (
+    paymentMethod: string, 
+    notes: string = "", 
+    restaurantId: string = "cmmcpmk4q000087yw0dvvdonb"
+  ) => {
+    const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+    // Mapeamos os itens para o formato que o Prisma espera
+    const formattedItems = cart.map(item => {
+      if (!item.productId) {
+        throw new Error(`Produto ${item.name} inválido. Remova-o do carrinho.`);
+      }
+      return {
+        productId: item.productId,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.price)
+      };
+    });
+
+    try {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          // Removida a necessidade de Authorization para o teste com userId fixo
+        },
+        body: JSON.stringify({
+          items: formattedItems,
+          total: Number(total),
+          notes,
+          paymentMethod,
+          restaurantId, 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao criar pedido");
+      }
+
+      clearCart(); 
+      return data;
+    } catch (error: any) {
+      console.error("Erro no checkout:", error);
+      throw error;
+    }
+  };
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, updateItemCustomization, clearCart }}>
+    <CartContext.Provider value={{ 
+      cart, 
+      addToCart, 
+      removeFromCart, 
+      updateQuantity, 
+      updateItemCustomization, 
+      clearCart,
+      createOrder 
+    }}>
       {children}
     </CartContext.Provider>
   );

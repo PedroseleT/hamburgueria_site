@@ -63,10 +63,12 @@ export default function Navbar() {
             <Link href="/cardapio" style={linkStyle(pathname === "/cardapio")}>CARDÁPIO</Link>
             <Link href="/sobre" style={linkStyle(pathname === "/sobre")}>SOBRE NÓS</Link>
             <Link href="/contato" style={linkStyle(pathname === "/contato")}>FALE CONOSCO</Link>
+            {/* MEUS PEDIDOS AGORA NO FINAL */}
+            <Link href="/my-orders" style={linkStyle(pathname === "/my-orders")}>MEUS PEDIDOS</Link>
           </div>
 
           <div style={actionGroupStyle} className="action-group">
-            <Link href={isLogged ? "/perfil" : "/login"} style={{ color: "#fff", display: 'flex', alignItems: 'center' }}>
+            <Link href={isLogged ? "/perfil" : "/login"} style={{ color: "#fff", display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
               <User size={28} style={{ color: isLogged ? "#b91c1c" : "#fff" }} />
               <span className="mobile-label">MINHA CONTA</span>
             </Link>
@@ -117,26 +119,26 @@ const navStyle: React.CSSProperties = {
 };
 
 const containerStyle: React.CSSProperties = {
-  width: "100%", maxWidth: "1300px", display: "flex", justifyContent: "space-between", 
-  alignItems: "center", padding: "0 20px"
+  width: "100%", maxWidth: "100%", display: "flex", justifyContent: "space-between", 
+  alignItems: "center", padding: "0 40px"
 };
 
-const navLinksContainerStyle: React.CSSProperties = { alignItems: "center", gap: "40px" };
-const linksGroupStyle: React.CSSProperties = { display: "flex", gap: "5px" };
+const navLinksContainerStyle: React.CSSProperties = { alignItems: "center", gap: "30px" };
+const linksGroupStyle: React.CSSProperties = { display: "flex", gap: "2px" };
 const menuButtonStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", display: 'flex', alignItems: 'center' };
 
 const linkStyle = (active: boolean): React.CSSProperties => ({
   color: active ? "#b91c1c" : "#fff",
   textDecoration: "none",
-  fontSize: "16px",
+  fontSize: "14px",
   textTransform: "uppercase",
-  padding: "10px 15px",
+  padding: "10px 10px",
   fontWeight: "900",
-  letterSpacing: "1.5px"
+  letterSpacing: "1px"
 });
 
 const actionGroupStyle: React.CSSProperties = {
-  display: "flex", gap: "30px", borderLeft: "2px solid #1a1a1a", paddingLeft: "30px", alignItems: 'center'
+  display: "flex", gap: "25px", borderLeft: "2px solid #1a1a1a", paddingLeft: "25px", alignItems: 'center'
 };
 
 const badgeStyle: React.CSSProperties = {

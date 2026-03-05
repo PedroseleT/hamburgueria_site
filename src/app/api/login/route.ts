@@ -1,53 +1,44 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { generateToken } from "@/lib/jwt";
 
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
 
-    if (!email || !password) {
+    if (!email || !password)
       return NextResponse.json({ error: "E-mail e senha são obrigatórios" }, { status: 400 });
-    }
 
-    // 1. Busca o usuário no banco
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user) {
+    if (!user)
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 401 });
-    }
 
-    // 2. Verifica se a senha está correta
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
+    if (!isPasswordValid)
       return NextResponse.json({ error: "Senha incorreta" }, { status: 401 });
-    }
 
-    // 3. Gera o Token JWT
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET || "fallback_secret",
-      { expiresIn: "7d" }
-    );
+    // ✅ Agora o token carrega id e role corretamente
+    const token = generateToken({ id: user.id, role: user.role });
 
-    // 4. Cria a resposta e salva o token num Cookie seguro
-    const response = NextResponse.json({ message: "Login bem-sucedido" }, { status: 200 });
+    const response = NextResponse.json({
+      message: "Login bem-sucedido",
+      role: user.role, // útil para o frontend redirecionar
+    }, { status: 200 });
 
     response.cookies.set("auth_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 24 * 7, // 7 dias
+      maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
 
     return response;
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("ERRO NO LOGIN:", error);
     return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
   }

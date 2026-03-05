@@ -14,10 +14,11 @@ export default function CardapioCompleto() {
   const [customOptions, setCustomOptions] = useState<any[]>([]);
   const [observacao, setObservacao] = useState("");
 
+  // LISTA DE PRODUTOS
   const produtos = [
-    { id: "1", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, cheddar e bacon.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
-    { id: "2", nome: "Smoky Texas Grill", desc: "Hambúrguer na brasa e molho especial.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
-    { id: "3", nome: "Double Cheddar Board", desc: "Dois smash burgers e fritas.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
+    { id: "cmmctdp4l0001nsgzj9x6zi5y", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, cheddar e bacon.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
+    { id: "cmmcqmzlf0000nsgza56yn8g1", nome: "Smoky Texas Grill", desc: "Hambúrguer na brasa e molho especial.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
+    { id: "cmmcte9zh0002nsgzqh3hoffv", nome: "Double Cheddar Board", desc: "Dois smash burgers e fritas.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
   ];
 
   const secoesMenu = [
@@ -27,8 +28,12 @@ export default function CardapioCompleto() {
   ];
 
   const handleOpenModal = (p: any) => {
+    // Verifica se o usuário está logado via cookie
     const isLogged = document.cookie.includes("user_session");
-    if (!isLogged) { router.push("/login?callback=/cardapio"); return; }
+    if (!isLogged) { 
+      router.push("/login?callback=/cardapio"); 
+      return; 
+    }
     
     setSelectedProduct(p);
     setQuantity(1);
@@ -61,6 +66,7 @@ export default function CardapioCompleto() {
     
     addToCart({
       id: `${selectedProduct.id}-${Date.now()}`,
+      productId: selectedProduct.id, // Adicionado para manter consistência com o banco
       name: selectedProduct.nome,
       price: selectedProduct.preco + adicionalTotal,
       image: selectedProduct.foto,
@@ -76,7 +82,7 @@ export default function CardapioCompleto() {
   };
 
   return (
-    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: '80px', minHeight: '100%' }}>
+    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: '80px', minHeight: '100vh' }}>
       <section style={headerSection}>
         <span style={subtitleStyle}>Escolha seu Burger</span>
         <h1 style={titleStyle}>CARDÁPIO</h1>
@@ -90,6 +96,7 @@ export default function CardapioCompleto() {
                 <img src={p.foto} alt={p.nome} style={imgStyle} />
               </div>
               <h3 style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px', textTransform: 'uppercase' }}>{p.nome}</h3>
+              <p style={{ color: "#888", fontSize: "13px", margin: "5px 0", minHeight: "32px" }}>{p.desc}</p>
               <div style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
                 R$ {p.preco.toFixed(2).replace(".", ",")}
               </div>

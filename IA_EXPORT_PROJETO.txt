@@ -2,7 +2,7 @@
 INFORMAÇÕES DO PROJETO
 ================================================================================
 
-Data da exportação: 2026-03-03 00:12:12.460708
+Data da exportação: 2026-03-04 17:34:03.485890
 
 ================================================================================
 ESTRUTURA DE PASTAS
@@ -39,7 +39,6 @@ ESTRUTURA DE PASTAS
     file.svg
     globe.svg
     grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg
-    grunge-black-concrete-textured-background.jpg
     logo_hamburgueria.png
     next.svg
     person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg
@@ -623,7 +622,7 @@ const oswald = Oswald({
 });
 
 export const metadata: Metadata = {
-  title: "Pedro Burger Grill",
+  title: "The Flame Grill",
   description: "O Brasil em cada mordida",
 };
 
@@ -672,7 +671,7 @@ ARQUIVO: .\src\app\page.tsx
 "use client";
 
 import React, { useState } from "react";
-import { MessageCircle, X, Plus, Minus } from 'lucide-react';
+import { MessageCircle, X, Plus, Minus, ShoppingBasket } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
@@ -764,36 +763,19 @@ export default function Home() {
 
   return (
     <main className="main-container" style={mainStyle}>
-      {/* Fundo de chamas ajustado para ficar REALMENTE atrás (zIndex: 1) */}
       <div className="flame-overlay"></div>
 
       <style jsx global>{`
         body, html { margin: 0; padding: 0; overflow-x: hidden; background-color: #0a0a0a; scroll-behavior: smooth; }
-        
-        /* Chamas agora são fixas no fundo, com opacidade baixa e z-index mínimo */
-        .flame-overlay { 
-          position: fixed; 
-          inset: 0; 
-          background-image: url("/chamas-overlay.png"); 
-          background-size: cover; 
-          opacity: 0.12; 
-          mix-blend-mode: screen; 
-          pointer-events: none; 
-          z-index: 1; 
-        }
-        
+        .flame-overlay { position: fixed; inset: 0; background-image: url("/chamas-overlay.png"); background-size: cover; opacity: 0.12; mix-blend-mode: screen; pointer-events: none; z-index: 1; }
         .btn-cardapio-completo { display: inline-block; padding: 15px 40px; border: 2px solid #b91c1c; color: #fff; font-size: 18px; font-weight: bold; text-decoration: none; text-transform: uppercase; border-radius: 5px; transition: 0.3s; position: relative; z-index: 10; }
         .btn-cardapio-completo:hover { background-color: #b91c1c; transform: scale(1.05); }
-        
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; backdrop-filter: blur(5px); }
         .modal-content { background: #111; width: 100%; max-width: 480px; border-radius: 20px; overflow-y: auto; max-height: 85vh; position: relative; border: 1px solid #333; color: #fff; }
-        
         .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; transition: 0.2s; }
         .btn-confirmar:hover { background: #991b1b; }
-
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; }
-
         .burger-card { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; z-index: 10; }
         .burger-card:hover { transform: translateY(-10px); border-color: #b91c1c !important; box-shadow: 0 10px 30px rgba(185, 28, 28, 0.2); }
         .burger-card:hover .img-hover { transform: scale(1.1); }
@@ -809,26 +791,43 @@ export default function Home() {
         }
       `}</style>
 
-      {/* Hero Section */}
-      <section className="hero-section" style={heroSectionStyle}>
+      {/* HERO SECTION */}
+      <section className="hero-section relative overflow-hidden flex flex-col justify-center" style={heroSectionStyle}>
         <div className="hero-content" style={heroContentStyle}>
-          <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px', position: 'relative', zIndex: 20 }}>
+          <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px', position: 'relative', zIndex: 30 }}>
             <h1 style={heroTitleStyle}>O BRASIL EM<br />CADA MORDIDA</h1>
-            <p style={heroSubtitleStyle}>Pedro Burger Grill</p>
+            <p style={heroSubtitleStyle}>The Flame Grill</p>
           </div>
         </div>
 
-        <div style={divisorOndaStyle}>
+        {/* EFEITO DE MORDIDA REALISTA COM TRANSIÇÃO NATURAL (SOMENTE MOBILE) */}
+        <div className="hidden max-[768px]:block absolute bottom-0 left-0 w-full z-10 pointer-events-none leading-[0]">
+          <svg viewBox="0 0 1440 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-[120px]">
+            <defs>
+              <filter id="inner-shadow">
+                <feOffset dx="0" dy="8" />
+                <feGaussianBlur stdDeviation="5" result="offset-blur" />
+                <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
+                <feFlood floodColor="black" floodOpacity="0.8" result="color" />
+                <feComposite operator="in" in="color" in2="inverse" result="shadow" />
+                <feComposite operator="over" in="shadow" in2="SourceGraphic" />
+              </filter>
+            </defs>
+            {/* O preenchimento fill="#0a0a0a" garante que a mordida revele o fundo preto da próxima seção */}
+            <path d="M0,0 L0,50 C100,45 150,110 220,105 C260,102 280,75 320,75 C360,75 380,105 420,105 C490,105 540,40 640,45 C740,50 790,115 860,110 C900,107 920,80 960,80 C1000,80 1020,110 1060,110 C1130,110 1180,45 1280,50 C1380,55 1440,30 1440,30 L1440,150 L0,150 Z" fill="#0a0a0a" filter="url(#inner-shadow)" />
+          </svg>
+        </div>
+
+        {/* DIVISOR DE ONDA COM TRANSIÇÃO NATURAL (DESKTOP) */}
+        <div className="max-[768px]:hidden" style={divisorOndaStyle}>
           <svg viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ width: '100%', height: '100px', display: 'block' }}>
-            <path 
-              fill="#0a0a0a" 
-              d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z"
-            ></path>
+            {/* O fill="#0a0a0a" conecta perfeitamente a hero com o fundo preto do cardápio */}
+            <path fill="#0a0a0a" d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z"></path>
           </svg>
         </div>
       </section>
 
-      {/* Seção Cardápio */}
+      {/* SEÇÃO CARDÁPIO COM FUNDO PRETO LISO */}
       <section id="cardapio" style={sectionCardapioStyle}>
         <div style={{ position: 'relative', zIndex: 20 }}>
           <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
@@ -838,20 +837,17 @@ export default function Home() {
               <Card key={p.id} foto={p.foto} nome={p.nome} desc={p.desc} preco={p.preco} onAdd={() => handleOpenModal(p)} />
             ))}
           </div>
-
           <div style={{ marginTop: '120px', position: 'relative', top: '-60px' }}>
             <Link href="/cardapio" className="btn-cardapio-completo">VER CARDÁPIO COMPLETO</Link>
           </div>
         </div>
       </section>
 
-      {/* Modal e WhatsApp Float permanecem com z-index alto */}
+      {/* MODAL E OUTROS COMPONENTES PERMANECEM IGUAIS */}
       {selectedProduct && (
         <div className="modal-overlay">
           <div className="modal-content custom-scrollbar">
-            <button style={closeBtn} onClick={() => setSelectedProduct(null)} aria-label="Fechar">
-              <X size={20} style={{ display: 'block' }} />
-            </button>
+            <button style={closeBtn} onClick={() => setSelectedProduct(null)} aria-label="Fechar"><X size={20} /></button>
             <img src={selectedProduct.foto} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
             <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
               <h2 style={{ fontSize: '22px', fontWeight: '900', marginBottom: '5px' }}>{selectedProduct.nome}</h2>
@@ -918,35 +914,21 @@ function Card({ foto, nome, desc, preco, onAdd }: any) {
   );
 }
 
-// Estilos
+// ESTILOS COM FOCO NA TRANSIÇÃO PROFISSIONAL
 const mainStyle: React.CSSProperties = { margin: 0, padding: 0, paddingTop: '80px', backgroundColor: '#0a0a0a', minHeight: '100vh', width: '100%', color: '#fff', position: 'relative' };
-
-const heroSectionStyle: React.CSSProperties = { 
-  position: 'relative', 
-  height: '90vh', 
-  width: '100%', 
-  display: 'flex', 
-  alignItems: 'center', 
-  backgroundImage: 'url("/burger-destaque.jpg")', 
-  backgroundSize: 'cover', 
-  backgroundPosition: 'left 60%', 
-  overflow: 'visible',
-  zIndex: 5 
-};
-
-const divisorOndaStyle: React.CSSProperties = { position: 'absolute', bottom: '-1px', left: 0, width: '100%', zIndex: 10, lineHeight: 0 };
+const heroSectionStyle: React.CSSProperties = { position: 'relative', height: '90vh', width: '100%', display: 'flex', alignItems: 'center', backgroundImage: 'url("/burger-destaque.jpg")', backgroundSize: 'cover', backgroundPosition: 'left 60%', overflow: 'visible', zIndex: 5 };
 const heroContentStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'flex-end', paddingRight: '8%', position: 'relative', zIndex: 15 };
 const heroTitleStyle: React.CSSProperties = { fontSize: 'clamp(40px, 7vw, 90px)', lineHeight: '0.85', fontWeight: '900', textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', textShadow: '3px 3px 15px rgba(0,0,0,0.8)' };
 const heroSubtitleStyle: React.CSSProperties = { marginTop: '15px', fontSize: '28px', fontFamily: '"Brush Script MT", cursive', color: '#eee' };
+const divisorOndaStyle: React.CSSProperties = { position: 'absolute', bottom: '-1px', left: 0, width: '100%', zIndex: 10, lineHeight: 0 };
 
+// CUSTOMIZAÇÃO DA SEÇÃO DO CARDÁPIO: Fundo preto sólido para conexão direta com os divisores
 const sectionCardapioStyle: React.CSSProperties = { 
-  padding: '100px 20px 160px', 
-  backgroundImage: 'linear-gradient(rgba(10, 10, 10, 0.8), rgba(10, 10, 10, 0.8)), url("/grunge-black-concrete-textured-background.jpg")', 
-  backgroundSize: 'cover', 
-  backgroundPosition: 'center',
+  padding: '120px 20px 80px', 
+  backgroundColor: '#0a0a0a', // Fundo preto sólido para transição perfeita
   textAlign: 'center', 
   position: 'relative', 
-  zIndex: 10 
+  zIndex: 5 
 };
 
 const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' };
@@ -957,8 +939,7 @@ const cardDescStyle: React.CSSProperties = { fontSize: '14px', color: '#ccc', ma
 const cardPriceStyle: React.CSSProperties = { fontSize: '22px', fontWeight: 'bold', color: '#b91c1c', marginBottom: '20px' };
 const cardBtnStyle: React.CSSProperties = { padding: '12px 25px', backgroundColor: 'transparent', border: '2px solid #b91c1c', color: '#fff', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase', width: '100%', borderRadius: '5px' };
 const whatsappFloat: React.CSSProperties = { position: 'fixed', bottom: '30px', right: '30px', backgroundColor: '#25d366', padding: '15px', borderRadius: '50%', zIndex: 1000 };
-
-const closeBtn: React.CSSProperties = { position: 'absolute', top: '15px', right: '15px', background: 'rgba(0,0,0,0.8)', border: 'none', color: '#fff', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(0,0,0,0.5)' };
+const closeBtn: React.CSSProperties = { position: 'absolute', top: '15px', right: '15px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const modalSection: React.CSSProperties = { marginBottom: '20px', textAlign: 'left' };
 const sectionTitle: React.CSSProperties = { fontSize: '12px', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '15px', fontWeight: 'bold' };
 const optionRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #222', fontSize: '14px' };
@@ -968,6 +949,8 @@ const textareaStyle: React.CSSProperties = { width: '100%', background: '#000', 
 const footerModal: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '20px', borderTop: '1px solid #222', paddingTop: '15px' };
 const qtyContainer: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#000', padding: '8px 15px', borderRadius: '8px' };
 const qtyBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
+
+
 
 
 --------------------------------------------------------------------------------
@@ -1619,7 +1602,7 @@ export default function CardapioCompleto() {
   };
 
   return (
-    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "60px", paddingTop: '80px' }}>
+    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: '80px', minHeight: '100%' }}>
       <section style={headerSection}>
         <span style={subtitleStyle}>Escolha seu Burger</span>
         <h1 style={titleStyle}>CARDÁPIO</h1>
@@ -1628,7 +1611,7 @@ export default function CardapioCompleto() {
       <div style={{ padding: "40px 20px" }}>
         <div className="menu-grid">
           {produtos.map((p) => (
-            <div key={p.id} className="card-item" style={cardStyle}>
+            <div key={p.id} className="card-item" style={cardStyle} onClick={() => handleOpenModal(p)}>
               <div style={imgWrapperStyle}>
                 <img src={p.foto} alt={p.nome} style={imgStyle} />
               </div>
@@ -1636,7 +1619,7 @@ export default function CardapioCompleto() {
               <div style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
                 R$ {p.preco.toFixed(2).replace(".", ",")}
               </div>
-              <button onClick={() => handleOpenModal(p)} className="btn-pedir-hover" style={btnPedirStyle}>
+              <button className="btn-pedir-hover" style={btnPedirStyle}>
                 <ShoppingBasket size={18} /> PEDIR AGORA
               </button>
             </div>
@@ -1647,7 +1630,7 @@ export default function CardapioCompleto() {
       {selectedProduct && (
         <div className="modal-overlay">
           <div className="modal-content custom-scrollbar">
-            <button className="close-btn" onClick={() => setSelectedProduct(null)}><X size={20}/></button>
+            <button className="close-btn" onClick={(e) => { e.stopPropagation(); setSelectedProduct(null); }}><X size={20}/></button>
             <img src={selectedProduct.foto} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
             <div style={{ padding: '20px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '900' }}>{selectedProduct.nome}</h2>
@@ -1691,51 +1674,17 @@ export default function CardapioCompleto() {
 
       <style jsx>{`
         .menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; max-width: 1200px; margin: 0 auto; }
-        
-        /* ANIMAÇÃO DOS CARDS */
-        .card-item {
-          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .card-item:hover {
-          transform: translateY(-10px);
-          box-shadow: 0 15px 30px rgba(185, 28, 28, 0.15);
-          border-color: #b91c1c !important;
-        }
-        .card-item img {
-          transition: transform 0.6s ease;
-        }
-        .card-item:hover img {
-          transform: scale(1.1);
-        }
-
+        .card-item { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .card-item:hover { transform: translateY(-10px); box-shadow: 0 15px 30px rgba(185, 28, 28, 0.15); border-color: #b91c1c !important; }
+        .card-item img { transition: transform 0.6s ease; }
+        .card-item:hover img { transform: scale(1.1); }
         .btn-pedir-hover { transition: 0.3s; }
         .btn-pedir-hover:hover { background: #991b1b !important; transform: scale(1.02); }
-
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; backdrop-filter: blur(5px); }
         .modal-content { background: #111; width: 100%; max-width: 480px; border-radius: 20px; overflow-y: auto; max-height: 85vh; border: 1px solid #333; position: relative; color: #fff; }
-        
-        /* BOTÃO X CENTRALIZADO */
-        .close-btn { 
-          position: absolute; 
-          top: 15px; 
-          right: 15px; 
-          background: rgba(0,0,0,0.8); 
-          border: none; 
-          color: #fff; 
-          border-radius: 50%; 
-          width: 36px; 
-          height: 36px; 
-          cursor: pointer; 
-          z-index: 10; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center; 
-          padding: 0;
-        }
-
+        .close-btn { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.8); border: none; color: #fff; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 0; }
         .btn-confirmar { background: #b91c1c; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; flex: 1; margin-left: 15px; transition: 0.3s; }
         .btn-confirmar:hover { background: #991b1b; }
-        
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; }
       `}</style>
@@ -1743,7 +1692,6 @@ export default function CardapioCompleto() {
   );
 }
 
-// Estilos Cardápio
 const headerSection: React.CSSProperties = { height: "300px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", backgroundSize: "cover", backgroundPosition: 'center' };
 const subtitleStyle: React.CSSProperties = { color: '#fff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '4px', marginBottom: '10px' };
 const titleStyle: React.CSSProperties = { fontSize: '70px', fontWeight: '900', color: '#b91c1c', fontFamily: 'Impact, sans-serif' };
@@ -2861,7 +2809,7 @@ const Footer = () => {
       <div style={styles.container}>
         <div style={styles.column}>
           <h2 style={styles.brandTitle}>
-            PEDRO BURGER <span style={{ color: '#b91c1c' }}>GRILL</span>
+            THE FLAME <span style={{ color: '#b91c1c' }}>GRILL</span>
           </h2>
           <p style={styles.tagline}>"O Brasil em cada mordida."</p>
           <p style={styles.description}>
@@ -2879,7 +2827,7 @@ const Footer = () => {
         </div>
 
         <div style={styles.columnPayment}>
-          <h3 style={styles.columnTitle}>Pagamento</h3>
+          <h3 style={styles.columnTitle}>FORMAS DE PAGAMENTO</h3>
           <div style={styles.paymentIconsRow}>
             <div style={styles.iconBox}><Smartphone size={24} color="#32bcad" /><span style={styles.miniLabel}>PIX</span></div>
             <div style={styles.iconBox}><CreditCard size={24} color="#ccc" /><span style={styles.miniLabel}>CARTÃO</span></div>
@@ -2899,7 +2847,7 @@ const Footer = () => {
       </div>
 
       <div style={styles.bottomBar}>
-        <p style={styles.copyright}>© 2026 PEDRO BURGER GRILL – Todos os direitos reservados.</p>
+        <p style={styles.copyright}>© 2026 THE FLAME GRILL – Todos os direitos reservados.</p>
       </div>
 
       <style jsx>{`
@@ -2992,7 +2940,7 @@ const Hero = () => {
       <div style={styles.overlay} />
       
       <div style={styles.content} className="fade-in-section">
-        <h1 style={styles.title}>PEDRO BURGUER GRILL</h1>
+        <h1 style={styles.title}>THE FLAME GRILL</h1>
         <h2 style={styles.subtitle}>O BRASIL EM CADA MORDIDA</h2>
         <p style={styles.description}>
           Experiência artesanal com fogo de verdade e ingredientes selecionados.
@@ -3554,4 +3502,4 @@ RESUMO
 ================================================================================
 
 Total de arquivos exportados: 38
-Total de linhas de código: 3180
+Total de linhas de código: 3129
