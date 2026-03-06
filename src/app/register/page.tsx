@@ -66,32 +66,40 @@ export default function RegisterPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (validate()) {
-      setStatus({ ...status, loading: true });
-      try {
-        const res = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
+  e.preventDefault();
+  
+  if (validate()) {
+    setStatus({ ...status, loading: true });
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
 
-        if (res.ok) {
-          // REDIRECIONAMENTO DIRETO (SEM JANELA)
-          router.push("/");
-          router.refresh();
+      if (res.ok) {
+        router.push("/");
+        router.refresh();
+      } else {
+        const errorData = await res.json();
+        const msg: string = errorData.error || "Erro no cadastro.";
+
+        // ← Rota o erro pro campo certo baseado na mensagem da API
+        if (msg.toLowerCase().includes("telefone")) {
+          setErrors({ ...errors, phone: msg });
+        } else if (msg.toLowerCase().includes("e-mail") || msg.toLowerCase().includes("email")) {
+          setErrors({ ...errors, email: msg });
         } else {
-          const errorData = await res.json();
-          setErrors({ ...errors, email: errorData.error || "Erro no cadastro." });
+          setErrors({ ...errors, email: msg }); // fallback genérico
         }
-      } catch (err) {
-        setErrors({ ...errors, email: "Erro de conexão com o servidor." });
-      } finally {
-        setStatus({ ...status, loading: false });
       }
+    } catch {
+      setErrors({ ...errors, email: "Erro de conexão com o servidor." });
+    } finally {
+      setStatus({ ...status, loading: false });
     }
-  };
+  }
+};
 
   return (
     <div style={containerStyle}>
