@@ -87,5 +87,6 @@ model OrderItem {
   product   Menu   @relation(fields: [productId], references: [id])
   
   orderId   String
-  order     Order  @relation(fields: [orderId], references: [id])
+  // # ALTERAÇÃO SOLICITADA
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }

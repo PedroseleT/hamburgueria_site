@@ -2,7 +2,7 @@
 INFORMAÇÕES DO PROJETO
 ================================================================================
 
-Data da exportação: 2026-03-04 17:34:03.485890
+Data da exportação: 2026-03-05 18:56:43.361109
 
 ================================================================================
 ESTRUTURA DE PASTAS
@@ -10,7 +10,6 @@ ESTRUTURA DE PASTAS
 
 ./
   .gitignore
-  a.txt
   eslint.config.mjs
   exportar_para_ia_pro.py
   next-env.d.ts
@@ -36,15 +35,10 @@ ESTRUTURA DE PASTAS
     design_mobile.jpg
     design_mordida.png
     design_mordida2.png
-    file.svg
-    globe.svg
     grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg
     logo_hamburgueria.png
-    next.svg
     person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg
     still-life-delicious-american-hamburger.jpg
-    vercel.svg
-    window.svg
   src/
     middleware.ts
     app/
@@ -52,8 +46,6 @@ ESTRUTURA DE PASTAS
       globals.css
       layout.tsx
       page.tsx
-      admin/
-        page.tsx
       api/
         auth/
           login/
@@ -66,6 +58,12 @@ ESTRUTURA DE PASTAS
             route.ts
         login/
           route.ts
+        me/
+          route.ts
+        orders/
+          route.ts
+          user/
+            route.ts
         register/
           route.ts
         restaurant/
@@ -78,13 +76,18 @@ ESTRUTURA DE PASTAS
         page.tsx
       login/
         page.tsx
+      my-orders/
+        page.tsx
       perfil/
         page.tsx
       register/
         page.tsx
+      roadmap/
+        page.tsx
       sobre/
         page.tsx
     components/
+      CookieBanner.tsx
       Footer.tsx
       Hero.tsx
       Menu.tsx
@@ -542,9 +545,27 @@ ARQUIVO: .\src\middleware.ts
 --------------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { verifyToken } from "@/lib/jwt";
 
-export function middleware(req: any) {
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // ✅ NOVO: Proteção de páginas admin (somente ADMIN ou ATTENDANT)
+  const isAdminPage = pathname.startsWith("/admin");
+  if (isAdminPage) {
+    const cookieToken = req.cookies.get("auth_token")?.value;
+    if (!cookieToken) return NextResponse.redirect(new URL("/login", req.url));
+    try {
+      const decoded = verifyToken(cookieToken);
+      if (decoded.role === "CLIENT") return NextResponse.redirect(new URL("/", req.url));
+    } catch {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    return NextResponse.next();
+  }
+
+  // ✅ ORIGINAL: Proteção das rotas de API via header Authorization
   const token = req.headers.get("authorization")?.split(" ")[1];
 
   if (!token) {
@@ -560,7 +581,15 @@ export function middleware(req: any) {
 }
 
 export const config = {
-  matcher: ["/api/restaurant/:path*", "/api/menu/:path*", "/api/order/:path*"],
+  matcher: [
+    // ✅ ORIGINAL
+    "/api/restaurant/:path*",
+    "/api/menu/:path*",
+    "/api/order/:path*",
+    // ✅ NOVO (removido /perfil pois já tem proteção própria na página)
+    "/api/admin/:path*",
+    "/admin/:path*",
+  ],
 };
 
 
@@ -614,6 +643,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { CartProvider } from "../context/CartContext";
+import CookieBanner from "@/components/CookieBanner"; // Importando o novo componente
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -642,21 +672,20 @@ export default function RootLayout({
           color: 'white',
           display: 'flex',
           flexDirection: 'column',
-          minHeight: '100vh', // Garante que o corpo ocupe a tela toda
+          minHeight: '100vh',
         }}
       >
         <CartProvider>
-          {/* A Navbar fica no topo de todas as páginas */}
           <Navbar />
           
-          {/* O children representa o conteúdo de cada página (/cardapio, /sobre, etc) */}
-          {/* O flex: 1 faz com que o conteúdo empurre o rodapé para o fim da página */}
           <main style={{ flex: 1 }}>
             {children}
           </main>
 
-          {/* O Footer aqui será replicado em ABSOLUTAMENTE TODAS as páginas */}
           <Footer />
+          
+          {/* O Banner aparece em todas as páginas */}
+          <CookieBanner />
         </CartProvider>
       </body>
     </html>
@@ -671,10 +700,11 @@ ARQUIVO: .\src\app\page.tsx
 "use client";
 
 import React, { useState } from "react";
-import { MessageCircle, X, Plus, Minus, ShoppingBasket } from 'lucide-react';
+import { MessageCircle, X, Plus, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
+import BottomNavbar from "@/components/BottomNavbar";
 
 export default function Home() {
   const { addToCart } = useCart();
@@ -686,57 +716,38 @@ export default function Home() {
   const [observacao, setObservacao] = useState("");
 
   const produtos = [
-    { id: "1", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, camadas generosas de queijo cheddar derretido e bacon crocante no pão brioche artesanal.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
-    { id: "2", nome: "Smoky Texas Grill", desc: "Hambúrguer grelhado na brasa, bacon rústico, queijo prato e molho especial defumado com toque de ervas.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
-    { id: "3", nome: "Double Cheddar Board", desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
+    { id: "cmmctdp4l0001nsgzj9x6zi5y", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, camadas generosas de queijo cheddar derretido e bacon crocante no pão brioche artesanal.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
+    { id: "cmmcqmzlf0000nsgza56yn8g1", nome: "Smoky Texas Grill", desc: "Hambúrguer grelhado na brasa, bacon rústico, queijo prato e molho especial defumado com toque de ervas.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
+    { id: "cmmcte9zh0002nsgzqh3hoffv", nome: "Double Cheddar Board", desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
   ];
 
   const molhosGratis = [
-    { nome: "Ketchup", preco: 0 },
-    { nome: "Mostarda", preco: 0 },
-    { nome: "Maionese Tradicional", preco: 0 }
+    { nome: "Ketchup", preco: 0 }, { nome: "Mostarda", preco: 0 }, { nome: "Maionese Tradicional", preco: 0 }
   ];
-
   const molhosCasa = [
-    { nome: "Maionese Artesanal 30ml", preco: 3.50 },
-    { nome: "Barbecue Defumado 30ml", preco: 4.00 },
-    { nome: "Chipotle Picante 30ml", preco: 4.50 }
+    { nome: "Maionese Artesanal 30ml", preco: 3.50 }, { nome: "Barbecue Defumado 30ml", preco: 4.00 }, { nome: "Chipotle Picante 30ml", preco: 4.50 }
   ];
-
   const complementos = [
-    { nome: "Hambúrguer Extra 180g", preco: 12.00 },
-    { nome: "Bacon em Tiras", preco: 6.00 },
-    { nome: "Queijo Cheddar", preco: 5.00 },
-    { nome: "Salada Fresca", preco: 3.00 }
+    { nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }
   ];
 
   const handleOpenModal = (p: any) => {
     const isLogged = document.cookie.includes("user_session");
-    if (!isLogged) {
-      router.push("/login?callback=/"); 
-      return;
-    }
-    setSelectedProduct(p);
-    setQuantity(1);
-    setCustomOptions([]);
-    setObservacao("");
+    if (!isLogged) { router.push("/login?callback=/"); return; }
+    setSelectedProduct(p); setQuantity(1); setCustomOptions([]); setObservacao("");
   };
 
   const updateOptionQtd = (item: any, delta: number, limit: number, sectionItems: any[]) => {
     const currentInSection = customOptions.filter(opt => sectionItems.some(s => s.nome === opt.nome));
     const totalInSection = currentInSection.reduce((acc, curr) => acc + curr.qtd, 0);
     const existingIndex = customOptions.findIndex(opt => opt.nome === item.nome);
-
     if (delta > 0 && totalInSection >= limit) return;
-
     let newOptions = [...customOptions];
     if (existingIndex > -1) {
       const newQtd = newOptions[existingIndex].qtd + delta;
       if (newQtd <= 0) newOptions.splice(existingIndex, 1);
       else newOptions[existingIndex].qtd = newQtd;
-    } else if (delta > 0) {
-      newOptions.push({ ...item, qtd: 1 });
-    }
+    } else if (delta > 0) { newOptions.push({ ...item, qtd: 1 }); }
     setCustomOptions(newOptions);
   };
 
@@ -744,26 +755,19 @@ export default function Home() {
 
   const handleConfirmAdd = () => {
     const totalAdicionais = customOptions.reduce((acc, curr) => acc + (curr.preco * curr.qtd), 0);
-
     addToCart({
-      id: `${selectedProduct.id}-${Date.now()}`, 
-      name: selectedProduct.nome,
-      price: selectedProduct.preco + totalAdicionais,
-      image: selectedProduct.foto,
-      quantity: quantity,
-      customization: {
-        extras: customOptions.map(o => `${o.qtd}x ${o.nome}`),
-        obs: observacao
-      }
+      id: `${selectedProduct.id}-${Date.now()}`, productId: selectedProduct.id,
+      name: selectedProduct.nome, price: selectedProduct.preco + totalAdicionais,
+      image: selectedProduct.foto, quantity: quantity,
+      customization: { extras: customOptions.map(o => `${o.qtd}x ${o.nome}`), obs: observacao }
     });
-    
     setSelectedProduct(null);
     router.push("/carrinho");
   };
 
   return (
     <main className="main-container" style={mainStyle}>
-      <div className="flame-overlay"></div>
+      <div className="flame-overlay" />
 
       <style jsx global>{`
         body, html { margin: 0; padding: 0; overflow-x: hidden; background-color: #0a0a0a; scroll-behavior: smooth; }
@@ -782,52 +786,171 @@ export default function Home() {
         .btn-pedir { transition: all 0.3s ease; }
         .btn-pedir:hover { background-color: #b91c1c !important; color: #fff !important; }
 
+        /* ── Hero Premium ── */
+        @keyframes heroFadeUp {
+          from { opacity: 0; transform: translateY(28px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes heroBadgeFade {
+          from { opacity: 0; transform: translateX(16px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes glowPulse {
+          0%, 100% { opacity: 0.5; transform: scale(1); }
+          50%       { opacity: 1; transform: scale(1.06); }
+        }
+        @keyframes flamePulse {
+          0%, 100% { text-shadow: 3px 3px 15px rgba(0,0,0,0.8), 0 0 20px #b91c1c55; }
+          50%       { text-shadow: 3px 3px 15px rgba(0,0,0,0.8), 0 0 50px #b91c1caa, 0 0 100px #b91c1c33; }
+        }
+
+        .hero-badge   { animation: heroBadgeFade 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s  both; }
+        .hero-title   { animation: heroFadeUp     0.7s cubic-bezier(0.16,1,0.3,1) 0.35s both; }
+        .hero-sub     { animation: heroFadeUp     0.7s cubic-bezier(0.16,1,0.3,1) 0.5s  both; }
+        .hero-cta     { animation: heroFadeUp     0.7s cubic-bezier(0.16,1,0.3,1) 0.62s both; }
+        .hero-stats   { animation: heroFadeUp     0.7s cubic-bezier(0.16,1,0.3,1) 0.75s both; }
+        .burger-gif-wrap { animation: heroFadeUp  0.9s cubic-bezier(0.16,1,0.3,1) 0.1s  both; }
+
+        .hero-cta-btn {
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 15px 32px; background: #b91c1c; color: #fff;
+          font-size: 14px; font-weight: 900; font-family: 'Impact', sans-serif;
+          text-decoration: none; text-transform: uppercase; letter-spacing: 0.1em;
+          border-radius: 4px; border: none; cursor: pointer;
+          box-shadow: 0 8px 28px #b91c1c44; transition: all 0.25s;
+        }
+        .hero-cta-btn:hover { background: #a31515; transform: translateY(-2px); box-shadow: 0 14px 40px #b91c1c66; }
+
+        .hero-cta-outline {
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 15px 24px; background: transparent; color: #aaa;
+          font-size: 13px; font-weight: 700; font-family: 'Impact', sans-serif;
+          text-decoration: none; text-transform: uppercase; letter-spacing: 0.1em;
+          border: 1px solid #2a2a2a; border-radius: 4px; transition: all 0.25s;
+        }
+        .hero-cta-outline:hover { border-color: #b91c1c55; color: #fff; }
+
+        .burger-gif-wrap {
+          position: absolute; left: 4%; top: 50%; transform: translateY(-50%);
+          width: clamp(240px, 38vw, 560px); aspect-ratio: 1;
+          z-index: 20; pointer-events: none;
+        }
+        .burger-gif-glow {
+          position: absolute; inset: -10%;
+          background: radial-gradient(circle, #b91c1c18 0%, transparent 68%);
+          border-radius: 50%; filter: blur(28px);
+          animation: glowPulse 3.5s ease-in-out infinite;
+        }
+        .burger-gif-img {
+          width: 100%; height: 100%; object-fit: contain;
+          mix-blend-mode: multiply;
+          filter: drop-shadow(0 0 28px rgba(185,28,28,0.25));
+          position: relative; z-index: 2;
+        }
+
         @media (max-width: 768px) {
-          .hero-section { height: 85vh !important; background-image: url("/design_mobile.jpg") !important; }
-          .hero-content { justify-content: center !important; padding: 0 !important; bottom: 20px !important; position: absolute !important; width: 100% !important; }
+          .hero-section {
+            height: auto !important; min-height: 100svh !important;
+            background-image: url("/design_mobile.jpg") !important;
+            align-items: flex-end !important; padding-bottom: 64px !important;
+          }
+          .hero-content {
+            flex-direction: column !important; align-items: center !important;
+            justify-content: flex-end !important; padding: 0 24px !important;
+          }
           .hero-text { text-align: center !important; }
-          .hero-text h1 { font-size: 32px !important; }
-          .hero-text p { display: none !important; }
+          .hero-badge { justify-content: center !important; }
+          .hero-cta { justify-content: center !important; flex-wrap: wrap; }
+          .hero-stats { justify-content: center !important; }
+          .burger-gif-wrap { display: none !important; }
+          .stat-sep { display: none !important; }
         }
       `}</style>
 
-      {/* HERO SECTION */}
+      {/* ── HERO ── */}
       <section className="hero-section relative overflow-hidden flex flex-col justify-center" style={heroSectionStyle}>
+
+        {/* Vignette lateral */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0) 35%, rgba(0,0,0,0.72) 100%)', zIndex: 10, pointerEvents: 'none' }} />
+        {/* Fade bottom */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '30%', background: 'linear-gradient(transparent, rgba(10,10,10,0.55))', zIndex: 10, pointerEvents: 'none' }} />
+
         <div className="hero-content" style={heroContentStyle}>
-          <div className="hero-text" style={{ textAlign: 'right', maxWidth: '600px', position: 'relative', zIndex: 30 }}>
-            <h1 style={heroTitleStyle}>O BRASIL EM<br />CADA MORDIDA</h1>
-            <p style={heroSubtitleStyle}>The Flame Grill</p>
+
+          {/* Texto direita */}
+          <div className="hero-text" style={{ textAlign: 'right', maxWidth: '540px', position: 'relative', zIndex: 30 }}>
+
+            {/* Badge */}
+            <div className="hero-badge" style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', marginBottom: 16 }}>
+              <span style={{ color: '#b91c1c', fontSize: 11, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', fontFamily: 'sans-serif' }}>
+                THE FLAME GRILL
+              </span>
+              <div style={{ width: 36, height: 2, background: 'linear-gradient(90deg, transparent, #b91c1c)', borderRadius: 2, boxShadow: '0 0 8px #b91c1c' }} />
+            </div>
+
+            {/* Título */}
+            <div className="hero-title">
+              <h1 style={{ ...heroTitleStyle, animation: 'flamePulse 4s ease-in-out infinite' }}>
+                O BRASIL EM<br />
+                <span style={{ color: '#b91c1c' }}>CADA MORDIDA</span>
+              </h1>
+            </div>
+
+            {/* Subtítulo */}
+            <div className="hero-sub" style={{ margin: '14px 0 26px' }}>
+              <p style={{ ...heroSubtitleStyle, margin: 0 }}>Grelhado na brasa. Servido com alma.</p>
+            </div>
+
+            {/* CTAs */}
+            <div className="hero-cta" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <Link href="#cardapio" className="hero-cta-btn">🔥 VER CARDÁPIO</Link>
+              <Link href="/cardapio" className="hero-cta-outline">CARDÁPIO COMPLETO</Link>
+            </div>
+
+            {/* Stats */}
+            <div className="hero-stats" style={{ display: 'flex', gap: 20, justifyContent: 'flex-end', marginTop: 24, alignItems: 'center' }}>
+              {[
+                { num: '100%', label: 'artesanal' },
+                { num: 'Brasa', label: 'grelhado' },
+              ].map((s, i) => (
+                <React.Fragment key={s.label}>
+                  {i > 0 && <div className="stat-sep" style={{ width: 1, height: 28, background: '#252525' }} />}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+                    <span style={{ fontFamily: 'Impact, sans-serif', fontSize: 20, color: '#fff', letterSpacing: '-0.01em' }}>{s.num}</span>
+                    <span style={{ fontSize: 10, color: '#555', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', fontFamily: 'sans-serif' }}>{s.label}</span>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+
           </div>
         </div>
 
-        {/* EFEITO DE MORDIDA REALISTA COM TRANSIÇÃO NATURAL (SOMENTE MOBILE) */}
+        {/* Wave mobile */}
         <div className="hidden max-[768px]:block absolute bottom-0 left-0 w-full z-10 pointer-events-none leading-[0]">
           <svg viewBox="0 0 1440 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-[120px]">
             <defs>
               <filter id="inner-shadow">
-                <feOffset dx="0" dy="8" />
-                <feGaussianBlur stdDeviation="5" result="offset-blur" />
-                <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
-                <feFlood floodColor="black" floodOpacity="0.8" result="color" />
-                <feComposite operator="in" in="color" in2="inverse" result="shadow" />
-                <feComposite operator="over" in="shadow" in2="SourceGraphic" />
+                <feOffset dx="0" dy="8"/><feGaussianBlur stdDeviation="5" result="offset-blur"/>
+                <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/>
+                <feFlood floodColor="black" floodOpacity="0.8" result="color"/>
+                <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
+                <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
               </filter>
             </defs>
-            {/* O preenchimento fill="#0a0a0a" garante que a mordida revele o fundo preto da próxima seção */}
             <path d="M0,0 L0,50 C100,45 150,110 220,105 C260,102 280,75 320,75 C360,75 380,105 420,105 C490,105 540,40 640,45 C740,50 790,115 860,110 C900,107 920,80 960,80 C1000,80 1020,110 1060,110 C1130,110 1180,45 1280,50 C1380,55 1440,30 1440,30 L1440,150 L0,150 Z" fill="#0a0a0a" filter="url(#inner-shadow)" />
           </svg>
         </div>
 
-        {/* DIVISOR DE ONDA COM TRANSIÇÃO NATURAL (DESKTOP) */}
+        {/* Wave desktop */}
         <div className="max-[768px]:hidden" style={divisorOndaStyle}>
           <svg viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ width: '100%', height: '100px', display: 'block' }}>
-            {/* O fill="#0a0a0a" conecta perfeitamente a hero com o fundo preto do cardápio */}
-            <path fill="#0a0a0a" d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z"></path>
+            <path fill="#0a0a0a" d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z" />
           </svg>
         </div>
       </section>
 
-      {/* SEÇÃO CARDÁPIO COM FUNDO PRETO LISO */}
+      {/* ── CARDÁPIO ── */}
       <section id="cardapio" style={sectionCardapioStyle}>
         <div style={{ position: 'relative', zIndex: 20 }}>
           <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
@@ -843,7 +966,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* MODAL E OUTROS COMPONENTES PERMANECEM IGUAIS */}
+      {/* ── MODAL ── */}
       {selectedProduct && (
         <div className="modal-overlay">
           <div className="modal-content custom-scrollbar">
@@ -858,17 +981,17 @@ export default function Home() {
                 { title: "ADICIONAIS", items: complementos }
               ].map(section => (
                 <div key={section.title} style={modalSection}>
-                  <h4 style={sectionTitle}>{section.title} <small style={{float:'right', color:'#888'}}>Limite: 5</small></h4>
+                  <h4 style={sectionTitle}>{section.title} <small style={{ float: 'right', color: '#888' }}>Limite: 5</small></h4>
                   {section.items.map(item => (
                     <div key={item.nome} style={optionRow}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{fontWeight: 'bold'}}>{item.nome}</span>
-                        {item.preco > 0 && <span style={{color: '#b91c1c', fontSize: '12px', fontWeight: 'bold'}}>+ R$ {item.preco.toFixed(2).replace('.',',')}</span>}
+                        <span style={{ fontWeight: 'bold' }}>{item.nome}</span>
+                        {item.preco > 0 && <span style={{ color: '#b91c1c', fontSize: '12px', fontWeight: 'bold' }}>+ R$ {item.preco.toFixed(2).replace('.', ',')}</span>}
                       </div>
                       <div style={counterContainer}>
-                        <button onClick={() => updateOptionQtd(item, -1, 5, section.items)} style={miniBtn}><Minus size={14}/></button>
+                        <button onClick={() => updateOptionQtd(item, -1, 5, section.items)} style={miniBtn}><Minus size={14} /></button>
                         <span style={{ minWidth: '20px', textAlign: 'center', fontWeight: 'bold' }}>{getQtd(item.nome)}</span>
-                        <button onClick={() => updateOptionQtd(item, 1, 5, section.items)} style={miniBtn}><Plus size={14}/></button>
+                        <button onClick={() => updateOptionQtd(item, 1, 5, section.items)} style={miniBtn}><Plus size={14} /></button>
                       </div>
                     </div>
                   ))}
@@ -880,12 +1003,12 @@ export default function Home() {
               </div>
               <div style={footerModal}>
                 <div style={qtyContainer}>
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={qtyBtn}><Minus size={16}/></button>
+                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={qtyBtn}><Minus size={16} /></button>
                   <span style={{ fontWeight: 'bold' }}>{quantity}</span>
-                  <button onClick={() => setQuantity(quantity + 1)} style={qtyBtn}><Plus size={16}/></button>
+                  <button onClick={() => setQuantity(quantity + 1)} style={qtyBtn}><Plus size={16} /></button>
                 </div>
                 <button onClick={handleConfirmAdd} className="btn-confirmar">
-                  ADICIONAR R$ {((selectedProduct.preco + customOptions.reduce((a,c)=>a+(c.preco*c.qtd),0)) * quantity).toFixed(2).replace('.',',')}
+                  ADICIONAR R$ {((selectedProduct.preco + customOptions.reduce((a, c) => a + (c.preco * c.qtd), 0)) * quantity).toFixed(2).replace('.', ',')}
                 </button>
               </div>
             </div>
@@ -914,23 +1037,14 @@ function Card({ foto, nome, desc, preco, onAdd }: any) {
   );
 }
 
-// ESTILOS COM FOCO NA TRANSIÇÃO PROFISSIONAL
+// ── ESTILOS ORIGINAIS PRESERVADOS ──
 const mainStyle: React.CSSProperties = { margin: 0, padding: 0, paddingTop: '80px', backgroundColor: '#0a0a0a', minHeight: '100vh', width: '100%', color: '#fff', position: 'relative' };
 const heroSectionStyle: React.CSSProperties = { position: 'relative', height: '90vh', width: '100%', display: 'flex', alignItems: 'center', backgroundImage: 'url("/burger-destaque.jpg")', backgroundSize: 'cover', backgroundPosition: 'left 60%', overflow: 'visible', zIndex: 5 };
 const heroContentStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'flex-end', paddingRight: '8%', position: 'relative', zIndex: 15 };
 const heroTitleStyle: React.CSSProperties = { fontSize: 'clamp(40px, 7vw, 90px)', lineHeight: '0.85', fontWeight: '900', textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', textShadow: '3px 3px 15px rgba(0,0,0,0.8)' };
-const heroSubtitleStyle: React.CSSProperties = { marginTop: '15px', fontSize: '28px', fontFamily: '"Brush Script MT", cursive', color: '#eee' };
+const heroSubtitleStyle: React.CSSProperties = { marginTop: '15px', fontSize: '24px', fontFamily: '"Brush Script MT", cursive', color: '#ccc' };
 const divisorOndaStyle: React.CSSProperties = { position: 'absolute', bottom: '-1px', left: 0, width: '100%', zIndex: 10, lineHeight: 0 };
-
-// CUSTOMIZAÇÃO DA SEÇÃO DO CARDÁPIO: Fundo preto sólido para conexão direta com os divisores
-const sectionCardapioStyle: React.CSSProperties = { 
-  padding: '120px 20px 80px', 
-  backgroundColor: '#0a0a0a', // Fundo preto sólido para transição perfeita
-  textAlign: 'center', 
-  position: 'relative', 
-  zIndex: 5 
-};
-
+const sectionCardapioStyle: React.CSSProperties = { padding: '120px 20px 80px', backgroundColor: '#0a0a0a', textAlign: 'center', position: 'relative', zIndex: 5 };
 const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' };
 const cardContainerStyle: React.CSSProperties = { backgroundColor: 'rgba(17, 17, 17, 0.95)', padding: '40px 30px', borderRadius: '15px', border: '1px solid #333' };
 const imgWrapperStyle: React.CSSProperties = { width: '100%', height: '220px', marginBottom: '20px', overflow: 'hidden', borderRadius: '10px' };
@@ -951,121 +1065,6 @@ const qtyContainer: React.CSSProperties = { display: 'flex', alignItems: 'center
 const qtyBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
 
 
-
-
---------------------------------------------------------------------------------
-ARQUIVO: .\src\app\admin\page.tsx
---------------------------------------------------------------------------------
-
-import { prisma } from "@/lib/prisma";
-import Link from "next/link";
-import { Plus, Edit, Trash2, Utensils } from "lucide-react";
-
-// 1. Tipagem baseada no seu modelo "Menu"
-interface MenuItem {
-  id: string;
-  name: string;
-  price: number;
-  description: string | null;
-  available: boolean;
-}
-
-export default async function AdminDashboard() {
-  // 2. Usando "menu" em vez de "product" (conforme seu schema.prisma)
-  let produtos: MenuItem[] = [];
-  
-  try {
-    const data = await prisma.menu.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-    produtos = data as MenuItem[];
-  } catch (error) {
-    console.error("Erro ao buscar cardápio:", error);
-  }
-
-  return (
-    <div style={adminContainerStyle}>
-      <div style={contentWrapperStyle}>
-        <header style={headerStyle}>
-          <div>
-            <h1 style={titleStyle}>Painel Administrativo</h1>
-            <p style={subtitleStyle}>Gerencie os itens do seu cardápio</p>
-          </div>
-          <Link href="/admin/novo" style={addBtnStyle}>
-            <Plus size={20} /> Novo Item
-          </Link>
-        </header>
-
-        <div style={tableContainerStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr style={{ backgroundColor: "#1a1a1a" }}>
-                <th style={thStyle}>Item</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Preço</th>
-                <th style={thStyle}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {produtos.length > 0 ? (
-                produtos.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #222" }}>
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight: 'bold' }}>{item.name}</div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>{item.description}</div>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ 
-                        fontSize: '11px', 
-                        padding: '2px 8px', 
-                        borderRadius: '10px',
-                        backgroundColor: item.available ? '#064e3b' : '#450a0a',
-                        color: item.available ? '#4ade80' : '#f87171'
-                      }}>
-                        {item.available ? 'Disponível' : 'Esgotado'}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ color: '#4ade80', fontWeight: 'bold' }}>
-                        R$ {item.price.toFixed(2)}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ display: 'flex', gap: '15px' }}>
-                        <Edit size={18} color="#60a5fa" cursor="pointer" />
-                        <Trash2 size={18} color="#f87171" cursor="pointer" />
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#888' }}>
-                    Nenhum item cadastrado no cardápio.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Estilos mantidos para consistência
-const adminContainerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#0a0a0a", color: "#fff", padding: "120px 20px" };
-const contentWrapperStyle: React.CSSProperties = { maxWidth: "1000px", margin: "0 auto" };
-const headerStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" };
-const titleStyle: React.CSSProperties = { fontSize: "24px", fontWeight: "bold", textTransform: "uppercase" };
-const subtitleStyle: React.CSSProperties = { color: "#888", fontSize: "14px" };
-const addBtnStyle: React.CSSProperties = { backgroundColor: "#b91c1c", color: "#fff", padding: "10px 20px", borderRadius: "5px", textDecoration: "none", fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px" };
-const tableContainerStyle: React.CSSProperties = { backgroundColor: "#111", borderRadius: "8px", border: "1px solid #222", overflow: "hidden" };
-const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse" };
-const thStyle: React.CSSProperties = { textAlign: "left", padding: "15px", color: "#888", fontSize: "12px", textTransform: "uppercase" };
-const tdStyle: React.CSSProperties = { padding: "15px" };
-
-
 --------------------------------------------------------------------------------
 ARQUIVO: .\src\app\api\auth\login\route.ts
 --------------------------------------------------------------------------------
@@ -1073,13 +1072,13 @@ ARQUIVO: .\src\app\api\auth\login\route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { generateToken } from "@/lib/jwt"; // ✅ ADICIONADO
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { email, password } = body;
 
-    // 1. Verificar se os campos foram preenchidos
     if (!email || !password) {
       return NextResponse.json(
         { error: "Preencha todos os campos" },
@@ -1087,12 +1086,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Buscar o usuário pelo email no banco Neon
     const user = await prisma.user.findUnique({
       where: { email },
     });
 
-    // 3. Se o usuário não existir
     if (!user) {
       return NextResponse.json(
         { error: "Usuário não encontrado" },
@@ -1100,7 +1097,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Verificar se a senha está correta
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
@@ -1110,7 +1106,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Configurar a Resposta de Sucesso
     const response = NextResponse.json({
       message: "Login realizado com sucesso",
       user: {
@@ -1121,19 +1116,29 @@ export async function POST(request: Request) {
       },
     });
 
-        // 6. CRIAR O COOKIE DE SESSÃO
+    // 6. COOKIE DE SESSÃO (original — não alterado)
     response.cookies.set("user_session", JSON.stringify({
       id: user.id,
       role: user.role,
       name: user.name,
-      email: user.email,  // ADICIONADO
-      phone: user.phone   // ADICIONADO
+      email: user.email,
+      phone: user.phone
     }), {
       path: "/",
-      maxAge: 60 * 60 * 24 * 7, 
-      httpOnly: false, 
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
+    });
+
+    // 7. ✅ ADICIONADO: Cookie JWT para proteção de rotas no middleware
+    const token = generateToken({ id: user.id, role: user.role });
+    response.cookies.set("auth_token", token, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
     });
 
     return response;
@@ -1363,55 +1368,157 @@ ARQUIVO: .\src\app\api\login\route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { generateToken } from "@/lib/jwt";
 
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
 
-    if (!email || !password) {
+    if (!email || !password)
       return NextResponse.json({ error: "E-mail e senha são obrigatórios" }, { status: 400 });
-    }
 
-    // 1. Busca o usuário no banco
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user) {
+    if (!user)
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 401 });
-    }
 
-    // 2. Verifica se a senha está correta
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
+    if (!isPasswordValid)
       return NextResponse.json({ error: "Senha incorreta" }, { status: 401 });
-    }
 
-    // 3. Gera o Token JWT
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET || "fallback_secret",
-      { expiresIn: "7d" }
-    );
+    // ✅ Agora o token carrega id e role corretamente
+    const token = generateToken({ id: user.id, role: user.role });
 
-    // 4. Cria a resposta e salva o token num Cookie seguro
-    const response = NextResponse.json({ message: "Login bem-sucedido" }, { status: 200 });
+    const response = NextResponse.json({
+      message: "Login bem-sucedido",
+      role: user.role, // útil para o frontend redirecionar
+    }, { status: 200 });
 
     response.cookies.set("auth_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 24 * 7, // 7 dias
+      maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
 
     return response;
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("ERRO NO LOGIN:", error);
     return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
+  }
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\me\route.ts
+--------------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { verifyToken } from "@/lib/jwt";
+
+export async function GET() {
+  try {
+    const token = (await cookies()).get("auth_token")?.value;
+
+    if (!token)
+      return NextResponse.json({ error: "Não logado" }, { status: 401 });
+
+    const decoded = verifyToken(token);
+    return NextResponse.json({ id: decoded.id, role: decoded.role });
+
+  } catch {
+    return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+  }
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\orders\route.ts
+--------------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { items, total, restaurantId, paymentMethod, notes } = body;
+
+    // Usando o seu ID de usuário real para o teste
+    const userId = "cmmclamu60000n1zyss460pap";
+
+    console.log("DEBUG - Dados recebidos para gravação:", {
+      userId,
+      restaurantId,
+      total,
+      itemsCount: items?.length
+    });
+
+    // Criar pedido no Prisma ignorando a validação de JWT por enquanto
+    const newOrder = await prisma.order.create({
+      data: {
+        userId: userId,
+        restaurantId: restaurantId,
+        total: Number(total),
+        status: "RECEIVED",
+        // Mapeamento garantido para evitar 'undefined' no unitPrice e productId
+        items: {
+          create: items.map((item: any) => ({
+            productId: item.productId,
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+          })),
+        },
+      },
+      include: {
+        items: true,
+      },
+    });
+
+    return NextResponse.json(newOrder, { status: 201 });
+  } catch (error: any) {
+    console.error("ERRO NO SERVIDOR AO CRIAR PEDIDO:", error);
+    return NextResponse.json(
+      { error: "Erro interno ao criar pedido", details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\orders\user\route.ts
+--------------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+  try {
+    // Usando o seu ID de usuário fixo para buscar os pedidos
+    const userId = "cmmclamu60000n1zyss460pap";
+
+    const orders = await prisma.order.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            product: true, // Para pegarmos o nome e imagem do produto
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc", // Pedidos mais recentes primeiro
+      },
+    });
+
+    return NextResponse.json(orders);
+  } catch (error: any) {
+    return NextResponse.json({ error: "Erro ao buscar pedidos" }, { status: 500 });
   }
 }
 
@@ -1540,10 +1647,11 @@ export default function CardapioCompleto() {
   const [customOptions, setCustomOptions] = useState<any[]>([]);
   const [observacao, setObservacao] = useState("");
 
+  // LISTA DE PRODUTOS
   const produtos = [
-    { id: "1", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, cheddar e bacon.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
-    { id: "2", nome: "Smoky Texas Grill", desc: "Hambúrguer na brasa e molho especial.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
-    { id: "3", nome: "Double Cheddar Board", desc: "Dois smash burgers e fritas.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
+    { id: "cmmctdp4l0001nsgzj9x6zi5y", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, cheddar e bacon.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
+    { id: "cmmcqmzlf0000nsgza56yn8g1", nome: "Smoky Texas Grill", desc: "Hambúrguer na brasa e molho especial.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
+    { id: "cmmcte9zh0002nsgzqh3hoffv", nome: "Double Cheddar Board", desc: "Dois smash burgers e fritas.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
   ];
 
   const secoesMenu = [
@@ -1553,8 +1661,12 @@ export default function CardapioCompleto() {
   ];
 
   const handleOpenModal = (p: any) => {
+    // Verifica se o usuário está logado via cookie
     const isLogged = document.cookie.includes("user_session");
-    if (!isLogged) { router.push("/login?callback=/cardapio"); return; }
+    if (!isLogged) { 
+      router.push("/login?callback=/cardapio"); 
+      return; 
+    }
     
     setSelectedProduct(p);
     setQuantity(1);
@@ -1587,6 +1699,7 @@ export default function CardapioCompleto() {
     
     addToCart({
       id: `${selectedProduct.id}-${Date.now()}`,
+      productId: selectedProduct.id, // Adicionado para manter consistência com o banco
       name: selectedProduct.nome,
       price: selectedProduct.preco + adicionalTotal,
       image: selectedProduct.foto,
@@ -1602,7 +1715,7 @@ export default function CardapioCompleto() {
   };
 
   return (
-    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: '80px', minHeight: '100%' }}>
+    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: '80px', minHeight: '100vh' }}>
       <section style={headerSection}>
         <span style={subtitleStyle}>Escolha seu Burger</span>
         <h1 style={titleStyle}>CARDÁPIO</h1>
@@ -1616,6 +1729,7 @@ export default function CardapioCompleto() {
                 <img src={p.foto} alt={p.nome} style={imgStyle} />
               </div>
               <h3 style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px', textTransform: 'uppercase' }}>{p.nome}</h3>
+              <p style={{ color: "#888", fontSize: "13px", margin: "5px 0", minHeight: "32px" }}>{p.desc}</p>
               <div style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
                 R$ {p.preco.toFixed(2).replace(".", ",")}
               </div>
@@ -1718,14 +1832,18 @@ ARQUIVO: .\src\app\carrinho\page.tsx
 import React, { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
-import { Trash2, Plus, Minus, Edit2, X, ArrowLeft } from "lucide-react";
+import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function Carrinho() {
-  const { cart, removeFromCart, updateQuantity, updateItemCustomization } = useCart();
+  const { cart, removeFromCart, updateQuantity, updateItemCustomization, createOrder } = useCart();
+  const router = useRouter();
   
   const [editingItem, setEditingItem] = useState<any>(null);
   const [tempOptions, setTempOptions] = useState<any[]>([]);
   const [obsEdit, setObsEdit] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const baseOptions = {
     molhosGratis: [
@@ -1747,6 +1865,24 @@ export default function Carrinho() {
   };
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    setErrorMessage(null);
+
+    setIsSubmitting(true);
+    try {
+      const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+      await createOrder("PIX", "Pedido via Web", restaurantId);
+      router.push("/my-orders"); 
+    } catch (error: any) {
+      console.error("Erro ao finalizar pedido:", error.message);
+      // Exibe o erro de forma elegante na UI
+      setErrorMessage(error.message || "Erro ao processar pedido.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleEditClick = (item: any) => {
     setEditingItem(item);
@@ -1787,38 +1923,39 @@ export default function Carrinho() {
   const getQtd = (nome: string) => tempOptions.find(o => o.nome === nome)?.qtd || 0;
 
   const handleSaveEdit = () => {
-    const precoAdicionais = tempOptions.reduce((acc, curr) => acc + (curr.preco * curr.qtd), 0);
-    const precoBaseOriginal = 38.90; 
     updateItemCustomization(editingItem.id, {
       extras: tempOptions.map(o => `${o.qtd}x ${o.nome}`),
       obs: obsEdit
-    }, precoBaseOriginal + precoAdicionais);
+    }, editingItem.price);
     setEditingItem(null);
   };
 
   return (
-    <main style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingTop: '80px' }}>
+    <main style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingTop: '80px', fontFamily: "'Oswald', sans-serif" }}>
       <style jsx global>{`
         @media (max-width: 600px) {
           .cart-item { flex-direction: column !important; align-items: flex-start !important; }
-          .cart-item img { width: 100% !important; height: 150px !important; }
+          .cart-item img { width: 100% !important; height: 180px !important; margin-bottom: 15px; }
           .qty-row { width: 100% !important; justify-content: space-between !important; margin-top: 15px !important; }
         }
       `}</style>
 
       <section style={headerSection}>
-        <span style={subtitleStyle}>Meu</span>
-        <h1 style={titleStyle}>CARRINHO</h1>
+        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+          <span style={subtitleStyle}>Meu</span>
+          <h1 style={titleStyle}>CARRINHO</h1>
+          <div style={{ height: '3px', width: '60px', background: '#b91c1c', margin: '10px auto', borderRadius: '2px' }} />
+        </div>
       </section>
 
-      <section style={{ maxWidth: "800px", margin: "40px auto", padding: "0 20px" }}>
+      <section style={{ maxWidth: "850px", margin: "40px auto", padding: "0 20px" }}>
         {cart.length === 0 ? (
-          <div style={{ textAlign: "center", marginTop: '50px' }}>
-            <p style={{ color: '#888', marginBottom: '20px' }}>Seu carrinho está vazio.</p>
-            <Link href="/" style={btnVoltar}>VOLTAR AO CARDÁPIO</Link>
+          <div style={{ textAlign: "center", marginTop: '50px', marginBottom: '100px', padding: '60px', background: '#111', borderRadius: '20px', border: '1px dashed #333' }}>
+            <p style={{ color: '#555', marginBottom: '30px', fontWeight: 'bold', letterSpacing: '2px' }}>A BRASA ESTÁ FRIA. SEU CARRINHO ESTÁ VAZIO.</p>
+            <Link href="/cardapio" style={btnVoltar}>ACENDER O FOGO</Link>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             {cart.map((item) => (
               <div key={item.id} className="cart-item" style={cartItemStyle}>
                 <img src={item.image} alt={item.name} style={thumbStyle} />
@@ -1826,8 +1963,8 @@ export default function Carrinho() {
                 <div style={{ flex: 1, width: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <h3 style={{ margin: 0, fontSize: "18px", fontWeight: '900' }}>{item.name}</h3>
-                      <button onClick={() => handleEditClick(item)} style={editBtnSmall}><Edit2 size={12}/> Editar</button>
+                      <h3 style={{ margin: 0, fontSize: "22px", fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase' }}>{item.name}</h3>
+                      <button onClick={() => handleEditClick(item)} style={editBtnSmall}><Edit2 size={12}/> Ajustar Ingredientes</button>
                     </div>
                     <button onClick={() => removeFromCart(item.id)} style={deleteBtn}><Trash2 size={20}/></button>
                   </div>
@@ -1836,21 +1973,26 @@ export default function Carrinho() {
                     {item.customization?.extras?.map((ex: string, i: number) => (
                       <span key={i} style={tagStyle}>{ex}</span>
                     ))}
-                    {item.customization?.obs && <p style={obsItem}>"{item.customization.obs}"</p>}
+                    {item.customization?.obs && (
+                      <div style={{ marginTop: '8px', borderLeft: '2px solid #b91c1c', paddingLeft: '8px' }}>
+                        <p style={obsItem}>"{item.customization.obs}"</p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="qty-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px' }}>
-                    <p style={{ color: "#b91c1c", fontWeight: "bold", fontSize: '20px', margin: 0 }}>
-                      R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}
+                  <div className="qty-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '15px' }}>
+                    <p style={{ color: "#fff", fontWeight: "900", fontSize: '24px', margin: 0, fontStyle: 'italic' }}>
+                      <span style={{ fontSize: '14px', color: '#b91c1c', marginRight: '4px', fontStyle: 'normal' }}>R$</span>
+                      {(item.price * item.quantity).toFixed(2).replace('.', ',')}
                     </p>
                     
                     <div style={qtyControls}>
                       <button onClick={() => item.quantity > 1 ? updateQuantity(item.id, item.quantity - 1) : removeFromCart(item.id)} style={qtyBtn}>
-                        <Minus size={14}/>
+                        <Minus size={16}/>
                       </button>
-                      <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>{item.quantity}</span>
+                      <span style={{ fontWeight: '900', minWidth: '30px', textAlign: 'center', fontSize: '18px' }}>{item.quantity}</span>
                       <button onClick={() => updateQuantity(item.id, item.quantity + 1)} style={qtyBtn}>
-                        <Plus size={14}/>
+                        <Plus size={16}/>
                       </button>
                     </div>
                   </div>
@@ -1859,12 +2001,46 @@ export default function Carrinho() {
             ))}
 
             <div style={resumoStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "24px", fontWeight: "900" }}>
-                <span>TOTAL:</span>
-                <span style={{ color: "#b91c1c" }}>R$ {totalGeral.toFixed(2).replace('.', ',')}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'baseline' }}>
+                <span style={{ fontSize: "16px", fontWeight: "bold", color: '#555' }}>SUBTOTAL DO PEDIDO:</span>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ color: "#fff", fontSize: "36px", fontWeight: "900", fontStyle: 'italic' }}>
+                    <span style={{ fontSize: '18px', color: '#b91c1c', fontStyle: 'normal', marginRight: '8px' }}>R$</span>
+                    {totalGeral.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
               </div>
-              <button style={checkoutBtn}>FINALIZAR PEDIDO NO WHATSAPP</button>
-              <Link href="/" style={btnKeepShopping}><ArrowLeft size={16}/> Continuar Comprando</Link>
+
+              {errorMessage && (
+                <div style={errorContainer}>
+                  <AlertCircle size={16} />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+              
+              <button 
+                onClick={handleCheckout} 
+                disabled={isSubmitting}
+                style={{
+                  ...checkoutBtn,
+                  background: isSubmitting ? "#222" : "#b91c1c",
+                  boxShadow: isSubmitting ? "none" : "0 10px 40px rgba(185,28,28,0.3)",
+                }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    ENVIANDO PARA A GRELHA...
+                  </>
+                ) : (
+                  <>
+                    <Flame size={20} />
+                    FINALIZAR PEDIDO
+                  </>
+                )}
+              </button>
+
+              <Link href="/cardapio" style={btnKeepShopping}><ArrowLeft size={16}/> Escolher mais delícias</Link>
             </div>
           </div>
         )}
@@ -1872,39 +2048,41 @@ export default function Carrinho() {
 
       {editingItem && (
         <div style={modalOverlayStyles}>
-          <div className="modal-content custom-scrollbar" style={modalContentStyles}>
-            <button onClick={() => setEditingItem(null)} style={closeBtnStyles}><X size={24} /></button>
-            <div style={{ padding: '25px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: '900', marginBottom: '20px' }}>EDITAR COMPLEMENTOS</h2>
-              {[
-                { title: "MOLHOS (GRÁTIS)", items: baseOptions.molhosGratis },
-                { title: "MOLHOS DA CASA", items: baseOptions.molhosCasa },
-                { title: "COMPLEMENTOS", items: baseOptions.complementos }
-              ].map(section => (
-                <div key={section.title} style={modalSectionStyles}>
-                  <h4 style={sectionTitleStyles}>{section.title} <small style={{float:'right', color:'#888'}}>Limite: 5</small></h4>
-                  {section.items.map(item => (
-                    <div key={item.nome} style={optionRowStyles}>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '15px' }}>{item.nome}</span>
-                        {item.preco > 0 && <span style={{ color: '#b91c1c', fontSize: '13px' }}>+ R$ {item.preco.toFixed(2).replace('.',',')}</span>}
+          <div className="modal-content" style={modalContentStyles}>
+            <button onClick={() => setEditingItem(null)} style={closeBtnStyles}><X size={20} /></button>
+            <div style={{ padding: '30px' }}>
+              <h2 style={{ fontSize: '26px', fontWeight: '900', marginBottom: '5px', fontStyle: 'italic' }}>EDITAR COMPLEMENTOS</h2>
+              <div style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: '10px' }} className="custom-scrollbar">
+                {[
+                  { title: "MOLHOS (GRÁTIS)", items: baseOptions.molhosGratis },
+                  { title: "MOLHOS DA CASA", items: baseOptions.molhosCasa },
+                  { title: "COMPLEMENTOS", items: baseOptions.complementos }
+                ].map(section => (
+                  <div key={section.title} style={modalSectionStyles}>
+                    <h4 style={sectionTitleStyles}>{section.title}</h4>
+                    {section.items.map(item => (
+                      <div key={item.nome} style={optionRowStyles}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#eee' }}>{item.nome}</span>
+                          {item.preco > 0 && <span style={{ color: '#b91c1c', fontSize: '13px', fontWeight: 'bold' }}>+ R$ {item.preco.toFixed(2).replace('.',',')}</span>}
+                        </div>
+                        <div style={counterContainer}>
+                          <button onClick={() => updateTempQtd(item, -1, 5, section.items)} style={miniBtn}><Minus size={14}/></button>
+                          <span style={{ minWidth: '20px', textAlign: 'center', fontWeight: 'bold', fontSize: '14px' }}>{getQtd(item.nome)}</span>
+                          <button onClick={() => updateTempQtd(item, 1, 5, section.items)} style={miniBtn}><Plus size={14}/></button>
+                        </div>
                       </div>
-                      <div style={counterContainer}>
-                        <button onClick={() => updateTempQtd(item, -1, 5, section.items)} style={miniBtn}><Minus size={14}/></button>
-                        <span style={{ minWidth: '20px', textAlign: 'center', fontWeight: 'bold' }}>{getQtd(item.nome)}</span>
-                        <button onClick={() => updateTempQtd(item, 1, 5, section.items)} style={miniBtn}><Plus size={14}/></button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                ))}
+                <div style={modalSectionStyles}>
+                  <h4 style={sectionTitleStyles}>RECOMENDAÇÕES À COZINHA</h4>
+                  <textarea placeholder="Ex: Tirar cebola, ponto da carne..." value={obsEdit} onChange={(e) => setObsEdit(e.target.value)} style={textareaStyles} />
                 </div>
-              ))}
-              <div style={modalSectionStyles}>
-                <h4 style={sectionTitleStyles}>OBSERVAÇÕES</h4>
-                <textarea value={obsEdit} onChange={(e) => setObsEdit(e.target.value)} style={textareaStyles} />
               </div>
             </div>
             <div style={footerModalStyles}>
-               <button onClick={handleSaveEdit} style={confirmBtnStyles}>SALVAR ALTERAÇÕES</button>
+                <button onClick={handleSaveEdit} style={confirmBtnStyles}>CONFIRMAR ALTERAÇÕES</button>
             </div>
           </div>
         </div>
@@ -1913,34 +2091,35 @@ export default function Carrinho() {
   );
 }
 
-// Estilos otimizados para responsividade
-const headerSection: React.CSSProperties = { height: "180px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('/banner-fome.jpg')", backgroundSize: "cover" };
-const subtitleStyle: React.CSSProperties = { color: '#fff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '4px' };
-const titleStyle: React.CSSProperties = { fontSize: '45px', fontWeight: '900', color: '#b91c1c' };
-const cartItemStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "20px", background: "#111", padding: "20px", borderRadius: "15px", border: "1px solid #222", overflow: 'hidden' };
-const thumbStyle: React.CSSProperties = { width: "100px", height: "100px", objectFit: "cover", borderRadius: "10px" };
-const editBtnSmall: React.CSSProperties = { background: '#222', border: 'none', color: '#888', fontSize: '11px', padding: '4px 10px', borderRadius: '5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '5px' };
-const tagStyle: React.CSSProperties = { fontSize: '11px', background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#888', border: '1px solid #333', marginRight: '5px', display: 'inline-block', marginBottom: '5px' };
-const customizationDetails: React.CSSProperties = { margin: '12px 0' };
-const obsItem: React.CSSProperties = { fontSize: '12px', color: '#b91c1c', fontStyle: 'italic', margin: '5px 0' };
-const qtyControls: React.CSSProperties = { display: "flex", alignItems: "center", gap: "10px", background: "#000", padding: "6px 12px", borderRadius: "8px", border: '1px solid #222' };
+// Estilos
+const headerSection: React.CSSProperties = { height: "220px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: 'relative', overflow: 'hidden', borderBottom: '1px solid #1a1a1a' };
+const subtitleStyle: React.CSSProperties = { color: '#555', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '6px', fontWeight: 'bold' };
+const titleStyle: React.CSSProperties = { fontSize: '60px', fontWeight: '900', color: '#fff', fontStyle: 'italic', lineHeight: '1', margin: '5px 0' };
+const cartItemStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "25px", background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px solid #1a1a1a", boxShadow: '0 10px 30px rgba(0,0,0,0.5)' };
+const thumbStyle: React.CSSProperties = { width: "120px", height: "120px", objectFit: "cover", borderRadius: "12px", border: '1px solid #222' };
+const editBtnSmall: React.CSSProperties = { background: '#1a1a1a', border: '1px solid #333', color: '#888', fontSize: '10px', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontWeight: 'bold', textTransform: 'uppercase' };
+const tagStyle: React.CSSProperties = { fontSize: '10px', background: 'rgba(185,28,28,0.1)', padding: '4px 10px', borderRadius: '4px', color: '#b91c1c', border: '1px solid rgba(185,28,28,0.2)', marginRight: '6px', display: 'inline-block', marginBottom: '6px', fontWeight: 'bold' };
+const customizationDetails: React.CSSProperties = { margin: '15px 0' };
+const obsItem: React.CSSProperties = { fontSize: '12px', color: '#888', fontStyle: 'italic', margin: '5px 0' };
+const qtyControls: React.CSSProperties = { display: "flex", alignItems: "center", gap: "15px", background: "#000", padding: "8px 16px", borderRadius: "10px", border: '1px solid #222' };
 const qtyBtn: React.CSSProperties = { background: "none", border: "none", color: "#b91c1c", cursor: "pointer", display: 'flex', alignItems: 'center' };
-const deleteBtn: React.CSSProperties = { background: "none", border: "none", color: "#444", cursor: "pointer" };
-const resumoStyle: React.CSSProperties = { marginTop: "30px", padding: "30px", background: "#111", borderRadius: "20px", border: '2px solid #b91c1c' };
-const checkoutBtn: React.CSSProperties = { width: '100%', padding: '20px', background: '#b91c1c', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', marginTop: '20px', cursor: 'pointer' };
-const btnVoltar: React.CSSProperties = { color: '#fff', background: '#b91c1c', padding: '12px 25px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold', display: 'inline-block' };
-const btnKeepShopping: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', color: '#888', textDecoration: 'none', marginTop: '15px', fontSize: '14px' };
-const modalOverlayStyles: React.CSSProperties = { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px', backdropFilter: 'blur(5px)' };
-const modalContentStyles: React.CSSProperties = { backgroundColor: '#111', width: '100%', maxWidth: '480px', maxHeight: '85vh', borderRadius: '20px', overflowY: 'auto', border: '1px solid #333', position: 'relative' };
-const closeBtnStyles: React.CSSProperties = { position: 'absolute', top: '15px', right: '15px', background: '#000', border: 'none', color: '#fff', cursor: 'pointer', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const modalSectionStyles: React.CSSProperties = { marginBottom: '25px' };
-const sectionTitleStyles: React.CSSProperties = { fontSize: '13px', color: '#fff', borderLeft: '4px solid #b91c1c', paddingLeft: '10px', marginBottom: '15px', fontWeight: 'bold', textTransform: 'uppercase' };
-const optionRowStyles: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #222' };
-const counterContainer: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '12px', background: '#000', padding: '5px 12px', borderRadius: '20px', border: '1px solid #333' };
+const deleteBtn: React.CSSProperties = { background: "#1a1a1a", border: "none", color: "#333", cursor: "pointer", padding: '10px', borderRadius: '50%' };
+const resumoStyle: React.CSSProperties = { marginTop: "20px", padding: "40px", background: "#0f0f0f", borderRadius: "24px", border: '1px solid #b91c1c44', boxShadow: '0 20px 50px rgba(185,28,28,0.1)' };
+const checkoutBtn: React.CSSProperties = { width: '100%', padding: '22px', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '18px', marginTop: '25px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', textTransform: 'uppercase', fontStyle: 'italic' };
+const btnVoltar: React.CSSProperties = { color: '#fff', background: '#b91c1c', padding: '15px 35px', borderRadius: '8px', textDecoration: 'none', fontWeight: '900', display: 'inline-block', fontSize: '14px' };
+const btnKeepShopping: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', color: '#444', textDecoration: 'none', marginTop: '20px', fontSize: '12px', fontWeight: 'bold' };
+const modalOverlayStyles: React.CSSProperties = { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px', backdropFilter: 'blur(10px)' };
+const modalContentStyles: React.CSSProperties = { backgroundColor: '#0a0a0a', width: '100%', maxWidth: '500px', borderRadius: '30px', border: '1px solid #222', position: 'relative', overflow: 'hidden' };
+const closeBtnStyles: React.CSSProperties = { position: 'absolute', top: '20px', right: '20px', background: '#1a1a1a', border: 'none', color: '#fff', cursor: 'pointer', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 };
+const modalSectionStyles: React.CSSProperties = { marginBottom: '30px' };
+const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '18px', fontWeight: '900', textTransform: 'uppercase' };
+const optionRowStyles: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #151515' };
+const counterContainer: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#000', padding: '6px 15px', borderRadius: '30px', border: '1px solid #222' };
 const miniBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
-const textareaStyles: React.CSSProperties = { width: '100%', backgroundColor: '#000', border: '1px solid #333', borderRadius: '10px', padding: '12px', color: '#fff', height: '70px', resize: 'none' };
-const footerModalStyles: React.CSSProperties = { position: 'sticky', bottom: 0, backgroundColor: '#111', padding: '20px', borderTop: '1px solid #333' };
-const confirmBtnStyles: React.CSSProperties = { backgroundColor: '#b91c1c', border: 'none', color: '#fff', fontWeight: 'bold', padding: '16px', borderRadius: '12px', cursor: 'pointer', width: '100%' };
+const textareaStyles: React.CSSProperties = { width: '100%', backgroundColor: '#000', border: '1px solid #222', borderRadius: '15px', padding: '15px', color: '#fff', height: '100px', resize: 'none' };
+const footerModalStyles: React.CSSProperties = { padding: '25px 30px', backgroundColor: '#0f0f0f', borderTop: '1px solid #1a1a1a' };
+const confirmBtnStyles: React.CSSProperties = { backgroundColor: '#b91c1c', border: 'none', color: '#fff', fontWeight: '900', padding: '20px', borderRadius: '15px', cursor: 'pointer', width: '100%', textTransform: 'uppercase', fontStyle: 'italic' };
+const errorContainer: React.CSSProperties = { marginTop: '20px', padding: '15px', backgroundColor: 'rgba(185,28,28,0.1)', border: '1px solid #b91c1c', borderRadius: '10px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 'bold' };
 
 
 --------------------------------------------------------------------------------
@@ -1953,14 +2132,21 @@ import React from 'react';
 
 export default function Contato() {
   return (
-    <div style={{ backgroundColor: '#0a0a0a', color: '#fff' }}>
+    <div style={{ 
+      backgroundColor: '#0a0a0a', 
+      color: '#fff', 
+      minHeight: '100vh', 
+      paddingTop: '80px',
+      paddingBottom: '120px' // Espaçamento igual ao do cardápio antes do footer
+    }}>
+      {/* CABEÇALHO - AGORA IGUAL AO CARDÁPIO */}
       <section style={headerSection}>
         <span style={subtitleStyle}>Fale</span>
         <h1 style={titleStyle}>CONOSCO</h1>
       </section>
 
       <section style={{ padding: "80px 20px", textAlign: "center", position: 'relative', zIndex: 2 }}>
-        <p style={{ color: "#ccc", maxWidth: "600px", margin: "0 auto 40px" }}>
+        <p style={{ color: "#ccc", maxWidth: "600px", margin: "0 auto 40px", fontSize: '18px' }}>
           Quer falar com a gente?
           Envie sua dúvida, sugestão, elogio ou venha fazer parte do nosso time!
         </p>
@@ -1989,8 +2175,9 @@ export default function Contato() {
   );
 }
 
+// ESTILOS SINCRONIZADOS COM O CARDÁPIO
 const headerSection: React.CSSProperties = {
-  height: "400px",
+  height: "300px", 
   width: "100%",
   display: "flex",
   flexDirection: "column",
@@ -1999,20 +2186,19 @@ const headerSection: React.CSSProperties = {
   backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')",
   backgroundSize: "cover",
   backgroundPosition: "center",
+  margin: 0
 };
 
 const subtitleStyle: React.CSSProperties = { 
   color: '#fff', 
-  fontSize: '18px', 
+  fontSize: '14px', 
   textTransform: 'uppercase', 
-  fontWeight: 'bold', 
   letterSpacing: '4px', 
-  display: 'block', 
-  marginBottom: '5px' 
+  marginBottom: '10px' 
 };
 
 const titleStyle: React.CSSProperties = { 
-  fontSize: 'clamp(40px, 8vw, 80px)', 
+  fontSize: '70px', 
   fontWeight: '900', 
   color: '#b91c1c', 
   margin: 0, 
@@ -2169,6 +2355,453 @@ const buttonStyle: React.CSSProperties = { backgroundColor: "#b91c1c", color: "#
 const footerTextStyle: React.CSSProperties = { color: "#555", fontSize: "13px", marginTop: "30px" };
 const linkStyle: React.CSSProperties = { color: "#b91c1c", fontWeight: "bold", textDecoration: "none" };
 const logoContainer: React.CSSProperties = { marginBottom: "10px" };
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\my-orders\page.tsx
+--------------------------------------------------------------------------------
+
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Package, Calendar, Clock, ChevronRight, Flame, CheckCircle2, ChefHat, Bike, XCircle } from "lucide-react";
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+interface OrderItem {
+  id: string;
+  quantity: number;
+  unitPrice: number;
+  product: { name: string };
+}
+
+interface Order {
+  id: string;
+  status: string;
+  total: number;
+  createdAt: string;
+  items: OrderItem[];
+}
+
+// ─── Status config ─────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string; icon: React.ReactNode; step: number }> = {
+  RECEIVED:          { label: "Recebido",           color: "#f59e0b", glow: "#f59e0b55", icon: <Flame size={13} />,        step: 1 },
+  PREPARING:         { label: "Em Preparo",          color: "#f97316", glow: "#f9731655", icon: <ChefHat size={13} />,      step: 2 },
+  OUT_FOR_DELIVERY:  { label: "Saiu para Entrega",   color: "#3b82f6", glow: "#3b82f655", icon: <Bike size={13} />,         step: 3 },
+  DONE:              { label: "Entregue",             color: "#22c55e", glow: "#22c55e55", icon: <CheckCircle2 size={13} />, step: 4 },
+  CANCELLED:         { label: "Cancelado",            color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
+};
+
+// ─── Progress bar ──────────────────────────────────────────────────────────────
+function OrderProgress({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.RECEIVED;
+  if (status === "CANCELLED") return null;
+  const steps = [
+    { label: "Recebido",  step: 1 },
+    { label: "Preparo",   step: 2 },
+    { label: "Entrega",   step: 3 },
+    { label: "Entregue",  step: 4 },
+  ];
+  return (
+    <div className="flex items-center gap-0 w-full">
+      {steps.map((s, i) => {
+        const active = cfg.step >= s.step;
+        const current = cfg.step === s.step;
+        return (
+          <div key={s.step} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-1">
+              <div
+                style={{
+                  width: 28, height: 28,
+                  borderRadius: "50%",
+                  border: active ? `2px solid ${cfg.color}` : "2px solid #2a2a2a",
+                  background: active ? `${cfg.color}22` : "#111",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: current ? `0 0 12px ${cfg.glow}` : "none",
+                  transition: "all 0.3s",
+                }}
+              >
+                <div style={{
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: active ? cfg.color : "#333",
+                  transition: "all 0.3s",
+                }} />
+              </div>
+              <span style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: active ? cfg.color : "#444",
+                transition: "all 0.3s",
+              }}>
+                {s.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{
+                flex: 1, height: 2, marginBottom: 18,
+                background: cfg.step > s.step
+                  ? `linear-gradient(90deg, ${cfg.color}, ${cfg.color}88)`
+                  : "#1e1e1e",
+                transition: "all 0.4s",
+              }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Card de pedido ────────────────────────────────────────────────────────────
+function OrderCard({ order, index }: { order: Order; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.RECEIVED;
+  const date = new Date(order.createdAt);
+
+  return (
+    <div
+      style={{
+        background: "#0e0e0e",
+        border: "1px solid #1e1e1e",
+        borderRadius: 12,
+        overflow: "hidden",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+        animation: `fadeSlideUp 0.4s ease both`,
+        animationDelay: `${index * 0.07}s`,
+        transition: "border-color 0.2s, box-shadow 0.2s",
+      }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = "#2a2a2a";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = `0 25px 70px rgba(0,0,0,0.7), 0 0 0 1px ${cfg.color}22`;
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = "#1e1e1e";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 20px 60px rgba(0,0,0,0.6)";
+      }}
+    >
+      {/* Top accent line */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, ${cfg.color}, transparent)` }} />
+
+      {/* Header */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "14px 20px",
+        background: "#0a0a0a",
+        borderBottom: "1px solid #161616",
+      }}>
+        <span style={{ fontFamily: "'Courier New', monospace", fontSize: 11, color: "#444", letterSpacing: "0.15em" }}>
+          #{order.id.slice(-8).toUpperCase()}
+        </span>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          background: `${cfg.color}15`,
+          border: `1px solid ${cfg.color}33`,
+          padding: "4px 10px", borderRadius: 20,
+        }}>
+          <span style={{ color: cfg.color }}>{cfg.icon}</span>
+          <span style={{ color: cfg.color, fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+            {cfg.label}
+          </span>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: "20px 20px 0" }}>
+        {/* Progress */}
+        <div style={{ marginBottom: 20 }}>
+          <OrderProgress status={order.status} />
+        </div>
+
+        {/* Meta row */}
+        <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#555", fontSize: 12, fontWeight: 600 }}>
+            <Calendar size={13} />
+            <span>{date.toLocaleDateString("pt-BR")}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#555", fontSize: 12, fontWeight: 600 }}>
+            <Clock size={13} />
+            <span>{date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+          </div>
+        </div>
+
+        {/* Items preview */}
+        <div style={{ marginBottom: 20 }}>
+          {(expanded ? order.items : order.items.slice(0, 2)).map((item) => (
+            <div key={item.id} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "8px 0",
+              borderBottom: "1px solid #141414",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{
+                  background: "#b91c1c", color: "#fff",
+                  fontSize: 10, fontWeight: 800,
+                  width: 24, height: 24, borderRadius: 4,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontStyle: "italic",
+                }}>
+                  {item.quantity}x
+                </span>
+                <span style={{ color: "#ccc", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {item.product?.name ?? "Produto"}
+                </span>
+              </div>
+              <span style={{ color: "#555", fontSize: 12, fontFamily: "monospace" }}>
+                R$ {(item.unitPrice * item.quantity).toFixed(2)}
+              </span>
+            </div>
+          ))}
+          {order.items.length > 2 && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#444", fontSize: 11, fontWeight: 700,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                padding: "8px 0", width: "100%", textAlign: "left",
+                transition: "color 0.2s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#b91c1c")}
+              onMouseLeave={e => (e.currentTarget.style.color = "#444")}
+            >
+              {expanded ? "▲ Ocultar itens" : `▼ +${order.items.length - 2} itens`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "14px 20px",
+        background: "#080808",
+        borderTop: "1px solid #141414",
+      }}>
+        <div>
+          <div style={{ color: "#3a3a3a", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 2 }}>
+            Total
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+            <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 800 }}>R$</span>
+            <span style={{ color: "#fff", fontSize: 26, fontWeight: 900, letterSpacing: "-0.02em", fontStyle: "italic" }}>
+              {Number(order.total).toFixed(2)}
+            </span>
+          </div>
+        </div>
+        <button style={{
+          background: "#151515",
+          border: "1px solid #222",
+          color: "#888",
+          padding: "10px 18px",
+          borderRadius: 6,
+          fontSize: 10,
+          fontWeight: 800,
+          letterSpacing: "0.15em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 6,
+          transition: "all 0.2s",
+        }}
+          onMouseEnter={e => {
+            const b = e.currentTarget;
+            b.style.background = "#1a1a1a";
+            b.style.borderColor = "#b91c1c44";
+            b.style.color = "#fff";
+          }}
+          onMouseLeave={e => {
+            const b = e.currentTarget;
+            b.style.background = "#151515";
+            b.style.borderColor = "#222";
+            b.style.color = "#888";
+          }}
+        >
+          DETALHES
+          <ChevronRight size={13} color="#b91c1c" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Skeleton loader ───────────────────────────────────────────────────────────
+function SkeletonCard() {
+  return (
+    <div style={{
+      background: "#0e0e0e", border: "1px solid #1a1a1a",
+      borderRadius: 12, overflow: "hidden",
+      animation: "pulse 1.5s ease-in-out infinite",
+    }}>
+      <div style={{ height: 2, background: "#1a1a1a" }} />
+      <div style={{ padding: "14px 20px", background: "#0a0a0a", display: "flex", justifyContent: "space-between" }}>
+        <div style={{ width: 80, height: 12, background: "#1a1a1a", borderRadius: 4 }} />
+        <div style={{ width: 100, height: 20, background: "#1a1a1a", borderRadius: 20 }} />
+      </div>
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ width: "100%", height: 8, background: "#141414", borderRadius: 4 }} />
+        <div style={{ width: "60%", height: 8, background: "#141414", borderRadius: 4 }} />
+        <div style={{ width: "80%", height: 8, background: "#141414", borderRadius: 4 }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
+export default function MyOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/orders/user")
+      .then((res) => res.json())
+      .then((data) => {
+        setOrders(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  return (
+    <>
+      <style>{`
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        @keyframes flamePulse {
+          0%, 100% { text-shadow: 0 0 20px #b91c1c88; }
+          50% { text-shadow: 0 0 40px #b91c1ccc, 0 0 80px #b91c1c44; }
+        }
+      `}</style>
+
+      <div style={{
+        minHeight: "100vh",
+        background: "#0a0a0a",
+        color: "#fff",
+        fontFamily: "'Oswald', sans-serif",
+      }}>
+        {/* Navbar spacer */}
+        <div style={{ height: 90 }} />
+
+        {/* Noise texture overlay */}
+        <div style={{
+          position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E")`,
+        }} />
+
+        <main style={{
+          position: "relative", zIndex: 1,
+          maxWidth: 780,
+          margin: "0 auto",
+          padding: "40px 20px 160px",
+        }}>
+
+          {/* Header */}
+          <header style={{ marginBottom: 48, position: "relative", paddingLeft: 20 }}>
+            <div style={{
+              position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+              width: 3, height: "80%",
+              background: "linear-gradient(180deg, #b91c1c, transparent)",
+              boxShadow: "0 0 20px #b91c1c88",
+              borderRadius: 2,
+            }} />
+            <p style={{
+              color: "#b91c1c", fontSize: 11, fontWeight: 700,
+              letterSpacing: "0.4em", textTransform: "uppercase",
+              marginBottom: 8, opacity: 0.8,
+            }}>
+              THE FLAME GRILL
+            </p>
+            <h1 style={{
+              fontSize: "clamp(42px, 8vw, 64px)",
+              fontWeight: 900,
+              fontStyle: "italic",
+              textTransform: "uppercase",
+              letterSpacing: "-0.02em",
+              lineHeight: 0.95,
+              margin: 0,
+              animation: "flamePulse 3s ease-in-out infinite",
+            }}>
+              MEUS{" "}
+              <span style={{ color: "#b91c1c" }}>PEDIDOS</span>
+            </h1>
+            <p style={{
+              color: "#333", fontSize: 11, fontWeight: 700,
+              letterSpacing: "0.4em", textTransform: "uppercase",
+              marginTop: 10,
+            }}>
+              Acompanhe o rastro do fogo
+            </p>
+          </header>
+
+          {/* Content */}
+          {loading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {[0, 1, 2].map(i => <SkeletonCard key={i} />)}
+            </div>
+          ) : orders.length === 0 ? (
+            <div style={{
+              background: "#0e0e0e",
+              border: "1px solid #1a1a1a",
+              borderRadius: 12,
+              padding: "80px 40px",
+              textAlign: "center",
+              animation: "fadeSlideUp 0.4s ease both",
+            }}>
+              <Package size={52} color="#1e1e1e" style={{ margin: "0 auto 24px" }} />
+              <p style={{ color: "#333", fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: 32 }}>
+                Nenhum pedido encontrado na brasa.
+              </p>
+              <Link
+                href="/cardapio"
+                style={{
+                  display: "inline-block",
+                  background: "#b91c1c",
+                  color: "#fff",
+                  padding: "14px 36px",
+                  fontWeight: 900,
+                  fontSize: 13,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                  fontStyle: "italic",
+                  textDecoration: "none",
+                  borderRadius: 4,
+                  transition: "all 0.2s",
+                  boxShadow: "0 8px 30px #b91c1c44",
+                }}
+              >
+                ACENDER A BRASA
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Counter */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                marginBottom: 8,
+              }}>
+                <span style={{ color: "#333", fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                  {orders.length} pedido{orders.length !== 1 ? "s" : ""} encontrado{orders.length !== 1 ? "s" : ""}
+                </span>
+                <div style={{ width: 40, height: 1, background: "#1e1e1e" }} />
+              </div>
+
+              {orders.map((order, i) => (
+                <OrderCard key={order.id} order={order} index={i} />
+              ))}
+            </div>
+          )}
+        </main>
+
+        {/* Footer spacer */}
+        <div style={{ height: 120 }} />
+      </div>
+    </>
+  );
+}
 
 
 --------------------------------------------------------------------------------
@@ -2646,6 +3279,754 @@ const logoContainer: React.CSSProperties = { marginBottom: "10px" };
 
 
 --------------------------------------------------------------------------------
+ARQUIVO: .\src\app\roadmap\page.tsx
+--------------------------------------------------------------------------------
+
+"use client";
+
+import { useState } from "react";
+
+const sections = {
+  arquitetura: {
+    label: "🏗️ Arquitetura",
+    color: "#f97316",
+  },
+  banco: {
+    label: "🗄️ Banco de Dados",
+    color: "#3b82f6",
+  },
+  mvp: {
+    label: "🚀 Prioridades",
+    color: "#10b981",
+  },
+  desafios: {
+    label: "⚠️ Desafios",
+    color: "#ef4444",
+  },
+  melhorias: {
+    label: "💡 Melhorias",
+    color: "#8b5cf6",
+  },
+  preco: {
+    label: "💰 Precificação",
+    color: "#f59e0b",
+  },
+};
+
+const content = {
+  arquitetura: (
+    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
+      <p style={{ color: "#94a3b8", marginBottom: 24 }}>
+        Stack recomendada para um sistema robusto, escalável e dentro da sua realidade atual como dev.
+      </p>
+
+      <div style={{ display: "grid", gap: 16 }}>
+        {[
+          {
+            camada: "Frontend",
+            tech: "Next.js 14 + TypeScript + Tailwind",
+            motivo: "Você já usa. App Router, Server Components para performance, layout separado por /admin e /app.",
+            cor: "#3b82f6",
+          },
+          {
+            camada: "Backend / API",
+            tech: "Next.js API Routes + tRPC (opcional)",
+            motivo: "API Routes já estão no projeto. tRPC adiciona tipagem end-to-end automática entre frontend e backend.",
+            cor: "#8b5cf6",
+          },
+          {
+            camada: "Banco de Dados",
+            tech: "PostgreSQL (Neon) + Prisma ORM",
+            motivo: "Você já usa Neon + Prisma. Escala bem, gratuito no início, relações complexas com facilidade.",
+            cor: "#10b981",
+          },
+          {
+            camada: "Tempo Real",
+            tech: "Pusher ou Supabase Realtime",
+            motivo: "Para pedidos em tempo real no painel admin. Pusher tem tier gratuito generoso. Alternativa: polling a cada 15s.",
+            cor: "#f97316",
+          },
+          {
+            camada: "Autenticação",
+            tech: "NextAuth.js v5 ou manter JWT próprio",
+            motivo: "NextAuth simplifica muito OAuth, sessões e roles. Recomendo migrar do JWT manual para NextAuth.",
+            cor: "#ec4899",
+          },
+          {
+            camada: "Storage de Imagens",
+            tech: "Cloudinary ou Vercel Blob",
+            motivo: "Para fotos dos produtos do cardápio. Cloudinary tem transformação de imagem gratuita.",
+            cor: "#f59e0b",
+          },
+          {
+            camada: "Pagamentos",
+            tech: "Mercado Pago (Pix + Cartão)",
+            motivo: "Melhor integração para BR. SDK bem documentado, Pix nativo, split de pagamentos, dashboard próprio.",
+            cor: "#06b6d4",
+          },
+          {
+            camada: "Hospedagem",
+            tech: "Vercel (frontend) + Neon (banco)",
+            motivo: "Você já usa. Para produção, considere Vercel Pro (~$20/mês) para remover limites de funções serverless.",
+            cor: "#64748b",
+          },
+        ].map((item) => (
+          <div
+            key={item.camada}
+            style={{
+              background: "#0f172a",
+              border: `1px solid ${item.cor}33`,
+              borderLeft: `3px solid ${item.cor}`,
+              borderRadius: 8,
+              padding: "14px 18px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span
+                style={{
+                  background: `${item.cor}22`,
+                  color: item.cor,
+                  padding: "2px 10px",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                {item.camada}
+              </span>
+              <span style={{ color: "#e2e8f0", fontWeight: 600, fontSize: 14 }}>{item.tech}</span>
+            </div>
+            <p style={{ color: "#94a3b8", margin: 0, fontSize: 12, lineHeight: 1.6 }}>{item.motivo}</p>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          marginTop: 24,
+          background: "#1e293b",
+          borderRadius: 8,
+          padding: 16,
+          border: "1px solid #334155",
+        }}
+      >
+        <p style={{ color: "#f97316", fontWeight: 700, margin: "0 0 8px", fontSize: 12 }}>📐 ESTRUTURA DE PASTAS SUGERIDA</p>
+        <pre style={{ color: "#94a3b8", margin: 0, fontSize: 11, lineHeight: 1.8 }}>
+{`src/app/
+  (cliente)/           ← área pública
+    cardapio/
+    carrinho/
+    pedidos/
+    perfil/
+  (admin)/             ← painel admin (protegido por middleware)
+    dashboard/
+    pedidos/
+    cardapio/
+    estoque/
+    clientes/
+    funcionarios/
+    relatorios/
+  api/
+    pedidos/
+    pagamentos/
+    estoque/
+    webhooks/          ← Mercado Pago, WhatsApp`}
+        </pre>
+      </div>
+    </div>
+  ),
+
+  banco: (
+    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
+      <p style={{ color: "#94a3b8", marginBottom: 24 }}>
+        Modelagem Prisma simplificada — entidades principais e relações.
+      </p>
+
+      {[
+        {
+          model: "User",
+          cor: "#3b82f6",
+          fields: [
+            "id, name, email, phone",
+            "passwordHash, role (CLIENT | ADMIN | ATTENDANT)",
+            "createdAt, updatedAt",
+            "→ orders[], addresses[]",
+          ],
+        },
+        {
+          model: "Product",
+          cor: "#10b981",
+          fields: [
+            "id, name, description, price",
+            "imageUrl, category, isAvailable",
+            "preparationTime (minutos)",
+            "→ orderItems[], stockItems[]",
+          ],
+        },
+        {
+          model: "Order",
+          cor: "#f97316",
+          fields: [
+            "id, status (RECEIVED | PREPARING | OUT_FOR_DELIVERY | DONE | CANCELLED)",
+            "totalPrice, discountApplied",
+            "paymentMethod (PIX | CARD | CASH)",
+            "paymentStatus (PENDING | PAID | FAILED)",
+            "deliveryAddress, notes",
+            "→ user, items[], coupon?",
+          ],
+        },
+        {
+          model: "OrderItem",
+          cor: "#8b5cf6",
+          fields: [
+            "id, quantity, unitPrice",
+            "customizations (JSON)",
+            "→ order, product",
+          ],
+        },
+        {
+          model: "Coupon",
+          cor: "#ec4899",
+          fields: [
+            "id, code, discountType (PERCENT | FIXED)",
+            "discountValue, minOrderValue",
+            "usageLimit, usedCount",
+            "expiresAt, isActive",
+          ],
+        },
+        {
+          model: "StockItem",
+          cor: "#f59e0b",
+          fields: [
+            "id, name, unit (KG | UN | L)",
+            "currentQty, minQty (alerta)",
+            "→ product (insumo do produto)",
+            "→ stockMovements[]",
+          ],
+        },
+        {
+          model: "StockMovement",
+          cor: "#06b6d4",
+          fields: [
+            "id, type (IN | OUT | ADJUSTMENT)",
+            "quantity, reason",
+            "createdAt",
+            "→ stockItem, user (quem registrou)",
+          ],
+        },
+        {
+          model: "ActionLog",
+          cor: "#64748b",
+          fields: [
+            "id, userId, action",
+            "entity, entityId",
+            "details (JSON), createdAt",
+          ],
+        },
+      ].map((m) => (
+        <div
+          key={m.model}
+          style={{
+            background: "#0f172a",
+            border: `1px solid ${m.cor}44`,
+            borderRadius: 8,
+            padding: "12px 16px",
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              color: m.cor,
+              fontWeight: 700,
+              fontSize: 14,
+              marginBottom: 8,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span style={{ opacity: 0.5 }}>model</span> {m.model}
+          </div>
+          {m.fields.map((f, i) => (
+            <div key={i} style={{ color: f.startsWith("→") ? "#94a3b8" : "#e2e8f0", fontSize: 12, lineHeight: 1.8, paddingLeft: f.startsWith("→") ? 8 : 0 }}>
+              {f.startsWith("→") ? <span style={{ color: m.cor }}>→ </span> : "  "}
+              {f.replace("→ ", "")}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+
+  mvp: (
+    <div>
+      <p style={{ color: "#94a3b8", marginBottom: 24, fontFamily: "sans-serif", fontSize: 13 }}>
+        Ordem de desenvolvimento recomendada — do que gera valor imediato ao que diferencia o produto.
+      </p>
+
+      {[
+        {
+          fase: "MVP",
+          prazo: "1–2 meses",
+          cor: "#10b981",
+          bg: "#10b98115",
+          items: [
+            "Cardápio digital com categorias e fotos",
+            "Carrinho persistente (já existe)",
+            "Login/cadastro com roles (CLIENT, ADMIN, ATTENDANT)",
+            "Pedido pelo site com status básico",
+            "Painel admin: lista de pedidos em tempo real",
+            "Alteração de status do pedido (kanban simples)",
+            "Pagamento via Pix (Mercado Pago)",
+            "Notificação WhatsApp ao fazer pedido",
+          ],
+        },
+        {
+          fase: "Intermediário",
+          prazo: "2–4 meses",
+          cor: "#3b82f6",
+          bg: "#3b82f615",
+          items: [
+            "Pagamento via cartão de crédito/débito",
+            "Cupons de desconto",
+            "Dashboard financeiro (faturamento, ticket médio)",
+            "Histórico de pedidos na área do cliente",
+            "Relatório exportável (PDF/Excel)",
+            "Controle básico de estoque",
+            "Gestão de clientes (histórico, frequência)",
+            "Impressão em impressora térmica (ESC/POS)",
+          ],
+        },
+        {
+          fase: "Avançado",
+          prazo: "4–6 meses",
+          cor: "#8b5cf6",
+          bg: "#8b5cf615",
+          items: [
+            "Controle de funcionários + log de ações",
+            "Alerta automático de estoque mínimo",
+            "Baixa automática de estoque por venda",
+            "Acompanhamento de entrega em tempo real",
+            "Programa de fidelidade / pontos",
+            "Emissão de NFC-e (nota fiscal)",
+            "App mobile (PWA ou React Native)",
+            "Relatórios avançados com gráficos",
+          ],
+        },
+      ].map((fase) => (
+        <div
+          key={fase.fase}
+          style={{
+            background: fase.bg,
+            border: `1px solid ${fase.cor}44`,
+            borderRadius: 10,
+            padding: 20,
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <span
+              style={{
+                background: fase.cor,
+                color: "#fff",
+                padding: "4px 14px",
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              {fase.fase}
+            </span>
+            <span style={{ color: fase.cor, fontSize: 12, fontWeight: 600 }}>⏱ {fase.prazo}</span>
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {fase.items.map((item, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13, color: "#e2e8f0" }}>
+                <span style={{ color: fase.cor, fontSize: 16, lineHeight: 1.2 }}>◆</span>
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  ),
+
+  desafios: (
+    <div style={{ display: "grid", gap: 14 }}>
+      <p style={{ color: "#94a3b8", marginBottom: 8, fontFamily: "sans-serif", fontSize: 13 }}>
+        Antecipe esses obstáculos antes de começar cada módulo.
+      </p>
+
+      {[
+        {
+          titulo: "Tempo real nos pedidos",
+          nivel: "ALTO",
+          cor: "#ef4444",
+          desc: "Serverless (Vercel) não mantém conexão aberta. Use Pusher ou Supabase Realtime para WebSockets. Alternativa barata: polling a cada 15s com SWR.",
+        },
+        {
+          titulo: "Impressora térmica (ESC/POS)",
+          nivel: "ALTO",
+          cor: "#ef4444",
+          desc: "Browsers não acessam hardware diretamente. Solução: QZ Tray (app desktop leve) ou impressão via Bluetooth no mobile com PWA.",
+        },
+        {
+          titulo: "Emissão de NFC-e",
+          nivel: "ALTO",
+          cor: "#ef4444",
+          desc: "Exige certificado digital A1, integração com SEFAZ estadual e bibliotecas específicas. Considere usar foco nfe, NF-e.io ou similar para abrair isso.",
+        },
+        {
+          titulo: "Pagamentos e estornos",
+          nivel: "MÉDIO",
+          cor: "#f97316",
+          desc: "Webhooks do Mercado Pago precisam de URL pública. Em dev, use ngrok. Em prod, certifique-se que a rota /api/webhooks está pública e valida a assinatura.",
+        },
+        {
+          titulo: "Controle de estoque preciso",
+          nivel: "MÉDIO",
+          cor: "#f97316",
+          desc: "Baixa automática exige mapeamento ingrediente→produto com quantidades. Erro aqui gera inconsistência grave. Comece com baixa manual e automatize depois.",
+        },
+        {
+          titulo: "Limites do Vercel Serverless",
+          nivel: "MÉDIO",
+          cor: "#f97316",
+          desc: "Funções têm timeout de 10s no free e 60s no Pro. Relatórios pesados podem estourar. Use background jobs (Vercel Cron Jobs ou QStash para tarefas longas).",
+        },
+        {
+          titulo: "Segurança do painel admin",
+          nivel: "MÉDIO",
+          cor: "#f97316",
+          desc: "Todo endpoint /api/admin/* deve verificar role no token JWT. Use middleware global para proteger rotas — não confie só no frontend.",
+        },
+        {
+          titulo: "Conflito de pedidos simultâneos",
+          nivel: "BAIXO",
+          cor: "#f59e0b",
+          desc: "Se dois atendentes alteram o mesmo pedido ao mesmo tempo. Adicione um campo updatedAt e verifique conflito antes de salvar (optimistic locking).",
+        },
+      ].map((d) => (
+        <div
+          key={d.titulo}
+          style={{
+            background: "#0f172a",
+            border: `1px solid ${d.cor}33`,
+            borderRadius: 8,
+            padding: "14px 18px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 14, fontFamily: "sans-serif" }}>{d.titulo}</span>
+            <span
+              style={{
+                background: `${d.cor}22`,
+                color: d.cor,
+                padding: "2px 10px",
+                borderRadius: 4,
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 1,
+                fontFamily: "monospace",
+              }}
+            >
+              {d.nivel}
+            </span>
+          </div>
+          <p style={{ color: "#94a3b8", margin: 0, fontSize: 12, lineHeight: 1.7, fontFamily: "sans-serif" }}>{d.desc}</p>
+        </div>
+      ))}
+    </div>
+  ),
+
+  melhorias: (
+    <div style={{ display: "grid", gap: 14 }}>
+      <p style={{ color: "#94a3b8", marginBottom: 8, fontFamily: "sans-serif", fontSize: 13 }}>
+        Funcionalidades que elevam o valor percebido e justificam a mensalidade.
+      </p>
+
+      {[
+        {
+          icon: "📲",
+          titulo: "PWA (Progressive Web App)",
+          desc: "Com Service Worker e manifest, o cliente instala o 'app' direto do celular sem passar pela App Store. Ícone na tela inicial, funciona offline no cardápio. Impacto enorme na percepção.",
+        },
+        {
+          icon: "🔔",
+          titulo: "Notificações push de status",
+          desc: "Avisar o cliente quando o pedido saiu para entrega via push notification (Web Push API). Reduz chamadas no WhatsApp e aumenta satisfação.",
+        },
+        {
+          icon: "📊",
+          titulo: "Dashboard com insights de negócio",
+          desc: "Mostrar 'horário de pico', 'produto mais lucrativo', 'clientes que sumiram há 30 dias'. Dados que o dono usa para tomar decisões reais.",
+        },
+        {
+          icon: "🎁",
+          titulo: "Programa de fidelidade",
+          desc: "A cada X reais gastos, o cliente ganha pontos que viram desconto. Simples de implementar, difícil de copiar, e o dono ama porque fideliza.",
+        },
+        {
+          icon: "⭐",
+          titulo: "Avaliação pós-pedido",
+          desc: "Email/WhatsApp automático após entrega pedindo nota de 1-5. Alimenta um dashboard de satisfação. NPS básico que nenhum sistema pequeno tem.",
+        },
+        {
+          icon: "🗺️",
+          titulo: "Área de entrega configurável",
+          desc: "Admin define raio de entrega por CEP ou bairro, com taxa automática. Evita pedidos impossíveis de entregar e profissionaliza o processo.",
+        },
+        {
+          icon: "📅",
+          titulo: "Agendamento de pedidos",
+          desc: "Cliente faz pedido para retirada às 12h30. Diferencial enorme para almoço. Pouco usado em sistemas pequenos.",
+        },
+        {
+          icon: "🧾",
+          titulo: "Relatório mensal automatizado",
+          desc: "Email automático todo dia 1º com resumo do mês anterior: faturamento, crescimento, top produtos. O dono recebe sem precisar entrar no sistema.",
+        },
+      ].map((m) => (
+        <div
+          key={m.titulo}
+          style={{
+            background: "#0f172a",
+            border: "1px solid #1e293b",
+            borderRadius: 8,
+            padding: "14px 18px",
+            display: "flex",
+            gap: 14,
+          }}
+        >
+          <span style={{ fontSize: 24, lineHeight: 1 }}>{m.icon}</span>
+          <div>
+            <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 14, marginBottom: 6, fontFamily: "sans-serif" }}>{m.titulo}</div>
+            <p style={{ color: "#94a3b8", margin: 0, fontSize: 12, lineHeight: 1.7, fontFamily: "sans-serif" }}>{m.desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  ),
+
+  preco: (
+    <div>
+      <p style={{ color: "#94a3b8", marginBottom: 24, fontFamily: "sans-serif", fontSize: 13 }}>
+        Referência de precificação para dev em formação vendendo para PME no Brasil.
+      </p>
+
+      <div style={{ display: "grid", gap: 16, marginBottom: 24 }}>
+        {[
+          {
+            plano: "Desenvolvimento Inicial",
+            valor: "R$ 2.500 – R$ 5.000",
+            cor: "#10b981",
+            desc: "Entrega do MVP completo (cardápio, pedidos, painel básico, Pix). Única vez. Negocie entrada de 50% e restante na entrega.",
+            inclusos: ["Cardápio + Carrinho", "Pedidos + Status", "Painel Admin básico", "Pagamento Pix", "30 dias de suporte incluso"],
+          },
+          {
+            plano: "Mensalidade — Básico",
+            valor: "R$ 300 – R$ 500 /mês",
+            cor: "#3b82f6",
+            desc: "Hospedagem, manutenção, atualizações de segurança e suporte via WhatsApp em horário comercial.",
+            inclusos: ["Hospedagem na Vercel", "Banco de dados Neon", "Suporte via WhatsApp", "Correção de bugs", "Atualizações de segurança"],
+          },
+          {
+            plano: "Mensalidade — Completo",
+            valor: "R$ 600 – R$ 900 /mês",
+            cor: "#8b5cf6",
+            desc: "Tudo do básico + novas funcionalidades incrementais, relatórios, integrações e melhorias de UX mensais.",
+            inclusos: ["Tudo do plano básico", "1 nova funcionalidade/mês", "Relatórios automatizados", "Backup semanal", "SLA de resposta: 4h"],
+          },
+        ].map((p) => (
+          <div
+            key={p.plano}
+            style={{
+              background: "#0f172a",
+              border: `1px solid ${p.cor}44`,
+              borderRadius: 10,
+              padding: 20,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 15, fontFamily: "sans-serif" }}>{p.plano}</div>
+              <div style={{ color: p.cor, fontWeight: 800, fontSize: 16, fontFamily: "monospace", textAlign: "right" }}>{p.valor}</div>
+            </div>
+            <p style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.6, fontFamily: "sans-serif", margin: "0 0 12px" }}>{p.desc}</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {p.inclusos.map((item, i) => (
+                <span
+                  key={i}
+                  style={{
+                    background: `${p.cor}15`,
+                    color: p.cor,
+                    padding: "3px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          background: "#1e293b",
+          borderRadius: 10,
+          padding: 20,
+          border: "1px solid #334155",
+        }}
+      >
+        <p style={{ color: "#f59e0b", fontWeight: 700, margin: "0 0 12px", fontFamily: "sans-serif" }}>💡 Dicas estratégicas de precificação</p>
+        {[
+          "Sempre inclua contrato com multa rescisória de 3 meses — protege seu trabalho.",
+          "Cobre o domínio e hospedagem separado (passe o custo real + margem de 30%).",
+          "Ofereça desconto de 10% para contrato anual — garante previsibilidade de receita.",
+          "Nunca entregue acesso ao código-fonte no contrato básico — é seu ativo.",
+          "Adicione cláusula de reajuste anual pelo IGPM ou IPCA.",
+          "Documente tudo que foi combinado por escrito, mesmo no WhatsApp.",
+        ].map((tip, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, fontSize: 13, color: "#cbd5e1", fontFamily: "sans-serif", lineHeight: 1.5 }}>
+            <span style={{ color: "#f59e0b" }}>→</span>
+            {tip}
+          </div>
+        ))}
+      </div>
+    </div>
+  ),
+};
+
+type SectionKey = keyof typeof sections;
+
+export default function BurgerRoadmap() {
+  const [active, setActive] = useState<SectionKey>("arquitetura");
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#020617",
+        color: "#e2e8f0",
+        fontFamily: "sans-serif",
+        padding: "24px 16px",
+      }}
+    >
+      <div style={{ maxWidth: 860, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ marginBottom: 32 }}>
+          <div
+            style={{
+              display: "inline-block",
+              background: "#f9731615",
+              border: "1px solid #f9731633",
+              color: "#f97316",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 2,
+              padding: "4px 14px",
+              borderRadius: 4,
+              marginBottom: 12,
+              textTransform: "uppercase",
+            }}
+          >
+            Plano Técnico Completo
+          </div>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 900,
+              margin: "0 0 8px",
+              color: "#f8fafc",
+              letterSpacing: -0.5,
+            }}
+          >
+            🍔 T.T. Burger — Sistema de Gestão
+          </h1>
+          <p style={{ color: "#64748b", margin: 0, fontSize: 14 }}>
+            Roadmap técnico para transformar o site atual em um sistema completo de gestão para hamburgueria.
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            marginBottom: 24,
+            background: "#0f172a",
+            padding: 6,
+            borderRadius: 10,
+            border: "1px solid #1e293b",
+          }}
+        >
+          {(Object.keys(sections) as SectionKey[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => setActive(key)}
+              style={{
+                background: active === key ? sections[key].color : "transparent",
+                color: active === key ? "#fff" : "#64748b",
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 14px",
+                fontSize: 13,
+                fontWeight: active === key ? 700 : 500,
+                cursor: "pointer",
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {sections[key].label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div
+          style={{
+            background: "#0a0f1e",
+            borderRadius: 12,
+            padding: 24,
+            border: "1px solid #1e293b",
+            minHeight: 400,
+          }}
+        >
+          <h2
+            style={{
+              color: sections[active].color,
+              fontSize: 16,
+              fontWeight: 800,
+              marginTop: 0,
+              marginBottom: 20,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {sections[active].label}
+          </h2>
+          {content[active]}
+        </div>
+
+        <p style={{ color: "#334155", fontSize: 11, textAlign: "center", marginTop: 16 }}>
+          Gerado com base no projeto T.T. Burger exportado em 04/03/2026
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+--------------------------------------------------------------------------------
 ARQUIVO: .\src\app\sobre\page.tsx
 --------------------------------------------------------------------------------
 
@@ -2663,18 +4044,15 @@ export default function Sobre() {
       padding: 0,
       width: '100%',
       overflowX: 'hidden',
-      paddingTop: '80px'
+      paddingTop: '80px',
+      paddingBottom: "120px" // Igual ao cardápio
     }}>
-      {/* CABEÇALHO */}
       <section style={headerSection}>
         <span style={subtitleStyle}>Conheça nossa</span>
         <h1 style={titleStyle}>HISTÓRIA</h1>
       </section>
 
-      {/* CONTEÚDO COM TEXTO E FOTO */}
       <section style={contentSectionStyle}>
-        
-        {/* LADO ESQUERDO: TEXTO */}
         <div style={textContainerStyle}>
           <p style={paragraphStyle}>
             A **Pedro Burger Grill** nasceu do desejo de resgatar a essência do churrasco feito na brasa e transformá-la em uma experiência única entre dois pães artesanais. Localizada no coração da cidade, nossa jornada começou com um objetivo simples, mas ambicioso.
@@ -2687,21 +4065,18 @@ export default function Sobre() {
           </p>
         </div>
 
-        {/* LADO DIREITO: ESPAÇO PARA FOTO */}
         <div style={photoPlaceholderStyle}>
           <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#666' }}>
             SUA FOTO AQUI
           </span>
         </div>
-
       </section>
     </main>
   );
 }
 
-// ESTILOS ATUALIZADOS
 const headerSection: React.CSSProperties = {
-  height: "400px",
+  height: "300px",
   width: "100%",
   display: "flex",
   flexDirection: "column",
@@ -2713,28 +4088,41 @@ const headerSection: React.CSSProperties = {
   margin: 0
 };
 
+const subtitleStyle: React.CSSProperties = { 
+  color: '#fff', 
+  fontSize: '14px', 
+  textTransform: 'uppercase', 
+  letterSpacing: '4px', 
+  marginBottom: '10px' 
+};
+
+const titleStyle: React.CSSProperties = { 
+  fontSize: '70px', 
+  fontWeight: '900', 
+  color: '#b91c1c', 
+  margin: 0,
+  textTransform: 'uppercase',
+  fontFamily: 'Impact, sans-serif'
+};
+
 const contentSectionStyle: React.CSSProperties = {
   display: 'flex',
-  flexWrap: 'wrap', // Para ficar um embaixo do outro no celular
+  flexWrap: 'wrap',
   gap: '40px',
-  padding: '80px 20px',
+  padding: '80px 20px', // O padding top/bottom de 80px mantém a simetria do cardápio
   maxWidth: '1100px',
   margin: '0 auto',
   alignItems: 'center',
   justifyContent: 'center'
 };
 
-const textContainerStyle: React.CSSProperties = {
-  flex: '1',
-  minWidth: '300px'
-};
-
+const textContainerStyle: React.CSSProperties = { flex: '1', minWidth: '300px' };
 const photoPlaceholderStyle: React.CSSProperties = {
   flex: '1',
   minWidth: '300px',
   height: '400px',
-  backgroundColor: '#1a1a1a', // Cinza escuro
-  border: '2px dashed #333', // Borda tracejada para indicar placeholder
+  backgroundColor: '#1a1a1a',
+  border: '2px dashed #333',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -2750,24 +4138,59 @@ const paragraphStyle: React.CSSProperties = {
   marginBottom: '20px'
 };
 
-const subtitleStyle: React.CSSProperties = { 
-  color: '#fff', 
-  fontSize: '18px', 
-  textTransform: 'uppercase', 
-  fontWeight: 'bold', 
-  letterSpacing: '4px', 
-  display: 'block', 
-  marginBottom: '5px' 
-};
 
-const titleStyle: React.CSSProperties = { 
-  fontSize: 'clamp(40px, 8vw, 80px)', 
-  fontWeight: '900', 
-  color: '#b91c1c', 
-  margin: 0,
-  textTransform: 'uppercase',
-  fontFamily: 'Impact, sans-serif'
-};
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\components\CookieBanner.tsx
+--------------------------------------------------------------------------------
+
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Cookie, X, Check } from "lucide-react";
+
+export default function CookieBanner() {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const consent = localStorage.getItem("cookie-consent");
+    if (!consent) {
+      const timer = setTimeout(() => setIsVisible(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleConsent = (decision: "accepted" | "declined") => {
+    localStorage.setItem("cookie-consent", decision);
+    setIsVisible(false);
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <div style={wrapper}>
+      <div style={container}>
+        <div style={iconBox}><Cookie size={24} color="#b91c1c" /></div>
+        <div style={{ flex: 1 }}>
+          <h4 style={title}>PRIVACIDADE NA BRASA</h4>
+          <p style={desc}>Usamos cookies para deixar sua experiência mais saborosa. Aceita?</p>
+        </div>
+        <div style={group}>
+          <button onClick={() => handleConsent("declined")} style={btnDecline}>RECUSAR</button>
+          <button onClick={() => handleConsent("accepted")} style={btnAccept}><Check size={14}/> ACEITAR</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const wrapper: React.CSSProperties = { position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 10000, width: '95%', maxWidth: '600px' };
+const container: React.CSSProperties = { background: '#111', border: '1px solid #222', borderRadius: '15px', padding: '20px', display: 'flex', alignItems: 'center', gap: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)', flexWrap: 'wrap' };
+const iconBox: React.CSSProperties = { background: 'rgba(185,28,28,0.1)', padding: '12px', borderRadius: '10px' };
+const title: React.CSSProperties = { fontSize: '12px', fontWeight: '900', letterSpacing: '1px', margin: '0 0 3px 0', color: '#fff' };
+const desc: React.CSSProperties = { fontSize: '11px', color: '#888', margin: 0 };
+const group: React.CSSProperties = { display: 'flex', gap: '10px' };
+const btnAccept: React.CSSProperties = { background: '#b91c1c', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' };
+const btnDecline: React.CSSProperties = { background: 'transparent', color: '#555', border: '1px solid #222', padding: '10px 18px', borderRadius: '8px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' };
 
 
 --------------------------------------------------------------------------------
@@ -3233,10 +4656,12 @@ export default function Navbar() {
             <Link href="/cardapio" style={linkStyle(pathname === "/cardapio")}>CARDÁPIO</Link>
             <Link href="/sobre" style={linkStyle(pathname === "/sobre")}>SOBRE NÓS</Link>
             <Link href="/contato" style={linkStyle(pathname === "/contato")}>FALE CONOSCO</Link>
+            {/* MEUS PEDIDOS AGORA NO FINAL */}
+            <Link href="/my-orders" style={linkStyle(pathname === "/my-orders")}>MEUS PEDIDOS</Link>
           </div>
 
           <div style={actionGroupStyle} className="action-group">
-            <Link href={isLogged ? "/perfil" : "/login"} style={{ color: "#fff", display: 'flex', alignItems: 'center' }}>
+            <Link href={isLogged ? "/perfil" : "/login"} style={{ color: "#fff", display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
               <User size={28} style={{ color: isLogged ? "#b91c1c" : "#fff" }} />
               <span className="mobile-label">MINHA CONTA</span>
             </Link>
@@ -3287,26 +4712,26 @@ const navStyle: React.CSSProperties = {
 };
 
 const containerStyle: React.CSSProperties = {
-  width: "100%", maxWidth: "1300px", display: "flex", justifyContent: "space-between", 
-  alignItems: "center", padding: "0 20px"
+  width: "100%", maxWidth: "100%", display: "flex", justifyContent: "space-between", 
+  alignItems: "center", padding: "0 40px"
 };
 
-const navLinksContainerStyle: React.CSSProperties = { alignItems: "center", gap: "40px" };
-const linksGroupStyle: React.CSSProperties = { display: "flex", gap: "5px" };
+const navLinksContainerStyle: React.CSSProperties = { alignItems: "center", gap: "30px" };
+const linksGroupStyle: React.CSSProperties = { display: "flex", gap: "2px" };
 const menuButtonStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", display: 'flex', alignItems: 'center' };
 
 const linkStyle = (active: boolean): React.CSSProperties => ({
   color: active ? "#b91c1c" : "#fff",
   textDecoration: "none",
-  fontSize: "16px",
+  fontSize: "14px",
   textTransform: "uppercase",
-  padding: "10px 15px",
+  padding: "10px 10px",
   fontWeight: "900",
-  letterSpacing: "1.5px"
+  letterSpacing: "1px"
 });
 
 const actionGroupStyle: React.CSSProperties = {
-  display: "flex", gap: "30px", borderLeft: "2px solid #1a1a1a", paddingLeft: "30px", alignItems: 'center'
+  display: "flex", gap: "25px", borderLeft: "2px solid #1a1a1a", paddingLeft: "25px", alignItems: 'center'
 };
 
 const badgeStyle: React.CSSProperties = {
@@ -3352,8 +4777,10 @@ ARQUIVO: .\src\context\CartContext.tsx
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+// Definição da interface do item do carrinho
 interface CartItem {
-  id: string;
+  id: string;        // ID único para controle de lista (ex: id-timestamp)
+  productId: string; // ID real do produto no banco de dados (Prisma)
   name: string;
   price: number;
   image: string;
@@ -3372,6 +4799,7 @@ interface CartContextType {
   updateQuantity: (id: string, quantity: number) => void;
   updateItemCustomization: (id: string, newCustomization: any, newPrice: number) => void;
   clearCart: () => void;
+  createOrder: (paymentMethod: string, notes?: string, restaurantId?: string) => Promise<any>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -3379,11 +4807,20 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  // 1. Carregar carrinho do LocalStorage ao iniciar
   useEffect(() => {
     const savedCart = localStorage.getItem("pedro-burger-cart");
-    if (savedCart) setCart(JSON.parse(savedCart));
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (e) {
+        console.error("Erro ao carregar dados do carrinho:", e);
+        setCart([]);
+      }
+    }
   }, []);
 
+  // 2. Salvar no LocalStorage sempre que o carrinho mudar
   useEffect(() => {
     localStorage.setItem("pedro-burger-cart", JSON.stringify(cart));
   }, [cart]);
@@ -3391,9 +4828,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const addToCart = (product: CartItem) => {
     setCart((prev) => {
       const existing = prev.find((item) => 
-        item.id === product.id && 
+        item.productId === product.productId && 
         JSON.stringify(item.customization) === JSON.stringify(product.customization)
       );
+
       if (existing) {
         return prev.map((item) =>
           item === existing ? { ...item, quantity: item.quantity + product.quantity } : item
@@ -3421,10 +4859,71 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  const clearCart = () => setCart([]);
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem("pedro-burger-cart");
+  };
+
+  // 3. Função para criar o pedido enviando para a API (Sem trava de login para teste)
+  const createOrder = async (
+    paymentMethod: string, 
+    notes: string = "", 
+    restaurantId: string = "cmmcpmk4q000087yw0dvvdonb"
+  ) => {
+    const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+    // Mapeamos os itens para o formato que o Prisma espera
+    const formattedItems = cart.map(item => {
+      if (!item.productId) {
+        throw new Error(`Produto ${item.name} inválido. Remova-o do carrinho.`);
+      }
+      return {
+        productId: item.productId,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.price)
+      };
+    });
+
+    try {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          // Removida a necessidade de Authorization para o teste com userId fixo
+        },
+        body: JSON.stringify({
+          items: formattedItems,
+          total: Number(total),
+          notes,
+          paymentMethod,
+          restaurantId, 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao criar pedido");
+      }
+
+      clearCart(); 
+      return data;
+    } catch (error: any) {
+      console.error("Erro no checkout:", error);
+      throw error;
+    }
+  };
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, updateItemCustomization, clearCart }}>
+    <CartContext.Provider value={{ 
+      cart, 
+      addToCart, 
+      removeFromCart, 
+      updateQuantity, 
+      updateItemCustomization, 
+      clearCart,
+      createOrder 
+    }}>
       {children}
     </CartContext.Provider>
   );
@@ -3460,16 +4959,14 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
-export function generateToken(payload: object) {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: "7d",
-  });
+export function generateToken(payload: { id: string; role: string }) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
 export function verifyToken(token: string) {
   return jwt.verify(token, JWT_SECRET) as {
     id: string;
-    role: "CLIENT" | "ADMIN";
+    role: "CLIENT" | "ATTENDANT" | "ADMIN";
   };
 }
 
@@ -3501,5 +4998,5 @@ if (process.env.NODE_ENV !== 'production') global.prisma = prisma
 RESUMO
 ================================================================================
 
-Total de arquivos exportados: 38
-Total de linhas de código: 3129
+Total de arquivos exportados: 43
+Total de linhas de código: 4588

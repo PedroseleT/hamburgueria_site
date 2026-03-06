@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     });
 
     // 7. ✅ ADICIONADO: Cookie JWT para proteção de rotas no middleware
-    const token = generateToken({ id: user.id, role: user.role });
+    const token = await generateToken({ id: user.id, role: user.role }); // ← await
     response.cookies.set("auth_token", token, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,

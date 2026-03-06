@@ -123,7 +123,7 @@ export default function Carrinho() {
         {cart.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: '50px', marginBottom: '100px', padding: '60px', background: '#111', borderRadius: '20px', border: '1px dashed #333' }}>
             <p style={{ color: '#555', marginBottom: '30px', fontWeight: 'bold', letterSpacing: '2px' }}>A BRASA ESTÁ FRIA. SEU CARRINHO ESTÁ VAZIO.</p>
-            <Link href="/" style={btnVoltar}>ACENDER O FOGO</Link>
+            <Link href="/cardapio" style={btnVoltar}>ACENDER O FOGO</Link>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

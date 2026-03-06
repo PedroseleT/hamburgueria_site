@@ -225,36 +225,6 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
             </span>
           </div>
         </div>
-        <button style={{
-          background: "#151515",
-          border: "1px solid #222",
-          color: "#888",
-          padding: "10px 18px",
-          borderRadius: 6,
-          fontSize: 10,
-          fontWeight: 800,
-          letterSpacing: "0.15em",
-          textTransform: "uppercase",
-          cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 6,
-          transition: "all 0.2s",
-        }}
-          onMouseEnter={e => {
-            const b = e.currentTarget;
-            b.style.background = "#1a1a1a";
-            b.style.borderColor = "#b91c1c44";
-            b.style.color = "#fff";
-          }}
-          onMouseLeave={e => {
-            const b = e.currentTarget;
-            b.style.background = "#151515";
-            b.style.borderColor = "#222";
-            b.style.color = "#888";
-          }}
-        >
-          DETALHES
-          <ChevronRight size={13} color="#b91c1c" />
-        </button>
       </div>
     </div>
   );
@@ -345,13 +315,6 @@ export default function MyOrdersPage() {
               boxShadow: "0 0 20px #b91c1c88",
               borderRadius: 2,
             }} />
-            <p style={{
-              color: "#b91c1c", fontSize: 11, fontWeight: 700,
-              letterSpacing: "0.4em", textTransform: "uppercase",
-              marginBottom: 8, opacity: 0.8,
-            }}>
-              THE FLAME GRILL
-            </p>
             <h1 style={{
               fontSize: "clamp(42px, 8vw, 64px)",
               fontWeight: 900,
@@ -365,13 +328,6 @@ export default function MyOrdersPage() {
               MEUS{" "}
               <span style={{ color: "#b91c1c" }}>PEDIDOS</span>
             </h1>
-            <p style={{
-              color: "#333", fontSize: 11, fontWeight: 700,
-              letterSpacing: "0.4em", textTransform: "uppercase",
-              marginTop: 10,
-            }}>
-              Acompanhe o rastro do fogo
-            </p>
           </header>
 
           {/* Content */}
