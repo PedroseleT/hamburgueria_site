@@ -2,7 +2,7 @@
 INFORMAÇÕES DO PROJETO
 ================================================================================
 
-Data da exportação: 2026-03-07 01:00:58.544256
+Data da exportação: 2026-03-07 19:52:16.528814
 
 ================================================================================
 ESTRUTURA DE PASTAS
@@ -37,6 +37,7 @@ ESTRUTURA DE PASTAS
     design_mordida2.png
     grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg
     logo_hamburgueria.png
+    notification.mp3
     person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg
     still-life-delicious-american-hamburger.jpg
   src/
@@ -58,6 +59,9 @@ ESTRUTURA DE PASTAS
             route.ts
           update-profile/
             route.ts
+        checkout/
+          pix/
+            route.ts
         login/
           route.ts
         me/
@@ -78,6 +82,9 @@ ESTRUTURA DE PASTAS
         page.tsx
       contato/
         page.tsx
+      entregador/
+        [id]/
+          page.tsx
       login/
         page.tsx
       my-orders/
@@ -304,10 +311,12 @@ ARQUIVO: .\package.json
     "jose": "^6.2.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.447.0",
+    "mercadopago": "^2.12.0",
     "next": "15.1.9",
     "nodemailer": "^8.0.1",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "react-icons": "^5.6.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
@@ -643,12 +652,22 @@ img {
   .desktop-navbar { display: block; }
 }
 
+/* ALTERAÇÃO SOLICITADA: Remove o espaçamento do topo (vazio cinza) no Mobile para todas as páginas */
+@media (max-width: 992px) {
+  main, 
+  div[style*="paddingTop: 80px"],
+  div[style*="padding-top: 80px"] {
+    padding-top: 0 !important;
+  }
+}
+
 
 --------------------------------------------------------------------------------
 ARQUIVO: .\src\app\layout.tsx
 --------------------------------------------------------------------------------
 
 import type { Metadata } from "next";
+import BottomNavMobile from "@/components/BottomNavMobile";
 import { Oswald } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -702,7 +721,7 @@ export default function RootLayout({
           <main style={{ flex: 1 }}>
             {children}
           </main>
-
+          <BottomNavMobile />
           <Footer />
           <CookieBanner />
         </CartProvider>
@@ -745,13 +764,14 @@ ARQUIVO: .\src\app\admin\page.tsx
 
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Flame, ChefHat, Bike, CheckCircle2, XCircle,
   ChevronDown, Calendar, Search, RefreshCw, User, Phone, Mail,
-  Package, Clock, Filter
+  Package, Clock, Filter, X
 } from "lucide-react";
 
+import { createPortal } from "react-dom";
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface OrderItem {
   id: string;
@@ -772,32 +792,17 @@ interface Order {
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode; next?: string }> = {
-  RECEIVED:         { label: "Recebido",         color: "#f59e0b", bg: "#f59e0b18", icon: <Flame size={13} />,        next: "PREPARING"        },
-  PREPARING:        { label: "Em Preparo",        color: "#f97316", bg: "#f9731618", icon: <ChefHat size={13} />,      next: "OUT_FOR_DELIVERY" },
-  OUT_FOR_DELIVERY: { label: "Saiu p/ Entrega",   color: "#3b82f6", bg: "#3b82f618", icon: <Bike size={13} />,         next: "DONE"             },
-  DONE:             { label: "Entregue",           color: "#22c55e", bg: "#22c55e18", icon: <CheckCircle2 size={13} />, next: undefined          },
-  CANCELLED:        { label: "Cancelado",          color: "#ef4444", bg: "#ef444418", icon: <XCircle size={13} />,     next: undefined          },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  RECEIVED:         { label: "Recebido",         color: "#f59e0b", bg: "#f59e0b18", icon: <Flame size={13} />          },
+  PREPARING:        { label: "Em Preparo",        color: "#f97316", bg: "#f9731618", icon: <ChefHat size={13} />      },
+  OUT_FOR_DELIVERY: { label: "Saiu p/ Entrega",  color: "#3b82f6", bg: "#3b82f618", icon: <Bike size={13} />          },
+  DONE:             { label: "Entregue",           color: "#22c55e", bg: "#22c55e18", icon: <CheckCircle2 size={13} /> },
+  CANCELLED:        { label: "Cancelado",          color: "#ef4444", bg: "#ef444418", icon: <XCircle size={13} />      },
 };
 
 const STATUS_ORDER = ["RECEIVED", "PREPARING", "OUT_FOR_DELIVERY", "DONE", "CANCELLED"];
 
-// ── StatusBadge ───────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.RECEIVED;
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      background: cfg.bg, border: `1px solid ${cfg.color}44`,
-      color: cfg.color, padding: "4px 10px", borderRadius: 20,
-      fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase",
-    }}>
-      {cfg.icon} {cfg.label}
-    </span>
-  );
-}
-
-// ── StatusSelector ────────────────────────────────────────────────────────────
+// ── StatusSelector — ALTERAÇÃO SOLICITADA: modal centralizado ─────────────────
 function StatusSelector({ orderId, current, onUpdate }: { orderId: string; current: string; onUpdate: (id: string, status: string) => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -813,69 +818,100 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) onUpdate(orderId, newStatus);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
   const cfg = STATUS_CONFIG[current];
+  const isDisabled = loading || current === "DONE" || current === "CANCELLED";
+  const isAnimated = !["DONE", "CANCELLED"].includes(current);
+
+  const modal = open ? createPortal(
+    <div
+      onClick={() => setOpen(false)}
+      style={{
+        position: "fixed", inset: 0, zIndex: 99999,
+        background: "rgba(0,0,0,0.80)", backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#0e0e0e", border: "1px solid #222", borderRadius: 14,
+          minWidth: 320, overflow: "hidden",
+          boxShadow: "0 30px 80px rgba(0,0,0,0.9)",
+          animation: "modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a" }}>
+          <div>
+            <p style={{ color: "#444", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", margin: 0 }}>Atualizar status</p>
+            <p style={{ color: "#666", fontSize: 11, fontFamily: "monospace", margin: "4px 0 0", letterSpacing: "0.1em" }}>#{orderId.slice(-8).toUpperCase()}</p>
+          </div>
+          <button onClick={() => setOpen(false)} style={{ background: "#161616", border: "1px solid #222", color: "#555", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <X size={13} />
+          </button>
+        </div>
+        <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+          {STATUS_ORDER.map((s) => {
+            const c = STATUS_CONFIG[s];
+            const isCurrent = s === current;
+            return (
+              <button
+                key={s}
+                onClick={() => handleSelect(s)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 12,
+                  padding: "12px 16px", borderRadius: 8,
+                  background: isCurrent ? c.bg : "#111",
+                  border: `1px solid ${isCurrent ? c.color + "55" : "#1a1a1a"}`,
+                  color: isCurrent ? c.color : "#555",
+                  fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
+                  textTransform: "uppercase", cursor: "pointer", textAlign: "left",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={e => { if (!isCurrent) { const b = e.currentTarget as HTMLButtonElement; b.style.background = "#161616"; b.style.borderColor = "#2a2a2a"; b.style.color = "#888"; } }}
+                onMouseLeave={e => { if (!isCurrent) { const b = e.currentTarget as HTMLButtonElement; b.style.background = "#111"; b.style.borderColor = "#1a1a1a"; b.style.color = "#555"; } }}
+              >
+                <span style={{ color: c.color, display: "flex" }}>{c.icon}</span>
+                {c.label}
+                {isCurrent && (
+                  <span style={{ marginLeft: "auto", fontSize: 9, background: c.color + "22", border: `1px solid ${c.color}44`, color: c.color, padding: "2px 8px", borderRadius: 10, fontWeight: 900 }}>
+                    ATUAL
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
 
   return (
-    <div style={{ position: "relative" }}>
+    <>
       <button
-        onClick={() => setOpen(!open)}
-        disabled={loading || current === "DONE" || current === "CANCELLED"}
+        onClick={() => { if (!isDisabled) setOpen(true); }}
+        disabled={isDisabled}
+        className={isAnimated && !loading ? "shimmer-effect" : ""}
         style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           background: cfg?.bg, border: `1px solid ${cfg?.color}44`,
           color: cfg?.color, padding: "6px 12px", borderRadius: 8,
           fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
-          cursor: (current === "DONE" || current === "CANCELLED") ? "default" : "pointer",
+          cursor: isDisabled ? "default" : "pointer",
           opacity: loading ? 0.6 : 1, transition: "all 0.2s",
+          position: "relative", overflow: "hidden"
         }}
       >
         {loading ? <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} /> : cfg?.icon}
         {cfg?.label}
-        {current !== "DONE" && current !== "CANCELLED" && <ChevronDown size={11} />}
+        {!isDisabled && <ChevronDown size={11} />}
       </button>
-
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
-          <div style={{
-            position: "absolute", top: "calc(100% + 6px)", left: 0,
-            background: "#0e0e0e", border: "1px solid #222", borderRadius: 8,
-            zIndex: 99, minWidth: 200, overflow: "hidden",
-            boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
-          }}>
-            {STATUS_ORDER.map((s) => {
-              const c = STATUS_CONFIG[s];
-              return (
-                <button
-                  key={s}
-                  onClick={() => handleSelect(s)}
-                  style={{
-                    width: "100%", display: "flex", alignItems: "center", gap: 8,
-                    padding: "10px 14px", background: s === current ? "#161616" : "none",
-                    border: "none", color: s === current ? c.color : "#666",
-                    fontSize: 11, fontWeight: 700, letterSpacing: "0.1em",
-                    textTransform: "uppercase", cursor: "pointer", textAlign: "left",
-                    transition: "all 0.15s",
-                    borderLeft: s === current ? `2px solid ${c.color}` : "2px solid transparent",
-                  }}
-                  onMouseEnter={e => { if (s !== current) (e.currentTarget as HTMLButtonElement).style.background = "#111"; }}
-                  onMouseLeave={e => { if (s !== current) (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
-                >
-                  <span style={{ color: c.color }}>{c.icon}</span> {c.label}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
+      {modal}
+    </>
   );
 }
 
@@ -887,144 +923,71 @@ function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onU
   return (
     <>
       <tr
-        style={{
-          background: index % 2 === 0 ? "#0a0a0a" : "#0c0c0c",
-          borderBottom: "1px solid #141414",
-          animation: "fadeIn 0.3s ease both",
-          animationDelay: `${index * 0.04}s`,
-          cursor: "pointer",
-          transition: "background 0.15s",
-        }}
+        style={{ background: index % 2 === 0 ? "#0a0a0a" : "#0c0c0c", borderBottom: "1px solid #141414", animation: "fadeIn 0.3s ease both", animationDelay: `${index * 0.04}s`, cursor: "pointer", transition: "background 0.15s" }}
         onMouseEnter={e => (e.currentTarget.style.background = "#0f0f0f")}
         onMouseLeave={e => (e.currentTarget.style.background = index % 2 === 0 ? "#0a0a0a" : "#0c0c0c")}
         onClick={() => setExpanded(!expanded)}
       >
-        {/* Protocolo */}
-        <td style={{ padding: "14px 16px", fontFamily: "monospace", fontSize: 11, color: "#444", letterSpacing: "0.12em" }}>
-          #{order.id.slice(-8).toUpperCase()}
-        </td>
-
-        {/* Cliente */}
+        <td style={{ padding: "14px 16px", fontFamily: "monospace", fontSize: 11, color: "#444", letterSpacing: "0.12em" }}>#{order.id.slice(-8).toUpperCase()}</td>
         <td style={{ padding: "14px 16px" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#ccc" }}>{order.user.name}</div>
           <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>{order.user.email}</div>
           {order.user.phone && <div style={{ fontSize: 11, color: "#444" }}>{order.user.phone}</div>}
         </td>
-
-        {/* Data */}
         <td style={{ padding: "14px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#555", fontSize: 12, fontWeight: 600 }}>
-            <Calendar size={12} />
-            {date.toLocaleDateString("pt-BR")}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#444", fontSize: 11, marginTop: 2 }}>
-            <Clock size={11} />
-            {date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#555", fontSize: 12, fontWeight: 600 }}><Calendar size={12} />{date.toLocaleDateString("pt-BR")}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#444", fontSize: 11, marginTop: 2 }}><Clock size={11} />{date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
         </td>
-
-        {/* Itens resumo */}
-        <td style={{ padding: "14px 16px" }}>
-          <span style={{ color: "#555", fontSize: 12 }}>
-            {order.items.length} item{order.items.length !== 1 ? "s" : ""}
-          </span>
-        </td>
-
-        {/* Total */}
+        <td style={{ padding: "14px 16px" }}><span style={{ color: "#555", fontSize: 12 }}>{order.items.length} item{order.items.length !== 1 ? "s" : ""}</span></td>
         <td style={{ padding: "14px 16px" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
             <span style={{ color: "#b91c1c", fontSize: 11, fontWeight: 800 }}>R$</span>
-            <span style={{ color: "#fff", fontSize: 18, fontWeight: 900, fontStyle: "italic", letterSpacing: "-0.02em" }}>
-              {Number(order.total).toFixed(2)}
-            </span>
+            <span style={{ color: "#fff", fontSize: 18, fontWeight: 900, fontStyle: "italic", letterSpacing: "-0.02em" }}>{Number(order.total).toFixed(2)}</span>
           </div>
         </td>
-
-        {/* Status */}
         <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
           <StatusSelector orderId={order.id} current={order.status} onUpdate={onUpdate} />
         </td>
-
-        {/* Expand */}
         <td style={{ padding: "14px 16px", textAlign: "center" }}>
-          <ChevronDown
-            size={16}
-            color="#333"
-            style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
-          />
+          <ChevronDown size={16} color="#333" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
         </td>
       </tr>
 
-      {/* Expanded row */}
       {expanded && (
         <tr style={{ background: "#080808", borderBottom: "1px solid #1a1a1a" }}>
           <td colSpan={7} style={{ padding: "0 16px 20px" }}>
             <div style={{ paddingTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-
-              {/* Itens do pedido */}
               <div>
                 <div style={{ borderLeft: "2px solid #b91c1c", paddingLeft: 10, marginBottom: 12 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>
-                    Itens do Pedido
-                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>Itens do Pedido</span>
                 </div>
                 {order.items.map(item => (
-                  <div key={item.id} style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "8px 0", borderBottom: "1px solid #111",
-                  }}>
+                  <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #111" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{
-                        background: "#b91c1c", color: "#fff",
-                        fontSize: 9, fontWeight: 900, width: 22, height: 22,
-                        borderRadius: 4, display: "flex", alignItems: "center",
-                        justifyContent: "center", fontStyle: "italic",
-                      }}>
-                        {item.quantity}x
-                      </span>
-                      <span style={{ color: "#bbb", fontSize: 13, fontWeight: 600, textTransform: "uppercase" }}>
-                        {item.product?.name}
-                      </span>
+                      <span style={{ background: "#b91c1c", color: "#fff", fontSize: 9, fontWeight: 900, width: 22, height: 22, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontStyle: "italic" }}>{item.quantity}x</span>
+                      <span style={{ color: "#bbb", fontSize: 13, fontWeight: 600, textTransform: "uppercase" }}>{item.product?.name}</span>
                     </div>
-                    <span style={{ color: "#444", fontSize: 12, fontFamily: "monospace" }}>
-                      R$ {(item.unitPrice * item.quantity).toFixed(2)}
-                    </span>
+                    <span style={{ color: "#444", fontSize: 12, fontFamily: "monospace" }}>R$ {(item.unitPrice * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
-
-              {/* Info do cliente + observações */}
               <div>
                 <div style={{ borderLeft: "2px solid #b91c1c", paddingLeft: 10, marginBottom: 12 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>
-                    Cliente
-                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>Cliente</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}>
-                    <User size={13} color="#b91c1c" /> {order.user.name}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}>
-                    <Mail size={13} color="#b91c1c" /> {order.user.email}
-                  </div>
-                  {order.user.phone && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}>
-                      <Phone size={13} color="#b91c1c" /> {order.user.phone}
-                    </div>
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}><User size={13} color="#b91c1c" /> {order.user.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}><Mail size={13} color="#b91c1c" /> {order.user.email}</div>
+                  {order.user.phone && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}><Phone size={13} color="#b91c1c" /> {order.user.phone}</div>}
                 </div>
-
                 {order.notes && (
                   <div style={{ marginTop: 16 }}>
                     <div style={{ borderLeft: "2px solid #b91c1c", paddingLeft: 10, marginBottom: 8 }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>
-                        Observações
-                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>Observações</span>
                     </div>
                     <p style={{ color: "#555", fontSize: 12, fontStyle: "italic", margin: 0 }}>"{order.notes}"</p>
                   </div>
                 )}
-
                 <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 10, color: "#333", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Pagamento:</span>
                   <span style={{ fontSize: 11, color: "#555", fontWeight: 700 }}>{order.paymentMethod}</span>
@@ -1045,21 +1008,35 @@ export default function AdminPage() {
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
+  
+  // Referência para contagem anterior para o som de alerta
+  const prevCountRef = useRef(0);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await fetch("/api/orders");
       const data = await res.json();
-      setOrders(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+      const list = Array.isArray(data) ? data : [];
+      
+      // Gatilho do som se houver novos pedidos
+      if (prevCountRef.current !== 0 && list.length > prevCountRef.current) {
+        const audio = new Audio("/notification.mp3");
+        audio.play().catch(e => console.log("Permissão de áudio pendente."));
+      }
+
+      setOrders(list);
+      prevCountRef.current = list.length;
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  // Polling automático a cada 15 segundos
+  useEffect(() => { 
+    fetchOrders(); 
+    const interval = setInterval(() => fetchOrders(true), 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleUpdate = (id: string, newStatus: string) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
@@ -1071,17 +1048,12 @@ export default function AdminPage() {
       if (filterDate && !o.createdAt.startsWith(filterDate)) return false;
       if (search) {
         const q = search.toLowerCase();
-        return (
-          o.user.name.toLowerCase().includes(q) ||
-          o.user.email.toLowerCase().includes(q) ||
-          o.id.toLowerCase().includes(q)
-        );
+        return o.user.name.toLowerCase().includes(q) || o.user.email.toLowerCase().includes(q) || o.id.toLowerCase().includes(q);
       }
       return true;
     });
   }, [orders, filterStatus, filterDate, search]);
 
-  // ── Stats cards ──
   const stats = useMemo(() => {
     const total = orders.reduce((a, o) => a + Number(o.total), 0);
     const hoje = orders.filter(o => o.createdAt.startsWith(new Date().toISOString().slice(0, 10)));
@@ -1092,27 +1064,46 @@ export default function AdminPage() {
   return (
     <>
       <style>{`
-        @keyframes fadeIn { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
-        @keyframes spin { to{transform:rotate(360deg);} }
-        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+        @keyframes fadeIn  { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+        @keyframes modalIn { from{opacity:0;transform:scale(0.92);} to{opacity:1;transform:scale(1);} }
+        @keyframes spin    { to{transform:rotate(360deg);} }
+        
+        /* Efeito Shimmer (Cor vai e vem) */
+        @keyframes shimmer {
+          0% { transform: translateX(-150%); }
+          50% { transform: translateX(150%); }
+          100% { transform: translateX(150%); }
+        }
+        .shimmer-effect::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.1),
+            transparent
+          );
+          animation: shimmer 2.5s infinite;
+        }
+
         .filter-btn { transition: all 0.2s; cursor: pointer; }
-        .filter-btn:hover { border-color: #b91c1c44 !important; color: #fff !important; }
+        .filter-btn:hover  { border-color: #b91c1c44 !important; color: #fff !important; }
         .filter-btn.active { background: #b91c1c18 !important; border-color: #b91c1c44 !important; color: #b91c1c !important; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.3); cursor: pointer; }
       `}</style>
 
       <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'Oswald', sans-serif" }}>
         <div style={{ height: 90 }} />
-
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 20px 80px" }}>
 
-          {/* ── Header ── */}
           <header style={{ marginBottom: 36 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
               <div style={{ width: 32, height: 3, background: "linear-gradient(90deg,#b91c1c,#ff4d4d)", boxShadow: "0 0 12px #b91c1c", borderRadius: 2 }} />
-              <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 800, letterSpacing: "0.3em", textTransform: "uppercase" }}>
-                The Flame Grill
-              </span>
+              <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 800, letterSpacing: "0.3em", textTransform: "uppercase" }}>The Flame Grill</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
               <div style={{ borderLeft: "3px solid #b91c1c", paddingLeft: 16, boxShadow: "-4px 0 16px #b91c1c22" }}>
@@ -1120,164 +1111,82 @@ export default function AdminPage() {
                   PAINEL <span style={{ color: "#b91c1c" }}>ADMIN</span>
                 </h1>
               </div>
-              <button
-                onClick={fetchOrders}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  background: "#111", border: "1px solid #222", color: "#666",
-                  padding: "9px 16px", borderRadius: 8, cursor: "pointer",
-                  fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-                  transition: "all 0.2s",
-                }}
+              <button onClick={() => fetchOrders()} style={{ display: "flex", alignItems: "center", gap: 7, background: "#111", border: "1px solid #222", color: "#666", padding: "9px 16px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.2s" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#b91c1c44"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#222"; (e.currentTarget as HTMLButtonElement).style.color = "#666"; }}
-              >
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#222"; (e.currentTarget as HTMLButtonElement).style.color = "#666"; }}>
                 <RefreshCw size={13} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
                 Atualizar
               </button>
             </div>
           </header>
 
-          {/* ── Stats ── */}
+          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 28 }}>
             {[
-              { label: "Total Pedidos",   value: stats.todos,                       suffix: ""    },
-              { label: "Pedidos Hoje",    value: stats.hoje,                        suffix: ""    },
-              { label: "Em Aberto",       value: stats.ativos,                      suffix: ""    },
-              { label: "Faturamento",     value: `R$ ${stats.total.toFixed(2)}`,    suffix: ""    },
+              { label: "Total Pedidos", value: stats.todos },
+              { label: "Pedidos Hoje",  value: stats.hoje  },
+              { label: "Em Aberto",     value: stats.ativos },
+              { label: "Faturamento",   value: `R$ ${stats.total.toFixed(2)}` },
             ].map((s, i) => (
-              <div key={s.label} style={{
-                background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10,
-                padding: "16px 20px", animation: "fadeIn 0.4s ease both",
-                animationDelay: `${i * 0.06}s`,
-              }}>
+              <div key={s.label} style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10, padding: "16px 20px", animation: "fadeIn 0.4s ease both", animationDelay: `${i * 0.06}s` }}>
                 <div style={{ height: 2, background: "linear-gradient(90deg,#b91c1c,transparent)", marginBottom: 12, borderRadius: 2 }} />
-                <div style={{ fontSize: i === 3 ? 18 : 28, fontWeight: 900, fontStyle: "italic", color: "#fff", letterSpacing: "-0.02em" }}>
-                  {s.value}
-                </div>
-                <div style={{ fontSize: 9, color: "#444", fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", marginTop: 4 }}>
-                  {s.label}
-                </div>
+                <div style={{ fontSize: i === 3 ? 18 : 28, fontWeight: 900, fontStyle: "italic", color: "#fff", letterSpacing: "-0.02em" }}>{s.value}</div>
+                <div style={{ fontSize: 9, color: "#444", fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
           </div>
 
-          {/* ── Filtros ── */}
-          <div style={{
-            background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10,
-            padding: "16px 20px", marginBottom: 16,
-            display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center",
-          }}>
+          <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10, padding: "16px 20px", marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             <Filter size={14} color="#333" />
-
-            {/* Busca */}
             <div style={{ position: "relative", flex: "1 1 200px" }}>
               <Search size={13} color="#333" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
-              <input
-                type="text"
-                placeholder="Buscar cliente, e-mail ou protocolo..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{
-                  width: "100%", background: "#080808", border: "1px solid #1e1e1e",
-                  borderRadius: 6, padding: "8px 10px 8px 30px",
-                  color: "#ccc", fontSize: 12, outline: "none", boxSizing: "border-box",
-                  fontFamily: "sans-serif",
-                }}
-              />
+              <input type="text" placeholder="Buscar cliente, e-mail ou protocolo..." value={search} onChange={e => setSearch(e.target.value)}
+                style={{ width: "100%", background: "#080808", border: "1px solid #1e1e1e", borderRadius: 6, padding: "8px 10px 8px 30px", color: "#ccc", fontSize: 12, outline: "none", boxSizing: "border-box", fontFamily: "sans-serif" }} />
             </div>
-
-            {/* Filtro status */}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {["ALL", ...STATUS_ORDER].map(s => {
                 const cfg = s === "ALL" ? null : STATUS_CONFIG[s];
                 return (
-                  <button
-                    key={s}
-                    className={`filter-btn${filterStatus === s ? " active" : ""}`}
-                    onClick={() => setFilterStatus(s)}
-                    style={{
-                      background: "none", border: "1px solid #1e1e1e", color: "#444",
-                      padding: "6px 12px", borderRadius: 20, fontSize: 10,
-                      fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-                      fontFamily: "'Oswald', sans-serif",
-                    }}
-                  >
+                  <button key={s} className={`filter-btn${filterStatus === s ? " active" : ""}`} onClick={() => setFilterStatus(s)}
+                    style={{ background: "none", border: "1px solid #1e1e1e", color: "#444", padding: "6px 12px", borderRadius: 20, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: "'Oswald', sans-serif" }}>
                     {s === "ALL" ? "Todos" : cfg?.label}
                   </button>
                 );
               })}
             </div>
-
-            {/* Filtro data */}
-            <input
-              type="date"
-              value={filterDate}
-              onChange={e => setFilterDate(e.target.value)}
-              style={{
-                background: "#080808", border: "1px solid #1e1e1e", borderRadius: 6,
-                padding: "7px 10px", color: "#666", fontSize: 12, outline: "none",
-                fontFamily: "sans-serif", cursor: "pointer",
-              }}
-            />
+            <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
+              style={{ background: "#080808", border: "1px solid #1e1e1e", borderRadius: 6, padding: "7px 10px", color: "#666", fontSize: 12, outline: "none", fontFamily: "sans-serif", cursor: "pointer" }} />
             {filterDate && (
-              <button onClick={() => setFilterDate("")} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>
-                ✕ Limpar data
-              </button>
+              <button onClick={() => setFilterDate("")} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>✕ Limpar data</button>
             )}
           </div>
 
-          {/* ── Tabela ── */}
           <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10, overflow: "hidden" }}>
-            {/* Top accent */}
             <div style={{ height: 2, background: "linear-gradient(90deg,#b91c1c,#ff4d4d,transparent)" }} />
-
-            {loading ? (
-              <div style={{ padding: 60, textAlign: "center" }}>
-                <RefreshCw size={28} color="#b91c1c" style={{ animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
-                <p style={{ color: "#333", fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase" }}>Carregando pedidos...</p>
-              </div>
-            ) : filtered.length === 0 ? (
-              <div style={{ padding: "60px 40px", textAlign: "center" }}>
-                <Package size={44} color="#1a1a1a" style={{ margin: "0 auto 16px" }} />
-                <p style={{ color: "#333", fontSize: 11, fontWeight: 700, letterSpacing: "0.25em", textTransform: "uppercase" }}>
-                  {orders.length === 0 ? "Nenhum pedido ainda." : "Nenhum pedido com esses filtros."}
-                </p>
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #161616" }}>
-                      {["Protocolo", "Cliente", "Data", "Itens", "Total", "Status", ""].map(h => (
-                        <th key={h} style={{
-                          padding: "12px 16px", textAlign: "left",
-                          fontSize: 9, fontWeight: 800, letterSpacing: "0.2em",
-                          textTransform: "uppercase", color: "#333",
-                        }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((order, i) => (
-                      <OrderRow key={order.id} order={order} index={i} onUpdate={handleUpdate} />
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #161616" }}>
+                    {["Protocolo", "Cliente", "Data", "Itens", "Total", "Status", ""].map(h => (
+                      <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "#333" }}>{h}</th>
                     ))}
-                  </tbody>
-                </table>
-
-                {/* Rodapé tabela */}
-                <div style={{ padding: "12px 16px", borderTop: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#333", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                    {filtered.length} de {orders.length} pedido{orders.length !== 1 ? "s" : ""}
-                  </span>
-                  <span style={{ color: "#222", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                    Clique em um pedido para ver detalhes
-                  </span>
-                </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((order, i) => (
+                    <OrderRow key={order.id} order={order} index={i} onUpdate={handleUpdate} />
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ padding: "12px 16px", borderTop: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#333", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                  {filtered.length} de {orders.length} pedido{orders.length !== 1 ? "s" : ""}
+                </span>
+                <span style={{ color: "#222", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                  Clique em um pedido para ver detalhes
+                </span>
               </div>
-            )}
+            </div>
           </div>
 
         </div>
@@ -1607,6 +1516,101 @@ export async function POST(req: Request) {
 
 
 --------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\checkout\pix\route.ts
+--------------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import { MercadoPagoConfig, Payment } from "mercadopago";
+import { cookies } from "next/headers"; // # ADICIONADO: Para identificar o usuário
+
+const client = new MercadoPagoConfig({ 
+  accessToken: process.env.MP_ACCESS_TOKEN || "",
+  options: { timeout: 5000 } 
+});
+
+const payment = new Payment(client);
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { items, total } = body;
+
+    // # ALTERAÇÃO SOLICITADA: Captura o ID do usuário logado através do cookie
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get("user_session");
+    
+    if (!sessionCookie || !sessionCookie.value) {
+      return NextResponse.json({ error: "Você precisa estar logado para pedir." }, { status: 401 });
+    }
+
+    const userId = sessionCookie.value;
+
+    const transactionAmount = 0.01; 
+    const description = `Pedido: ${items.map((i: any) => `${i.quantity}x ${i.name}`).join(', ')}`;
+
+    // Criando a cobrança no Mercado Pago
+    const result = await payment.create({
+      body: {
+        transaction_amount: transactionAmount,
+        description: description,
+        payment_method_id: "pix",
+        // # O SEGREDO ESTÁ AQUI: Enviamos o userId para o MP
+        external_reference: userId, 
+        payer: {
+          email: "cliente_loja@sandbox.mercadopago.com", 
+          first_name: "Cliente",
+          last_name: "Web"
+        },
+        // Metadata ajuda a guardar informações extras que o Webhook pode ler
+        metadata: {
+          user_id: userId
+        }
+      }
+    });
+
+    if (result.status === "pending" || result.status === "created") {
+      return NextResponse.json({
+        payment_id: result.id,
+        qr_code: result.point_of_interaction?.transaction_data?.qr_code,
+        qr_code_base64: result.point_of_interaction?.transaction_data?.qr_code_base64,
+        status: result.status
+      });
+    } else {
+      return NextResponse.json({ error: "O pagamento não ficou pendente." }, { status: 400 });
+    }
+
+  } catch (error: any) {
+    console.error("Erro MP (POST):", error);
+    return NextResponse.json({ error: "Erro interno no servidor ao gerar o PIX." }, { status: 500 });
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const paymentId = searchParams.get("id");
+
+    if (!paymentId) {
+      return NextResponse.json({ error: "ID do pagamento não fornecido." }, { status: 400 });
+    }
+
+    const result = await payment.get({ id: paymentId });
+
+    return NextResponse.json({
+      status: result.status,
+      payment_id: result.id,
+      // # Opcional: retornar o external_reference para confirmar o dono
+      external_reference: result.external_reference 
+    });
+
+  } catch (error: any) {
+    console.error("Erro MP (GET):", error);
+    return NextResponse.json({ error: "Erro interno ao buscar status do PIX." }, { status: 500 });
+  }
+}
+
+
+--------------------------------------------------------------------------------
 ARQUIVO: .\src\app\api\login\route.ts
 --------------------------------------------------------------------------------
 
@@ -1777,28 +1781,40 @@ ARQUIVO: .\src\app\api\orders\user\route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
+
+// # ALTERAÇÃO SOLICITADA: Força a rota a sempre buscar dados novos no banco (sem cache)
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    // Usando o seu ID de usuário fixo para buscar os pedidos
-    const userId = "cmmclamu60000n1zyss460pap";
+    // # ALTERAÇÃO SOLICITADA: Captura o ID do usuário logado via cookie para evitar que todos vejam os mesmos pedidos
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get("user_session");
+
+    if (!sessionCookie || !sessionCookie.value) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    const userId = sessionCookie.value;
 
     const orders = await prisma.order.findMany({
-      where: { userId },
+      where: { userId }, // Filtra apenas pelos pedidos do dono da sessão
       include: {
         items: {
           include: {
-            product: true, // Para pegarmos o nome e imagem do produto
+            product: true, 
           },
         },
       },
       orderBy: {
-        createdAt: "desc", // Pedidos mais recentes primeiro
+        createdAt: "desc", 
       },
     });
 
     return NextResponse.json(orders);
   } catch (error: any) {
+    console.error("Erro ao buscar pedidos:", error);
     return NextResponse.json({ error: "Erro ao buscar pedidos" }, { status: 500 });
   }
 }
@@ -1813,10 +1829,11 @@ import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // Atualizando a tipagem
 ) {
   try {
-    const { id } = params;
+    // ALTERAÇÃO SOLICITADA: await obrigatório no Next.js 15
+    const { id } = await params; 
     const body = await request.json();
     const { status } = body;
 
@@ -1968,7 +1985,6 @@ export default function CardapioCompleto() {
   const [customOptions, setCustomOptions] = useState<any[]>([]);
   const [observacao, setObservacao] = useState("");
 
-  // LISTA DE PRODUTOS
   const produtos = [
     { id: "cmmctdp4l0001nsgzj9x6zi5y", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, cheddar e bacon.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
     { id: "cmmcqmzlf0000nsgza56yn8g1", nome: "Smoky Texas Grill", desc: "Hambúrguer na brasa e molho especial.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
@@ -1982,13 +1998,11 @@ export default function CardapioCompleto() {
   ];
 
   const handleOpenModal = (p: any) => {
-    // Verifica se o usuário está logado via cookie
     const isLogged = document.cookie.includes("user_session");
     if (!isLogged) { 
       router.push("/login?callback=/cardapio"); 
       return; 
     }
-    
     setSelectedProduct(p);
     setQuantity(1);
     setCustomOptions([]);
@@ -2017,10 +2031,9 @@ export default function CardapioCompleto() {
 
   const handleConfirmarPedido = () => {
     const adicionalTotal = customOptions.reduce((acc, curr) => acc + (curr.preco * curr.qtd), 0);
-    
     addToCart({
       id: `${selectedProduct.id}-${Date.now()}`,
-      productId: selectedProduct.id, // Adicionado para manter consistência com o banco
+      productId: selectedProduct.id,
       name: selectedProduct.nome,
       price: selectedProduct.preco + adicionalTotal,
       image: selectedProduct.foto,
@@ -2030,13 +2043,14 @@ export default function CardapioCompleto() {
         obs: observacao
       }
     });
-    
     setSelectedProduct(null);
     router.push("/carrinho");
   };
 
   return (
-    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: '80px', minHeight: '100vh' }}>
+    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: "80px", minHeight: '100vh' }}>
+      
+      {/* CABEÇALHO SINCRONIZADO COM O FALE CONOSCO */}
       <section style={headerSection}>
         <span style={subtitleStyle}>Escolha seu Burger</span>
         <h1 style={titleStyle}>CARDÁPIO</h1>
@@ -2046,16 +2060,16 @@ export default function CardapioCompleto() {
         <div className="menu-grid">
           {produtos.map((p) => (
             <div key={p.id} className="card-item" style={cardStyle} onClick={() => handleOpenModal(p)}>
-              <div style={imgWrapperStyle}>
+              <div className="img-wrapper" style={imgWrapperStyle}>
                 <img src={p.foto} alt={p.nome} style={imgStyle} />
               </div>
-              <h3 style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px', textTransform: 'uppercase' }}>{p.nome}</h3>
-              <p style={{ color: "#888", fontSize: "13px", margin: "5px 0", minHeight: "32px" }}>{p.desc}</p>
-              <div style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
+              <h3 className="card-title" style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px', textTransform: 'uppercase' }}>{p.nome}</h3>
+              <p className="card-desc" style={{ color: "#888", fontSize: "13px", margin: "5px 0", minHeight: "32px" }}>{p.desc}</p>
+              <div className="card-price" style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
                 R$ {p.preco.toFixed(2).replace(".", ",")}
               </div>
               <button className="btn-pedir-hover" style={btnPedirStyle}>
-                <ShoppingBasket size={18} /> PEDIR AGORA
+                <ShoppingBasket size={18} /> PEDIR
               </button>
             </div>
           ))}
@@ -2090,7 +2104,7 @@ export default function CardapioCompleto() {
                 </div>
               ))}
 
-              <textarea placeholder="Observações..." value={observacao} onChange={(e)=>setObservacao(e.target.value)} style={textareaStyle} />
+              <textarea placeholder="Observações..." value={observacao} onChange={(e)=>setObservacao(e.target.value)} style={modalTextareaStyle} />
 
               <div style={footerModalStyle}>
                 <div style={qtyContainerStyle}>
@@ -2122,14 +2136,48 @@ export default function CardapioCompleto() {
         .btn-confirmar:hover { background: #991b1b; }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; }
+
+        @media (max-width: 768px) {
+          .menu-grid { grid-template-columns: 1fr; gap: 20px; }
+          .card-item { padding: 20px !important; }
+        }
       `}</style>
     </div>
   );
 }
 
-const headerSection: React.CSSProperties = { height: "300px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", backgroundSize: "cover", backgroundPosition: 'center' };
-const subtitleStyle: React.CSSProperties = { color: '#fff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '4px', marginBottom: '10px' };
-const titleStyle: React.CSSProperties = { fontSize: '70px', fontWeight: '900', color: '#b91c1c', fontFamily: 'Impact, sans-serif' };
+// ESTILOS SINCRONIZADOS COM O "FALE CONOSCO"
+const headerSection: React.CSSProperties = { 
+  height: "300px", 
+  width: "100%", 
+  display: "flex", 
+  flexDirection: "column", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", 
+  backgroundSize: "cover", 
+  backgroundPosition: 'center',
+  margin: 0
+};
+
+const subtitleStyle: React.CSSProperties = { 
+  color: '#fff', 
+  fontSize: '14px', 
+  textTransform: 'uppercase', 
+  letterSpacing: '4px', 
+  marginBottom: '10px' 
+};
+
+const titleStyle: React.CSSProperties = { 
+  fontSize: '70px', 
+  fontWeight: '900', 
+  color: '#b91c1c', 
+  margin: 0, 
+  textTransform: 'uppercase', 
+  fontFamily: 'Impact, sans-serif' 
+};
+
+// OUTROS ESTILOS DE COMPONENTES
 const cardStyle: React.CSSProperties = { background: "#111", padding: "30px 20px", borderRadius: "15px", border: "1px solid #222", textAlign: "center", cursor: 'pointer' };
 const imgWrapperStyle: React.CSSProperties = { width: '100%', height: '200px', overflow: 'hidden', borderRadius: '10px', marginBottom: '10px' };
 const imgStyle: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
@@ -2138,7 +2186,7 @@ const sectionTitleStyle: React.CSSProperties = { fontSize: '12px', borderLeft: '
 const optionRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #222' };
 const counterStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', background: '#000', padding: '5px 12px', borderRadius: '20px', border: '1px solid #333' };
 const miniBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', display: 'flex', alignItems: 'center' };
-const textareaStyle: React.CSSProperties = { width: '100%', background: '#000', border: '1px solid #333', borderRadius: '8px', padding: '12px', color: '#fff', height: '60px', margin: '15px 0', fontSize: '13px' };
+const modalTextareaStyle: React.CSSProperties = { width: '100%', background: '#000', border: '1px solid #333', borderRadius: '8px', padding: '12px', color: '#fff', height: '60px', margin: '15px 0', fontSize: '13px' };
 const footerModalStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', borderTop: '1px solid #222', paddingTop: '15px' };
 const qtyContainerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#1a1a1a', padding: '10px 15px', borderRadius: '10px' };
 const qtyBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', display: 'flex', alignItems: 'center' };
@@ -2166,6 +2214,12 @@ export default function Carrinho() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // # ALTERAÇÃO SOLICITADA: Estados do PIX, Modal de Pagamento e Feedback de Cópia
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
+  const [pixStatus, setPixStatus] = useState<string>("pendente");
+  const [copied, setCopied] = useState(false);
+
   const baseOptions = {
     molhosGratis: [
       { nome: "Ketchup", preco: 0 },
@@ -2187,19 +2241,70 @@ export default function Carrinho() {
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  const handleCheckout = async () => {
+  // # ALTERAÇÃO SOLICITADA: Função robusta para copiar o código PIX
+  const handleCopyPix = async () => {
+    if (!pixData) return;
+    try {
+      await navigator.clipboard.writeText(pixData.qrCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback para navegadores de celular que bloqueiam o clipboard direto
+      const textArea = document.createElement("textarea");
+      textArea.value = pixData.qrCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (e) {
+        console.error("Erro ao copiar", e);
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
+  const processPixPayment = async () => {
+    setShowPaymentModal(false); 
     if (cart.length === 0) return;
     setErrorMessage(null);
-
     setIsSubmitting(true);
+
     try {
-      const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-      await createOrder("PIX", "Pedido via Web", restaurantId);
-      router.push("/my-orders"); 
+      const res = await fetch("/api/checkout/pix", {
+        method: "POST",
+        body: JSON.stringify({ items: cart, total: totalGeral }),
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Erro ao gerar PIX");
+
+      setPixData({ qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id });
+      setPixStatus("pendente");
+
+      const interval = setInterval(async () => {
+        const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`);
+        const checkData = await checkRes.json();
+        
+        if (checkData.status === "approved") {
+          clearInterval(interval);
+          setPixStatus("aprovado");
+          
+          const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+          await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId);
+          
+          setTimeout(() => {
+            router.push("/my-orders");
+          }, 3000);
+        }
+      }, 5000);
+
+      setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
+
     } catch (error: any) {
-      console.error("Erro ao finalizar pedido:", error.message);
-      // Exibe o erro de forma elegante na UI
-      setErrorMessage(error.message || "Erro ao processar pedido.");
+      setErrorMessage(error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -2252,12 +2357,42 @@ export default function Carrinho() {
   };
 
   return (
-    <main style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingTop: '80px', fontFamily: "'Oswald', sans-serif" }}>
+    <main style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingTop: 0, fontFamily: "'Oswald', sans-serif" }}>
       <style jsx global>{`
         @media (max-width: 600px) {
           .cart-item { flex-direction: column !important; align-items: flex-start !important; }
           .cart-item img { width: 100% !important; height: 180px !important; margin-bottom: 15px; }
           .qty-row { width: 100% !important; justify-content: space-between !important; margin-top: 15px !important; }
+        }
+
+        /* # ALTERAÇÃO SOLICITADA: Layout responsivo para o Modal do PIX */
+        .pix-responsive-layout {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+        }
+        .pix-qr-container {
+          background: #fff;
+          padding: 15px;
+          border-radius: 12px;
+          display: inline-block;
+        }
+        .pix-text-section {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+        }
+        @media (min-width: 768px) {
+          .pix-responsive-layout {
+            flex-direction: row;
+            align-items: flex-start;
+            text-align: left;
+          }
+          .pix-text-section {
+            flex: 1;
+          }
         }
       `}</style>
 
@@ -2340,7 +2475,7 @@ export default function Carrinho() {
               )}
               
               <button 
-                onClick={handleCheckout} 
+                onClick={() => setShowPaymentModal(true)} 
                 disabled={isSubmitting}
                 style={{
                   ...checkoutBtn,
@@ -2405,6 +2540,108 @@ export default function Carrinho() {
             <div style={footerModalStyles}>
                 <button onClick={handleSaveEdit} style={confirmBtnStyles}>CONFIRMAR ALTERAÇÕES</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* # ALTERAÇÃO SOLICITADA: Modal de Formas de Pagamento */}
+      {showPaymentModal && (
+        <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}>
+          <div className="modal-content" style={{ ...modalContentStyles, padding: '30px' }}>
+            <button onClick={() => setShowPaymentModal(false)} style={closeBtnStyles}><X size={20} /></button>
+            <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#fff', fontStyle: 'italic', marginBottom: '20px', textAlign: 'center', textTransform: 'uppercase' }}>
+              Formas de Pagamento
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <button
+                onClick={processPixPayment}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '20px', background: '#111', border: '1px solid #32BCAD', borderRadius: '12px',
+                  cursor: 'pointer', transition: 'all 0.2s', width: '100%', textAlign: 'left'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ background: '#32BCAD22', padding: '10px', borderRadius: '8px' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6.32625 5.50361C7.26555 4.56431 8.7885 4.56431 9.72781 5.50361L12.001 7.77684L14.2742 5.50361C15.2135 4.56431 16.7365 4.56431 17.6758 5.50361C18.6151 6.44292 18.6151 7.96587 17.6758 8.90517L15.4025 11.1784L17.6758 13.4516C18.6151 14.3909 18.6151 15.9139 17.6758 16.8532C16.7365 17.7925 15.2135 17.7925 14.2742 16.8532L12.001 14.58L9.72781 16.8532C8.7885 17.7925 7.26555 17.7925 6.32625 16.8532C5.38694 15.9139 5.38694 14.3909 6.32625 13.4516L8.59948 11.1784L6.32625 8.90517C5.38694 7.96587 5.38694 6.44292 6.32625 5.50361Z" fill="#32BCAD"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: '#fff', fontWeight: 'bold', fontSize: '16px', marginBottom: '4px' }}>PIX (Mercado Pago)</span>
+                    <span style={{ color: '#888', fontSize: '12px' }}>Aprovação imediata</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* # ALTERAÇÃO SOLICITADA: Modal do PIX Responsivo com Cópia aprimorada */}
+      {pixData && (
+        <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget && pixStatus !== 'aprovado') setPixData(null); }}>
+          <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '650px' }}>
+            <h2 style={{ 
+              fontSize: '28px', fontWeight: '900', fontStyle: 'italic', marginBottom: '10px',
+              color: pixStatus === "aprovado" ? '#22c55e' : '#b91c1c'
+            }}>
+              {pixStatus === "aprovado" ? "PAGAMENTO APROVADO! 🔥" : "PAGUE VIA PIX"}
+            </h2>
+            
+            {pixStatus === "pendente" ? (
+              <div style={{ marginTop: '20px' }}>
+                <p style={{ color: '#888', fontSize: '14px', marginBottom: '30px' }}>Escaneie o QR Code ou use o botão Copia e Cola.</p>
+                
+                <div className="pix-responsive-layout">
+                  <div className="pix-qr-container">
+                    <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '200px', height: '200px', display: 'block' }} />
+                  </div>
+                  
+                  <div className="pix-text-section">
+                    <div className="custom-scrollbar" style={{ background: '#111', border: '1px solid #333', padding: '15px', borderRadius: '8px', wordBreak: 'break-all', fontSize: '12px', color: '#aaa', maxHeight: '100px', overflowY: 'auto' }}>
+                      {pixData.qrCode}
+                    </div>
+                    
+                    <button 
+                      onClick={handleCopyPix} 
+                      style={{ 
+                        ...confirmBtnStyles, 
+                        fontSize: '14px', 
+                        padding: '16px',
+                        background: copied ? '#22c55e' : '#b91c1c',
+                        boxShadow: copied ? '0 4px 15px rgba(34, 197, 94, 0.3)' : '0 4px 15px rgba(185, 28, 28, 0.3)',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      {copied ? "✅ CÓDIGO COPIADO!" : "📋 COPIAR CÓDIGO PIX"}
+                    </button>
+                    
+                    <button onClick={() => setPixData(null)} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '10px', cursor: 'pointer', fontWeight: 'bold', width: '100%', padding: '10px' }}>
+                      Cancelar e voltar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // ALTERAÇÃO SOLICITADA: Layout profissional e centralizado para o status "Aprovado"
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 0', animation: 'fadeIn 0.5s ease' }}>
+                <div style={{ width: '90px', height: '90px', background: 'rgba(34, 197, 94, 0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 0 30px rgba(34, 197, 94, 0.2)' }}>
+                  <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <h3 style={{ color: '#fff', fontSize: '22px', fontWeight: '900', marginBottom: '10px', textTransform: 'uppercase' }}>Tudo certo!</h3>
+                <p style={{ color: '#aaa', fontSize: '15px', marginBottom: '35px', textAlign: 'center', maxWidth: '85%', lineHeight: '1.5' }}>
+                  Recebemos o seu pagamento. Seu pedido já está na grelha sendo preparado pela nossa equipe!
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#b91c1c', fontWeight: 'bold', background: '#111', padding: '12px 24px', borderRadius: '30px', border: '1px solid #222' }}>
+                  <Loader2 className="animate-spin" size={18} />
+                  <span style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>Redirecionando...</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2561,6 +2798,128 @@ const btnStyle = {
 
 
 --------------------------------------------------------------------------------
+ARQUIVO: .\src\app\entregador\[id]\page.tsx
+--------------------------------------------------------------------------------
+
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { CheckCircle, Bike, MapPin, Package, Loader2, ArrowLeft } from "lucide-react";
+
+export default function EntregadorPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [order, setOrder] = useState<any>(null);
+  const [error, setError] = useState("");
+
+  const fetchOrder = async () => {
+    try {
+      const res = await fetch(`/api/orders/user`); // Reutilizando a rota que busca pedidos
+      const data = await res.json();
+      const currentOrder = data.find((o: any) => o.id === params.id);
+      
+      if (!currentOrder) throw new Error("Pedido não encontrado.");
+      setOrder(currentOrder);
+    } catch (err) {
+      setError("Erro ao carregar dados da entrega.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchOrder(); }, [params.id]);
+
+  const finalizarEntrega = async () => {
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/orders/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DONE" }),
+      });
+
+      if (res.ok) {
+        setOrder({ ...order, status: "DONE" });
+        alert("Entrega confirmada com sucesso! Bom trabalho.");
+      }
+    } catch (err) {
+      alert("Erro ao confirmar entrega. Tente novamente.");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  if (loading) return <div style={containerStyle}><Loader2 className="animate-spin" color="#b91c1c" /></div>;
+  if (error || !order) return <div style={containerStyle}><p>{error || "Pedido não encontrado"}</p></div>;
+
+  return (
+    <div style={containerStyle}>
+      <header style={headerStyle}>
+        <Bike size={24} color="#b91c1c" />
+        <h1 style={{ fontSize: '18px', fontWeight: '900', margin: 0 }}>ENTREGA: #{order.id.slice(-6).toUpperCase()}</h1>
+      </header>
+
+      <main style={{ width: '100%', maxWidth: '400px', padding: '20px' }}>
+        <div style={cardStyle}>
+          <div style={sectionStyle}>
+            <MapPin size={16} color="#b91c1c" />
+            <div>
+              <p style={labelStyle}>CLIENTE</p>
+              <p style={valueStyle}>{order.user?.name || "Cliente"}</p>
+            </div>
+          </div>
+
+          <div style={sectionStyle}>
+            <Package size={16} color="#b91c1c" />
+            <div>
+              <p style={labelStyle}>ITENS</p>
+              {order.items.map((item: any) => (
+                <p key={item.id} style={{ fontSize: '14px', color: '#ccc' }}>{item.quantity}x {item.product?.name}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {order.status !== "DONE" ? (
+          <button 
+            onClick={finalizarEntrega} 
+            disabled={updating}
+            style={btnConfirmarStyle}
+          >
+            {updating ? <Loader2 className="animate-spin" /> : <CheckCircle size={20} />}
+            CONFIRMAR ENTREGA
+          </button>
+        ) : (
+          <div style={statusFinalizadoStyle}>
+            <CheckCircle size={32} color="#22c55e" />
+            <p>ENTREGA FINALIZADA</p>
+          </div>
+        )}
+        
+        <button onClick={() => router.back()} style={btnVoltarStyle}>
+          <ArrowLeft size={16} /> Voltar
+        </button>
+      </main>
+    </div>
+  );
+}
+
+// Estilos Mobile-First
+const containerStyle: React.CSSProperties = { minHeight: '100vh', background: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: 'sans-serif' };
+const headerStyle: React.CSSProperties = { width: '100%', padding: '25px', background: '#0e0e0e', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: '15px' };
+const cardStyle: React.CSSProperties = { background: '#0e0e0e', borderRadius: '15px', padding: '20px', border: '1px solid #1a1a1a', marginBottom: '20px' };
+const sectionStyle: React.CSSProperties = { display: 'flex', gap: '12px', marginBottom: '20px' };
+const labelStyle: React.CSSProperties = { fontSize: '10px', color: '#555', fontWeight: 'bold', letterSpacing: '1px' };
+const valueStyle: React.CSSProperties = { fontSize: '16px', fontWeight: 'bold', color: '#fff' };
+const btnConfirmarStyle: React.CSSProperties = { width: '100%', padding: '20px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' };
+const statusFinalizadoStyle: React.CSSProperties = { textAlign: 'center', padding: '30px', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '12px', border: '1px solid #22c55e44', color: '#22c55e', fontWeight: 'bold' };
+const btnVoltarStyle: React.CSSProperties = { width: '100%', background: 'transparent', border: 'none', color: '#444', marginTop: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px' };
+
+
+--------------------------------------------------------------------------------
 ARQUIVO: .\src\app\login\page.tsx
 --------------------------------------------------------------------------------
 
@@ -2664,7 +3023,8 @@ const errorBoxStyle: React.CSSProperties = {
   textAlign: "center"
 };
 
-const containerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 20px 40px 20px" };
+// ALTERAÇÃO SOLICITADA: padding bottom aumentado de 40px para 120px para afastar o footer
+const containerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 20px 120px 20px" };
 const cardStyle: React.CSSProperties = { backgroundColor: "#0a0a0a", padding: "50px 40px", borderRadius: "8px", width: "100%", maxWidth: "420px", border: "1px solid #1a1a1a", textAlign: "center" };
 const brandStyle: React.CSSProperties = { color: "#fff", fontSize: "28px", fontWeight: "900", letterSpacing: "3px", margin: "10px 0" };
 const subtitleStyle: React.CSSProperties = { color: "#666", fontSize: "13px", marginBottom: "40px", textTransform: "uppercase" };
@@ -2685,10 +3045,11 @@ ARQUIVO: .\src\app\my-orders\page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Package, Calendar, Clock, ChevronRight, Flame, CheckCircle2, ChefHat, Bike, XCircle } from "lucide-react";
+import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle } from "lucide-react";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// ─── Tipos ─────────────────────────────────────────────────────────────────────
 interface OrderItem {
   id: string;
   quantity: number;
@@ -2704,66 +3065,55 @@ interface Order {
   items: OrderItem[];
 }
 
-// ─── Status config ─────────────────────────────────────────────────────────────
+// ─── Status config ──────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string; icon: React.ReactNode; step: number }> = {
-  RECEIVED:          { label: "Recebido",           color: "#f59e0b", glow: "#f59e0b55", icon: <Flame size={13} />,        step: 1 },
-  PREPARING:         { label: "Em Preparo",          color: "#f97316", glow: "#f9731655", icon: <ChefHat size={13} />,      step: 2 },
-  OUT_FOR_DELIVERY:  { label: "Saiu para Entrega",   color: "#3b82f6", glow: "#3b82f655", icon: <Bike size={13} />,         step: 3 },
-  DONE:              { label: "Entregue",             color: "#22c55e", glow: "#22c55e55", icon: <CheckCircle2 size={13} />, step: 4 },
-  CANCELLED:         { label: "Cancelado",            color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
+  RECEIVED:         { label: "Recebido",          color: "#f59e0b", glow: "#f59e0b55", icon: <Flame size={13} />,         step: 1 },
+  PREPARING:        { label: "Em Preparo",         color: "#f97316", glow: "#f9731655", icon: <ChefHat size={13} />,      step: 2 },
+  OUT_FOR_DELIVERY: { label: "Saiu para Entrega",  color: "#3b82f6", glow: "#3b82f655", icon: <Bike size={13} />,          step: 3 },
+  DONE:             { label: "Entregue",            color: "#22c55e", glow: "#22c55e55", icon: <CheckCircle2 size={13} />, step: 4 },
+  CANCELLED:        { label: "Cancelado",           color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
 };
 
-// ─── Progress bar ──────────────────────────────────────────────────────────────
+// ─── Progress bar ───────────────────────────────────────────────────────────────
 function OrderProgress({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.RECEIVED;
   if (status === "CANCELLED") return null;
   const steps = [
-    { label: "Recebido",  step: 1 },
-    { label: "Preparo",   step: 2 },
-    { label: "Entrega",   step: 3 },
-    { label: "Entregue",  step: 4 },
+    { label: "Recebido", step: 1 },
+    { label: "Preparo",  step: 2 },
+    { label: "Entrega",  step: 3 },
+    { label: "Entregue", step: 4 },
   ];
   return (
     <div className="flex items-center gap-0 w-full">
       {steps.map((s, i) => {
         const active = cfg.step >= s.step;
         const current = cfg.step === s.step;
+        
+        const isLineActive = cfg.step > s.step;
+        const isOrderDone = cfg.step === 4;
+
         return (
           <div key={s.step} className="flex items-center flex-1 last:flex-none">
             <div className="flex flex-col items-center gap-1">
-              <div
-                style={{
-                  width: 28, height: 28,
-                  borderRadius: "50%",
-                  border: active ? `2px solid ${cfg.color}` : "2px solid #2a2a2a",
-                  background: active ? `${cfg.color}22` : "#111",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: current ? `0 0 12px ${cfg.glow}` : "none",
-                  transition: "all 0.3s",
-                }}
-              >
-                <div style={{
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: active ? cfg.color : "#333",
-                  transition: "all 0.3s",
-                }} />
+              <div style={{ width: 28, height: 28, borderRadius: "50%", border: active ? `2px solid ${cfg.color}` : "2px solid #2a2a2a", background: active ? `${cfg.color}22` : "#111", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: current ? `0 0 12px ${cfg.glow}` : "none", transition: "all 0.3s" }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: active ? cfg.color : "#333", transition: "all 0.3s" }} />
               </div>
-              <span style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: active ? cfg.color : "#444",
-                transition: "all 0.3s",
-              }}>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: active ? cfg.color : "#444", transition: "all 0.3s" }}>
                 {s.label}
               </span>
             </div>
             {i < steps.length - 1 && (
-              <div style={{
-                flex: 1, height: 2, marginBottom: 18,
-                background: cfg.step > s.step
-                  ? `linear-gradient(90deg, ${cfg.color}, ${cfg.color}88)`
-                  : "#1e1e1e",
-                transition: "all 0.4s",
+              <div style={{ 
+                flex: 1, 
+                height: 3, 
+                marginBottom: 18, 
+                borderRadius: 2,
+                backgroundColor: isLineActive && isOrderDone ? cfg.color : (!isLineActive ? "#1e1e1e" : "transparent"),
+                backgroundImage: isLineActive && !isOrderDone ? `linear-gradient(90deg, ${cfg.color} 0%, #ffffff88 50%, ${cfg.color} 100%)` : "none",
+                backgroundSize: isLineActive && !isOrderDone ? "200% 100%" : "100% 100%",
+                animation: isLineActive && !isOrderDone ? "shimmerBar 1.2s infinite ease-in-out alternate" : "none",
+                transition: "all 0.4s" 
               }} />
             )}
           </div>
@@ -2773,7 +3123,7 @@ function OrderProgress({ status }: { status: string }) {
   );
 }
 
-// ─── Card de pedido ────────────────────────────────────────────────────────────
+// ─── Card de pedido ─────────────────────────────────────────────────────────────
 function OrderCard({ order, index }: { order: Order; index: number }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.RECEIVED;
@@ -2781,132 +3131,51 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
 
   return (
     <div
-      style={{
-        background: "#0e0e0e",
-        border: "1px solid #1e1e1e",
-        borderRadius: 12,
-        overflow: "hidden",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
-        animation: `fadeSlideUp 0.4s ease both`,
-        animationDelay: `${index * 0.07}s`,
-        transition: "border-color 0.2s, box-shadow 0.2s",
-      }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#2a2a2a";
-        (e.currentTarget as HTMLDivElement).style.boxShadow = `0 25px 70px rgba(0,0,0,0.7), 0 0 0 1px ${cfg.color}22`;
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#1e1e1e";
-        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 20px 60px rgba(0,0,0,0.6)";
-      }}
+      style={{ background: "#0e0e0e", border: "1px solid #1e1e1e", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.6)", animation: `fadeSlideUp 0.4s ease both`, animationDelay: `${index * 0.07}s`, transition: "border-color 0.2s, box-shadow 0.2s" }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#2a2a2a"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 25px 70px rgba(0,0,0,0.7), 0 0 0 1px ${cfg.color}22`; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#1e1e1e"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 20px 60px rgba(0,0,0,0.6)"; }}
     >
-      {/* Top accent line */}
       <div style={{ height: 2, background: `linear-gradient(90deg, ${cfg.color}, transparent)` }} />
-
-      {/* Header */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "14px 20px",
-        background: "#0a0a0a",
-        borderBottom: "1px solid #161616",
-      }}>
-        <span style={{ fontFamily: "'Courier New', monospace", fontSize: 11, color: "#444", letterSpacing: "0.15em" }}>
-          #{order.id.slice(-8).toUpperCase()}
-        </span>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: `${cfg.color}15`,
-          border: `1px solid ${cfg.color}33`,
-          padding: "4px 10px", borderRadius: 20,
-        }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", background: "#0a0a0a", borderBottom: "1px solid #161616" }}>
+        <span style={{ fontFamily: "'Courier New', monospace", fontSize: 11, color: "#444", letterSpacing: "0.15em" }}>#{order.id.slice(-8).toUpperCase()}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: `${cfg.color}15`, border: `1px solid ${cfg.color}33`, padding: "4px 10px", borderRadius: 20 }}>
           <span style={{ color: cfg.color }}>{cfg.icon}</span>
-          <span style={{ color: cfg.color, fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            {cfg.label}
-          </span>
+          <span style={{ color: cfg.color, fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase" }}>{cfg.label}</span>
         </div>
       </div>
-
-      {/* Body */}
       <div style={{ padding: "20px 20px 0" }}>
-        {/* Progress */}
-        <div style={{ marginBottom: 20 }}>
-          <OrderProgress status={order.status} />
-        </div>
-
-        {/* Meta row */}
+        <div style={{ marginBottom: 20 }}><OrderProgress status={order.status} /></div>
         <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#555", fontSize: 12, fontWeight: 600 }}>
-            <Calendar size={13} />
-            <span>{date.toLocaleDateString("pt-BR")}</span>
+            <Calendar size={13} /><span>{date.toLocaleDateString("pt-BR")}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#555", fontSize: 12, fontWeight: 600 }}>
-            <Clock size={13} />
-            <span>{date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+            <Clock size={13} /><span>{date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
           </div>
         </div>
-
-        {/* Items preview */}
         <div style={{ marginBottom: 20 }}>
           {(expanded ? order.items : order.items.slice(0, 2)).map((item) => (
-            <div key={item.id} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "8px 0",
-              borderBottom: "1px solid #141414",
-            }}>
+            <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #141414" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{
-                  background: "#b91c1c", color: "#fff",
-                  fontSize: 10, fontWeight: 800,
-                  width: 24, height: 24, borderRadius: 4,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontStyle: "italic",
-                }}>
-                  {item.quantity}x
-                </span>
-                <span style={{ color: "#ccc", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  {item.product?.name ?? "Produto"}
-                </span>
+                <span style={{ background: "#b91c1c", color: "#fff", fontSize: 10, fontWeight: 800, width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontStyle: "italic" }}>{item.quantity}x</span>
+                <span style={{ color: "#ccc", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.product?.name ?? "Produto"}</span>
               </div>
-              <span style={{ color: "#555", fontSize: 12, fontFamily: "monospace" }}>
-                R$ {(item.unitPrice * item.quantity).toFixed(2)}
-              </span>
+              <span style={{ color: "#555", fontSize: 12, fontFamily: "monospace" }}>R$ {(item.unitPrice * item.quantity).toFixed(2)}</span>
             </div>
           ))}
           {order.items.length > 2 && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: "#444", fontSize: 11, fontWeight: 700,
-                letterSpacing: "0.1em", textTransform: "uppercase",
-                padding: "8px 0", width: "100%", textAlign: "left",
-                transition: "color 0.2s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.color = "#b91c1c")}
-              onMouseLeave={e => (e.currentTarget.style.color = "#444")}
-            >
+            <button onClick={() => setExpanded(!expanded)} style={{ background: "none", border: "none", cursor: "pointer", color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "8px 0", width: "100%", textAlign: "left", transition: "color 0.2s" }} onMouseEnter={e => (e.currentTarget.style.color = "#b91c1c")} onMouseLeave={e => (e.currentTarget.style.color = "#444")}>
               {expanded ? "▲ Ocultar itens" : `▼ +${order.items.length - 2} itens`}
             </button>
           )}
         </div>
       </div>
-
-      {/* Footer */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "14px 20px",
-        background: "#080808",
-        borderTop: "1px solid #141414",
-      }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", background: "#080808", borderTop: "1px solid #141414" }}>
         <div>
-          <div style={{ color: "#3a3a3a", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 2 }}>
-            Total
-          </div>
+          <div style={{ color: "#3a3a3a", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 2 }}>Total</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 800 }}>R$</span>
-            <span style={{ color: "#fff", fontSize: 26, fontWeight: 900, letterSpacing: "-0.02em", fontStyle: "italic" }}>
-              {Number(order.total).toFixed(2)}
-            </span>
+            <span style={{ color: "#fff", fontSize: 26, fontWeight: 900, letterSpacing: "-0.02em", fontStyle: "italic" }}>{Number(order.total).toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -2914,14 +3183,10 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
   );
 }
 
-// ─── Skeleton loader ───────────────────────────────────────────────────────────
+// ─── Skeleton ───────────────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div style={{
-      background: "#0e0e0e", border: "1px solid #1a1a1a",
-      borderRadius: 12, overflow: "hidden",
-      animation: "pulse 1.5s ease-in-out infinite",
-    }}>
+    <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden", animation: "pulse 1.5s ease-in-out infinite" }}>
       <div style={{ height: 2, background: "#1a1a1a" }} />
       <div style={{ padding: "14px 20px", background: "#0a0a0a", display: "flex", justifyContent: "space-between" }}>
         <div style={{ width: 80, height: 12, background: "#1a1a1a", borderRadius: 4 }} />
@@ -2936,144 +3201,80 @@ function SkeletonCard() {
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────────
+// ─── Page ───────────────────────────────────────────────────────────────────────
 export default function MyOrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/orders/user")
-      .then((res) => res.json())
-      .then((data) => {
-        setOrders(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    // Busca os pedidos do banco de dados
+    const fetchOrders = () => {
+      fetch("/api/orders/user")
+        .then((res) => res.json())
+        .then((data) => { 
+          setOrders(Array.isArray(data) ? data : []); 
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    };
+
+    fetchOrders();
+
+    // Loop de atualização (Polling) a cada 5 segundos para refletir mudanças do Admin
+    const interval = setInterval(fetchOrders, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <>
       <style>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        @keyframes flamePulse {
-          0%, 100% { text-shadow: 0 0 20px #b91c1c88; }
-          50% { text-shadow: 0 0 40px #b91c1ccc, 0 0 80px #b91c1c44; }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes flamePulse { 0%, 100% { text-shadow: 0 0 20px #b91c1c88; } 50% { text-shadow: 0 0 40px #b91c1ccc, 0 0 80px #b91c1c44; } }
+        @keyframes shimmerBar {
+          0% { background-position: 0% 0; }
+          100% { background-position: 100% 0; }
         }
       `}</style>
 
-      <div style={{
-        minHeight: "100vh",
-        background: "#0a0a0a",
-        color: "#fff",
-        fontFamily: "'Oswald', sans-serif",
-      }}>
-        {/* Navbar spacer */}
+      <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'Oswald', sans-serif" }}>
         <div style={{ height: 90 }} />
+        <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E")` }} />
 
-        {/* Noise texture overlay */}
-        <div style={{
-          position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E")`,
-        }} />
-
-        <main style={{
-          position: "relative", zIndex: 1,
-          maxWidth: 780,
-          margin: "0 auto",
-          padding: "40px 20px 160px",
-        }}>
-
-          {/* Header */}
+        <main style={{ position: "relative", zIndex: 1, maxWidth: 780, margin: "0 auto", padding: "40px 20px 160px" }}>
           <header style={{ marginBottom: 48, position: "relative", paddingLeft: 20 }}>
-            <div style={{
-              position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-              width: 3, height: "80%",
-              background: "linear-gradient(180deg, #b91c1c, transparent)",
-              boxShadow: "0 0 20px #b91c1c88",
-              borderRadius: 2,
-            }} />
-            <h1 style={{
-              fontSize: "clamp(42px, 8vw, 64px)",
-              fontWeight: 900,
-              fontStyle: "italic",
-              textTransform: "uppercase",
-              letterSpacing: "-0.02em",
-              lineHeight: 0.95,
-              margin: 0,
-              animation: "flamePulse 3s ease-in-out infinite",
-            }}>
-              MEUS{" "}
-              <span style={{ color: "#b91c1c" }}>PEDIDOS</span>
+            <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 3, height: "80%", background: "linear-gradient(180deg, #b91c1c, transparent)", boxShadow: "0 0 20px #b91c1c88", borderRadius: 2 }} />
+            <h1 style={{ fontSize: "clamp(42px, 8vw, 64px)", fontWeight: 900, fontStyle: "italic", textTransform: "uppercase", letterSpacing: "-0.02em", lineHeight: 0.95, margin: 0, animation: "flamePulse 3s ease-in-out infinite" }}>
+              MEUS <span style={{ color: "#b91c1c" }}>PEDIDOS</span>
             </h1>
           </header>
 
-          {/* Content */}
           {loading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[0, 1, 2].map(i => <SkeletonCard key={i} />)}
             </div>
           ) : orders.length === 0 ? (
-            <div style={{
-              background: "#0e0e0e",
-              border: "1px solid #1a1a1a",
-              borderRadius: 12,
-              padding: "80px 40px",
-              textAlign: "center",
-              animation: "fadeSlideUp 0.4s ease both",
-            }}>
+            <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 12, padding: "80px 40px", textAlign: "center", animation: "fadeSlideUp 0.4s ease both" }}>
               <Package size={52} color="#1e1e1e" style={{ margin: "0 auto 24px" }} />
-              <p style={{ color: "#333", fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: 32 }}>
-                Nenhum pedido encontrado na brasa.
-              </p>
-              <Link
-                href="/cardapio"
-                style={{
-                  display: "inline-block",
-                  background: "#b91c1c",
-                  color: "#fff",
-                  padding: "14px 36px",
-                  fontWeight: 900,
-                  fontSize: 13,
-                  letterSpacing: "0.15em",
-                  textTransform: "uppercase",
-                  fontStyle: "italic",
-                  textDecoration: "none",
-                  borderRadius: 4,
-                  transition: "all 0.2s",
-                  boxShadow: "0 8px 30px #b91c1c44",
-                }}
-              >
+              <p style={{ color: "#333", fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: 32 }}>Nenhum pedido encontrado na brasa.</p>
+              <Link href="/cardapio" style={{ display: "inline-block", background: "#b91c1c", color: "#fff", padding: "14px 36px", fontWeight: 900, fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase", fontStyle: "italic", textDecoration: "none", borderRadius: 4, transition: "all 0.2s", boxShadow: "0 8px 30px #b91c1c44" }}>
                 ACENDER A BRASA
               </Link>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Counter */}
-              <div style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                marginBottom: 8,
-              }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ color: "#333", fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase" }}>
                   {orders.length} pedido{orders.length !== 1 ? "s" : ""} encontrado{orders.length !== 1 ? "s" : ""}
                 </span>
                 <div style={{ width: 40, height: 1, background: "#1e1e1e" }} />
               </div>
-
-              {orders.map((order, i) => (
-                <OrderCard key={order.id} order={order} index={i} />
-              ))}
+              {orders.map((order, i) => <OrderCard key={order.id} order={order} index={i} />)}
             </div>
           )}
         </main>
-
-        {/* Footer spacer */}
         <div style={{ height: 120 }} />
       </div>
     </>
@@ -4430,75 +4631,115 @@ ARQUIVO: .\src\components\BottomNavMobile.tsx
 
 "use client";
 
-import { Home, ClipboardList, User } from "lucide-react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Home, UtensilsCrossed, ShoppingCart, MoreVertical, User, LayoutDashboard } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 
-// ALTERAÇÃO SOLICITADA: Componente extraído para o layout global
 export default function BottomNavMobile() {
   const pathname = usePathname();
   const { cart } = useCart();
   const totalItens = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const items = [
-    { href: "/",          label: "Início",  icon: Home         },
-    { href: "/my-orders", label: "Pedidos", icon: ClipboardList },
-    { href: "/perfil",    label: "Perfil",  icon: User         },
-  ];
+  useEffect(() => {
+    try {
+      const match = document.cookie.match(/user_session=([^;]+)/);
+      if (match) {
+        const data = JSON.parse(decodeURIComponent(match[1]));
+        setIsAdmin(data.role === "ADMIN" || data.role === "ATTENDANT");
+      }
+    } catch { setIsAdmin(false); }
+  }, []);
+
+  useEffect(() => { setShowMenu(false); }, [pathname]);
+
+  // ALTERAÇÃO SOLICITADA: Avisa os outros componentes se o menu foi aberto/fechado
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("toggleMenuMobile", { detail: showMenu }));
+  }, [showMenu]);
 
   return (
-    <nav style={{
-      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9990,
-      background: "rgba(8,8,8,0.97)",
-      backdropFilter: "blur(20px)",
-      borderTop: "1px solid #1a1a1a",
-      display: "flex",
-      paddingBottom: "env(safe-area-inset-bottom)",
-      boxShadow: "0 -1px 0 #1a1a1a, 0 -20px 60px rgba(0,0,0,0.8)",
-    }}>
-      {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href;
-        return (
-          <Link key={href} href={href} style={{
-            flex: 1, display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            gap: 3, padding: "12px 0",
-            textDecoration: "none",
-            color: active ? "#b91c1c" : "#3a3a3a",
-            fontSize: 9, fontWeight: 800,
-            letterSpacing: "0.12em", textTransform: "uppercase",
-            fontFamily: "sans-serif", position: "relative",
-            transition: "color 0.2s",
-          }}>
-            {active && (
-              <div style={{
-                position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
-                width: 20, height: 2, background: "#b91c1c",
-                borderRadius: "0 0 3px 3px", boxShadow: "0 0 12px #b91c1c",
-              }} />
-            )}
-            <div style={{ position: "relative" }}>
-              <Icon
-                size={20}
-                strokeWidth={active ? 2.5 : 1.8}
-                style={{ filter: active ? "drop-shadow(0 0 8px #b91c1c66)" : "none", transition: "all 0.2s" }}
-              />
-              {href === "/" && totalItens > 0 && (
-                <span style={{
-                  position: "absolute", top: -5, right: -7,
-                  background: "#b91c1c", color: "#fff",
-                  fontSize: 8, fontWeight: 900, width: 14, height: 14,
-                  borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: "0 0 8px #b91c1c66",
-                }}>{totalItens}</span>
-              )}
-            </div>
-            <span style={{ opacity: active ? 1 : 0.5 }}>{label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <style>{`
+        .bottom-nav-mobile { display: flex; }
+        @media (min-width: 992px) { .bottom-nav-mobile { display: none !important; } }
+      `}</style>
+
+      <nav className="bottom-nav-mobile" style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9970,
+        background: "#0a0a0a", borderTop: "1px solid #1a1a1a",
+        alignItems: "stretch",
+        paddingBottom: "env(safe-area-inset-bottom)",
+        height: "calc(60px + env(safe-area-inset-bottom))",
+      }}>
+
+        {/* Início */}
+        <Link href="/" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/" ? "#b91c1c" : "#555", borderTop: pathname === "/" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
+          <span style={{ filter: pathname === "/" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}><Home size={22} /></span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>INÍCIO</span>
+        </Link>
+
+        {/* Cardápio */}
+        <Link href="/cardapio" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/cardapio" ? "#b91c1c" : "#555", borderTop: pathname === "/cardapio" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
+          <span style={{ filter: pathname === "/cardapio" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}><UtensilsCrossed size={22} /></span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>CARDÁPIO</span>
+        </Link>
+
+        {/* Carrinho */}
+        <Link href="/carrinho" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/carrinho" ? "#b91c1c" : "#555", borderTop: pathname === "/carrinho" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
+          <span style={{ position: "relative", display: "inline-flex", filter: pathname === "/carrinho" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}>
+            <ShoppingCart size={22} />
+            {totalItens > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: "#b91c1c", color: "#fff", fontSize: 8, fontWeight: 900, width: 14, height: 14, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{totalItens}</span>}
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>CARRINHO</span>
+        </Link>
+
+        {/* Separador */}
+        <div style={{ width: 1, background: "#2a2a2a", margin: "12px 0" }} />
+
+        {/* Perfil */}
+        <Link href="/perfil" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/perfil" ? "#b91c1c" : "#555", borderTop: pathname === "/perfil" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
+          <span style={{ filter: pathname === "/perfil" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}><User size={22} /></span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>PERFIL</span>
+        </Link>
+
+        {/* Mais (dropdown) */}
+        <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={() => setShowMenu(!showMenu)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: showMenu ? "#b91c1c" : "#555", borderTop: showMenu ? "2px solid #b91c1c" : "2px solid transparent", width: "100%", height: "100%", justifyContent: "center", transition: "color 0.2s" }}>
+            <MoreVertical size={22} />
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>MAIS</span>
+          </button>
+
+          {showMenu && (
+            <>
+              <div onClick={() => setShowMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 9968 }} />
+              {/* ALTERAÇÃO SOLICITADA: Ajustei a posição right para não vazar a tela e alterei os links */}
+              <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 10, background: "#111", border: "1px solid #262626", borderRadius: 12, overflow: "hidden", minWidth: 160, zIndex: 9969, boxShadow: "0 -8px 30px rgba(0,0,0,0.6)" }}>
+                <Link href="/my-orders" onClick={() => setShowMenu(false)} style={{ display: "block", padding: "13px 16px", color: pathname === "/my-orders" ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", borderBottom: "1px solid #1a1a1a", background: pathname === "/my-orders" ? "#b91c1c12" : "none" }}>
+                  Meus Pedidos
+                </Link>
+                <Link href="/sobre" onClick={() => setShowMenu(false)} style={{ display: "block", padding: "13px 16px", color: pathname === "/sobre" ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", borderBottom: "1px solid #1a1a1a", background: pathname === "/sobre" ? "#b91c1c12" : "none" }}>
+                  Sobre Nós
+                </Link>
+                <Link href="/contato" onClick={() => setShowMenu(false)} style={{ display: "block", padding: "13px 16px", color: pathname === "/contato" ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", borderBottom: "1px solid #1a1a1a", background: pathname === "/contato" ? "#b91c1c12" : "none" }}>
+                  Fale Conosco
+                </Link>
+                {isAdmin && (
+                  <Link href="/admin" onClick={() => setShowMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 16px", color: pathname === "/admin" ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", background: pathname === "/admin" ? "#b91c1c12" : "none" }}>
+                    <LayoutDashboard size={14} />
+                    Painel Admin
+                  </Link>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+      </nav>
+    </>
   );
 }
 
@@ -4833,8 +5074,9 @@ ARQUIVO: .\src\components\HomeDesktop.tsx
 
 "use client";
 
-import React, { useState } from "react";
-import { MessageCircle, X, Plus, Minus } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from "react";
+import { FaWhatsapp } from "react-icons/fa";
+import { MapPin, Search, X, Plus, Minus } from "lucide-react";
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
@@ -4848,11 +5090,66 @@ export default function HomeDesktop() {
   const [customOptions, setCustomOptions] = useState<any[]>([]);
   const [observacao, setObservacao] = useState("");
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Todos");
+  const [showCepModal, setShowCepModal] = useState(false);
+  const [cep, setCep] = useState("");
+  const [cepResult, setCepResult] = useState<any>(null);
+  const [endereco, setEndereco] = useState({ rua: "", numero: "", bairro: "", cidade: "" });
+  const [enderecoEditado, setEnderecoEditado] = useState(false);
+  const [enderecoSalvo, setEnderecoSalvo] = useState<{ rua: string; numero: string; bairro: string; cidade: string } | null>(null);
+  const [enderecosSalvos, setEnderecosSalvos] = useState<{ rua: string; numero: string; bairro: string; cidade: string }[]>([]);
+  const [enderecoAtivoIdx, setEnderecoAtivoIdx] = useState(0);
+  const [showAddressPanel, setShowAddressPanel] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingEndereco, setEditingEndereco] = useState({ rua: "", numero: "", bairro: "", cidade: "" });
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepError, setCepError] = useState("");
+  const [showWhatsapp, setShowWhatsapp] = useState(true);
+
+  // ALTERAÇÃO SOLICITADA: Carregar endereços salvos do localStorage ao iniciar
+  useEffect(() => {
+    const saved = localStorage.getItem("flame_enderecos");
+    const activeIdx = localStorage.getItem("flame_endereco_ativo");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          setEnderecosSalvos(parsed);
+          const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
+          setEnderecoAtivoIdx(idx);
+          setEnderecoSalvo(parsed[idx]);
+        }
+      } catch (e) { console.error("Erro ao ler localStorage", e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    let lastScroll = 0;
+    const handleScroll = () => {
+      const current = window.scrollY;
+      setShowWhatsapp(current <= lastScroll || current < 50);
+      lastScroll = current;
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const produtos = [
-    { id: "cmmctdp4l0001nsgzj9x6zi5y", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, camadas generosas de queijo cheddar derretido e bacon crocante no pão brioche artesanal.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
-    { id: "cmmcqmzlf0000nsgza56yn8g1", nome: "Smoky Texas Grill", desc: "Hambúrguer grelhado na brasa, bacon rústico, queijo prato e molho especial defumado com toque de ervas.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
-    { id: "cmmcte9zh0002nsgzqh3hoffv", nome: "Double Cheddar Board", desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
+    { id: "cmmctdp4l0001nsgzj9x6zi5y", nome: "Bacon Handcrafted", categoria: "Hambúrgueres", desc: "Blend bovino 180g, camadas generosas de queijo cheddar derretido e bacon crocante no pão brioche artesanal.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
+    { id: "cmmcqmzlf0000nsgza56yn8g1", nome: "Smoky Texas Grill", categoria: "Hambúrgueres", desc: "Hambúrguer grelhado na brasa, bacon rústico, queijo prato e molho especial defumado com toque de ervas.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
+    { id: "cmmcte9zh0002nsgzqh3hoffv", nome: "Double Cheddar Board", categoria: "Combos", desc: "Dois smash burgers, cheddar duplo, cebola caramelizada e acompanhamento de fritas crocantes na tábua.", preco: 45.90, foto: "/still-life-delicious-american-hamburger.jpg" }
   ];
+
+  const categorias = ["Todos", ...Array.from(new Set(produtos.map(p => p.categoria)))];
+
+  const produtosFiltrados = useMemo(() => {
+    return produtos.filter(p => {
+      const matchCat = selectedCategory === "Todos" || p.categoria === selectedCategory;
+      const matchBusca = p.nome.toLowerCase().includes(searchTerm.toLowerCase()) || p.desc.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchCat && matchBusca;
+    });
+  }, [searchTerm, selectedCategory]);
 
   const molhosGratis = [
     { nome: "Ketchup", preco: 0 }, { nome: "Mostarda", preco: 0 }, { nome: "Maionese Tradicional", preco: 0 }
@@ -4898,6 +5195,53 @@ export default function HomeDesktop() {
     router.push("/carrinho");
   };
 
+  const handleBuscarCep = async () => {
+    const cepLimpo = cep.replace(/\D/g, "");
+    if (cepLimpo.length !== 8) { setCepError("Digite um CEP válido com 8 dígitos."); return; }
+    setCepLoading(true); setCepError(""); setCepResult(null);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+      const data = await res.json();
+      if (data.erro) setCepError("CEP não encontrado. Verifique e tente novamente.");
+      else {
+        setCepResult(data);
+        setEndereco({ rua: data.logradouro ?? "", numero: "", bairro: data.bairro ?? "", cidade: `${data.localidade} - ${data.uf}` });
+        setEnderecoEditado(false);
+      }
+    } catch { setCepError("Erro ao buscar CEP. Tente novamente."); }
+    finally { setCepLoading(false); }
+  };
+
+  const closeCepModal = () => {
+    setShowCepModal(false);
+    setCepResult(null);
+    setCep("");
+    setCepError("");
+    setEndereco({ rua: "", numero: "", bairro: "", cidade: "" });
+    setEnderecoEditado(false);
+  };
+
+  const saveAndClose = () => {
+    setEnderecoEditado(true);
+    if (!endereco.rua.trim() || !endereco.numero.trim() || !endereco.bairro.trim() || !endereco.cidade.trim()) return;
+    const novo = { ...endereco };
+    setEnderecosSalvos(prev => {
+      const nova = [...prev, novo];
+      // ALTERAÇÃO SOLICITADA: Salvar no localStorage
+      localStorage.setItem("flame_enderecos", JSON.stringify(nova));
+      localStorage.setItem("flame_endereco_ativo", String(nova.length - 1));
+      setEnderecoAtivoIdx(nova.length - 1);
+      return nova;
+    });
+    setEnderecoSalvo(novo);
+    setShowCepModal(false);
+    setCepResult(null);
+    setCep("");
+    setCepError("");
+    setEndereco({ rua: "", numero: "", bairro: "", cidade: "" });
+    setEnderecoEditado(false);
+  };
+
   return (
     <main style={{ margin: 0, padding: 0, paddingTop: '80px', backgroundColor: '#0a0a0a', minHeight: '100vh', width: '100%', color: '#fff', position: 'relative' }}>
       <div className="flame-overlay" />
@@ -4929,24 +5273,6 @@ export default function HomeDesktop() {
         .hero-sub    { animation: heroFadeUp    0.7s cubic-bezier(0.16,1,0.3,1) 0.5s  both; }
         .hero-cta    { animation: heroFadeUp    0.7s cubic-bezier(0.16,1,0.3,1) 0.62s both; }
         .hero-stats  { animation: heroFadeUp    0.7s cubic-bezier(0.16,1,0.3,1) 0.75s both; }
-
-        .hero-cta-btn {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 15px 32px; background: #b91c1c; color: #fff;
-          font-size: 14px; font-weight: 900; font-family: 'Impact', sans-serif;
-          text-decoration: none; text-transform: uppercase; letter-spacing: 0.1em;
-          border-radius: 4px; border: none; cursor: pointer;
-          box-shadow: 0 8px 28px #b91c1c44; transition: all 0.25s;
-        }
-        .hero-cta-btn:hover { background: #a31515; transform: translateY(-2px); box-shadow: 0 14px 40px #b91c1c66; }
-        .hero-cta-outline {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 15px 24px; background: transparent; color: #aaa;
-          font-size: 13px; font-weight: 700; font-family: 'Impact', sans-serif;
-          text-decoration: none; text-transform: uppercase; letter-spacing: 0.1em;
-          border: 1px solid #2a2a2a; border-radius: 4px; transition: all 0.25s;
-        }
-        .hero-cta-outline:hover { border-color: #b91c1c55; color: #fff; }
       `}</style>
 
       {/* ── HERO ── */}
@@ -4968,8 +5294,6 @@ export default function HomeDesktop() {
             <div className="hero-sub" style={{ margin: '14px 0 26px' }}>
               <p style={{ marginTop: '15px', fontSize: '24px', fontFamily: '"Brush Script MT", cursive', color: '#ccc', margin: 0 }}>Grelhado na brasa. Servido com alma.</p>
             </div>
-            <div className="hero-cta" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            </div>
             <div className="hero-stats" style={{ display: 'flex', gap: 20, justifyContent: 'flex-end', marginTop: 24, alignItems: 'center' }}>
               {[{ num: '100%', label: 'artesanal' }, { num: 'Brasa', label: 'grelhado' }].map((s, i) => (
                 <React.Fragment key={s.label}>
@@ -4984,7 +5308,6 @@ export default function HomeDesktop() {
           </div>
         </div>
 
-        {/* Wave desktop */}
         <div style={{ position: 'absolute', bottom: '-1px', left: 0, width: '100%', zIndex: 10, lineHeight: 0 }}>
           <svg viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ width: '100%', height: '100px', display: 'block' }}>
             <path fill="#0a0a0a" d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,58.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z" />
@@ -4992,25 +5315,82 @@ export default function HomeDesktop() {
         </div>
       </section>
 
-      {/* ── CARDÁPIO ── */}
-      <section id="cardapio" style={{ padding: '120px 20px 80px', backgroundColor: '#0a0a0a', textAlign: 'center', position: 'relative', zIndex: 5 }}>
-        <div style={{ position: 'relative', zIndex: 20 }}>
+      {/* ── CARDÁPIO COM FILTROS E BUSCA ── */}
+      <section id="cardapio" style={{ padding: '80px 20px', backgroundColor: '#0a0a0a', textAlign: 'center', position: 'relative', zIndex: 5, maxWidth: '1200px', margin: '0 auto' }}>
+        
+        <div style={{ position: 'relative', zIndex: 20, marginBottom: '40px' }}>
           <span style={{ color: '#fff', fontSize: '18px', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nosso</span>
-          <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0 0 60px 0' }}>CARDÁPIO</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' }}>
-            {produtos.map((p) => (
-              <DesktopCard key={p.id} foto={p.foto} nome={p.nome} desc={p.desc} preco={p.preco} onAdd={() => handleOpenModal(p)} />
+          <h2 style={{ fontSize: '60px', fontWeight: '900', color: '#b91c1c', margin: '0' }}>CARDÁPIO</h2>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '60px', position: 'relative', zIndex: 20 }}>
+          
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', background: '#111', padding: '15px 25px', borderRadius: '12px', border: '1px solid #222', justifyContent: 'space-between', alignItems: 'center' }}>
+            
+            {/* Barra de Endereço */}
+            <div style={{ flex: '1 1 300px', display: 'flex', justifyContent: 'flex-start' }}>
+              <button onClick={() => {
+                const isLogged = document.cookie.includes("user_session");
+                if (!isLogged) { router.push("/login?callback=/"); return; }
+                enderecoSalvo ? setShowAddressPanel(true) : setShowCepModal(true);
+              }}>
+                <MapPin size={24} color="#b91c1c" style={{ flexShrink: 0 }} />
+                <div style={{ overflow: 'hidden' }}>
+                  {enderecoSalvo ? (
+                    <>
+                      <p style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: 0 }}>Entregar em</p>
+                      <p style={{ color: "#fff", fontSize: 15, fontWeight: 600, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{enderecoSalvo.rua}, {enderecoSalvo.numero} · {enderecoSalvo.bairro}</p>
+                    </>
+                  ) : (
+                    <p style={{ color: "#aaa", fontSize: 15, fontWeight: 600, margin: 0 }}>Adicionar endereço de entrega</p>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Busca */}
+            <div style={{ flex: '1 1 300px', position: "relative" }}>
+              <Search size={18} color="#555" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)" }} />
+              <input type="text" placeholder="Buscar no cardápio..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: "100%", background: "#0a0a0a", border: "1px solid #262626", borderRadius: 8, padding: "12px 40px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+              {searchTerm && <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#555", cursor: "pointer", display: "flex" }}><X size={16} /></button>}
+            </div>
+          </div>
+
+          {/* Categorias Desktop */}
+          <div className="custom-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
+            {categorias.map(cat => (
+              <button key={cat} onClick={() => setSelectedCategory(cat)} style={{ padding: "10px 24px", background: cat === selectedCategory ? "#b91c1c" : "#111", border: `1px solid ${cat === selectedCategory ? "#b91c1c" : "#222"}`, color: cat === selectedCategory ? "#fff" : "#ccc", fontSize: 14, fontWeight: 600, borderRadius: "30px", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap" }}>
+                {cat}
+              </button>
             ))}
           </div>
+
+        </div>
+
+        {/* Listagem de Produtos */}
+        <div style={{ position: 'relative', zIndex: 20 }}>
+          {produtosFiltrados.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "80px 0", color: "#444" }}>
+              <Search size={48} style={{ margin: "0 auto 16px", display: "block" }} />
+              <p style={{ fontSize: 18, fontWeight: 600 }}>Nenhum produto encontrado.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', maxWidth: '1200px', margin: '0 auto' }}>
+              {produtosFiltrados.map((p) => (
+                <DesktopCard key={p.id} foto={p.foto} nome={p.nome} desc={p.desc} preco={p.preco} onAdd={() => handleOpenModal(p)} />
+              ))}
+            </div>
+          )}
+
           <div style={{ marginTop: '120px', position: 'relative', top: '-60px' }}>
             <Link href="/cardapio" className="btn-cardapio-completo">VER CARDÁPIO COMPLETO</Link>
           </div>
         </div>
       </section>
 
-      {/* ── MODAL ── */}
+      {/* ── MODAL PRODUTO ── */}
       {selectedProduct && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={(e) => { if(e.target === e.currentTarget) setSelectedProduct(null); }}>
           <div className="modal-content custom-scrollbar">
             <button style={{ position: 'absolute', top: '15px', right: '15px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setSelectedProduct(null)}><X size={20} /></button>
             <img src={selectedProduct.foto} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
@@ -5054,8 +5434,151 @@ export default function HomeDesktop() {
         </div>
       )}
 
-      <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer" style={{ position: 'fixed', bottom: '30px', right: '30px', backgroundColor: '#25d366', padding: '15px', borderRadius: '50%', zIndex: 1000 }}>
-        <MessageCircle size={35} color="#fff" />
+      {/* ── MODAL DE MEUS ENDEREÇOS ── */}
+      {showAddressPanel && enderecoSalvo && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setShowAddressPanel(false); setEditingIdx(null); }}}>
+          <div className="modal-content custom-scrollbar" style={{ padding: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', paddingBottom: '15px', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: 24, fontWeight: 900, textTransform: "uppercase", fontFamily: "Impact, sans-serif", margin: 0 }}>Meus Endereços</h2>
+              <button onClick={() => { setShowAddressPanel(false); setEditingIdx(null); }} style={{ background: "#161616", border: "1px solid #222", color: "#888", width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+
+            {enderecosSalvos.map((end, idx) => (
+              <div key={idx} style={{ marginBottom: 15 }}>
+                {editingIdx === idx ? (
+                  <div style={{ background: "#0a0a0a", border: "1px solid #b91c1c44", borderRadius: 8, padding: 15 }}>
+                    <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                      <input placeholder="Rua / Avenida" value={editingEndereco.rua} onChange={e => setEditingEndereco({ ...editingEndereco, rua: e.target.value })} style={{ flex: 1, background: "#111", border: "1px solid #262626", borderRadius: 6, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      <input placeholder="Nº" value={editingEndereco.numero} onChange={e => setEditingEndereco({ ...editingEndereco, numero: e.target.value })} style={{ width: 80, background: "#111", border: "1px solid #262626", borderRadius: 6, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <input placeholder="Bairro" value={editingEndereco.bairro} onChange={e => setEditingEndereco({ ...editingEndereco, bairro: e.target.value })} style={{ width: "100%", background: "#111", border: "1px solid #262626", borderRadius: 6, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
+                    <input placeholder="Cidade - UF" value={editingEndereco.cidade} onChange={e => setEditingEndereco({ ...editingEndereco, cidade: e.target.value })} style={{ width: "100%", background: "#111", border: "1px solid #262626", borderRadius: 6, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 15 }} />
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button onClick={() => setEditingIdx(null)} style={{ flex: 1, background: "#1a1a1a", border: "1px solid #333", borderRadius: 6, padding: "10px", color: "#888", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>CANCELAR</button>
+                      <button onClick={() => {
+                        if (!editingEndereco.rua.trim() || !editingEndereco.numero.trim() || !editingEndereco.bairro.trim() || !editingEndereco.cidade.trim()) return;
+                        const updated = [...enderecosSalvos];
+                        updated[idx] = { ...editingEndereco };
+                        setEnderecosSalvos(updated);
+                        // ALTERAÇÃO SOLICITADA: Atualizar no localStorage
+                        localStorage.setItem("flame_enderecos", JSON.stringify(updated));
+                        if (idx === enderecoAtivoIdx) setEnderecoSalvo(updated[idx]);
+                        setEditingIdx(null);
+                      }} style={{ flex: 1, background: "#b91c1c", border: "none", borderRadius: 6, padding: "10px", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer" }}>SALVAR</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div onClick={() => { setEnderecoSalvo(end); setEnderecoAtivoIdx(idx); localStorage.setItem("flame_endereco_ativo", String(idx)); setShowAddressPanel(false); setEditingIdx(null); }} style={{ display: "flex", alignItems: "center", gap: 15, padding: "15px", borderRadius: 8, background: idx === enderecoAtivoIdx ? "#b91c1c12" : "#111", border: `1px solid ${idx === enderecoAtivoIdx ? "#b91c1c44" : "#222"}`, cursor: "pointer", transition: "all 0.2s" }}>
+                    <MapPin size={20} color={idx === enderecoAtivoIdx ? "#b91c1c" : "#555"} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1, overflow: "hidden" }}>
+                      <p style={{ color: "#fff", fontSize: 15, fontWeight: 600, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{end.rua}, {end.numero}</p>
+                      <p style={{ color: "#888", fontSize: 13, margin: 0, marginTop: 4 }}>{end.bairro} · {end.cidade}</p>
+                    </div>
+                    {idx === enderecoAtivoIdx && <span style={{ background: "#b91c1c", color: "#fff", fontSize: 10, fontWeight: 900, padding: "4px 8px", borderRadius: 4 }}>ATIVO</span>}
+                    <button onClick={(e) => { e.stopPropagation(); setEditingIdx(idx); setEditingEndereco({ ...end }); }} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "8px" }}>EDITAR</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            <button onClick={() => { setShowAddressPanel(false); setEditingIdx(null); setShowCepModal(true); }} style={{ width: "100%", background: "none", border: "1px dashed #333", borderRadius: 8, padding: "15px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#888", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 20, transition: "border-color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.borderColor = "#555"} onMouseOut={(e) => e.currentTarget.style.borderColor = "#333"}>
+              <Plus size={16} /> Adicionar novo endereço
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE CEP ── */}
+      {showCepModal && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeCepModal(); }}>
+          <div className="modal-content custom-scrollbar" style={{ padding: '30px' }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 24, fontWeight: 900, textTransform: "uppercase", fontFamily: "Impact, sans-serif", margin: 0 }}>Taxa de Entrega</h2>
+              <button onClick={closeCepModal} style={{ background: "#161616", border: "1px solid #222", color: "#888", width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+            
+            <p style={{ color: "#888", fontSize: 14, marginBottom: 20 }}>Digite seu CEP para calcular a taxa e o tempo estimado de entrega.</p>
+            
+            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+              <input type="tel" placeholder="00000-000" maxLength={9} value={cep}
+                onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 8); setCep(v.length > 5 ? `${v.slice(0,5)}-${v.slice(5)}` : v); setCepError(""); setCepResult(null); }}
+                onKeyDown={e => { if (e.key === "Enter") handleBuscarCep(); }}
+                style={{ flex: 1, background: "#0a0a0a", border: `1px solid ${cepError ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "15px", color: "#fff", fontSize: 16, outline: "none", fontFamily: "sans-serif", letterSpacing: "0.05em", boxSizing: "border-box" }} />
+              <button onClick={handleBuscarCep} disabled={cepLoading} style={{ background: "#b91c1c", border: "none", color: "#fff", padding: "15px 25px", borderRadius: 8, fontWeight: 900, fontSize: 14, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", opacity: cepLoading ? 0.7 : 1 }}>
+                {cepLoading ? "Buscando..." : "BUSCAR"}
+              </button>
+            </div>
+            {cepError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 700, margin: "0 0 15px" }}>{cepError}</p>}
+
+            {cepResult && (
+              <div style={{ background: "#0a0a0a", border: "1px solid #1e1e1e", borderRadius: 12, padding: 20 }}>
+                <div style={{ borderLeft: "3px solid #b91c1c", paddingLeft: 12, marginBottom: 20 }}>
+                  <p style={{ color: "#888", fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: 0 }}>Confirme seu endereço</p>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <input placeholder="Rua / Avenida" value={endereco.rua}
+                      onChange={e => { setEndereco({ ...endereco, rua: e.target.value }); setEnderecoEditado(true); }}
+                      style={{ width: "100%", background: "#111", border: `1px solid ${enderecoEditado && !endereco.rua.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "12px 15px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                    {enderecoEditado && !endereco.rua.trim() && <p style={{ color: "#b91c1c", fontSize: 12, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
+                  </div>
+                  <div style={{ width: 90 }}>
+                    <input placeholder="Nº" value={endereco.numero}
+                      onChange={e => { setEndereco({ ...endereco, numero: e.target.value }); setEnderecoEditado(true); }}
+                      style={{ width: "100%", background: "#111", border: `1px solid ${enderecoEditado && !endereco.numero.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "12px 15px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                    {enderecoEditado && !endereco.numero.trim() && <p style={{ color: "#b91c1c", fontSize: 12, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <input placeholder="Bairro" value={endereco.bairro}
+                    onChange={e => { setEndereco({ ...endereco, bairro: e.target.value }); setEnderecoEditado(true); }}
+                    style={{ width: "100%", background: "#111", border: `1px solid ${enderecoEditado && !endereco.bairro.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "12px 15px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                  {enderecoEditado && !endereco.bairro.trim() && <p style={{ color: "#b91c1c", fontSize: 12, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <input placeholder="Cidade - UF" value={endereco.cidade}
+                    onChange={e => { setEndereco({ ...endereco, cidade: e.target.value }); setEnderecoEditado(true); }}
+                    style={{ width: "100%", background: "#111", border: `1px solid ${enderecoEditado && !endereco.cidade.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "12px 15px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                  {enderecoEditado && !endereco.cidade.trim() && <p style={{ color: "#b91c1c", fontSize: 12, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
+                </div>
+
+                {endereco.rua.trim() && endereco.numero.trim() && endereco.bairro.trim() && endereco.cidade.trim() && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15, marginBottom: 20 }}>
+                    <div style={{ background: "#111", borderRadius: 8, padding: 15, textAlign: "center", border: "1px solid #222" }}>
+                      <p style={{ color: "#666", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", margin: "0 0 5px" }}>Taxa</p>
+                      <p style={{ color: "#b91c1c", fontSize: 24, fontWeight: 900, fontStyle: "italic", margin: 0 }}>R$ 5,00</p>
+                    </div>
+                    <div style={{ background: "#111", borderRadius: 8, padding: 15, textAlign: "center", border: "1px solid #222" }}>
+                      <p style={{ color: "#666", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", margin: "0 0 5px" }}>Tempo</p>
+                      <p style={{ color: "#fff", fontSize: 24, fontWeight: 900, fontStyle: "italic", margin: 0 }}>~30min</p>
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={saveAndClose}
+                  style={{ width: "100%", marginTop: 4, background: "#b91c1c", border: "none", color: "#fff", padding: "13px", borderRadius: 8, fontWeight: 900, fontSize: 15, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 6px 20px #b91c1c33" }}>
+                  SALVAR ENDEREÇO
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Float */}
+      <a href="https://wa.me/5519992676339" target="_blank" rel="noopener noreferrer" 
+        style={{ 
+          position: 'fixed', bottom: '30px', right: '30px', backgroundColor: '#25d366', 
+          padding: '15px', borderRadius: '50%', zIndex: 1000,
+          opacity: showWhatsapp ? 1 : 0, transform: showWhatsapp ? "scale(1)" : "scale(0.8)",
+          transition: "opacity 0.3s ease, transform 0.3s ease",
+          pointerEvents: showWhatsapp ? "auto" : "none",
+          boxShadow: "0 6px 24px rgba(37,211,102,0.45)"
+        }}>
+        <FaWhatsapp size={35} color="#fff" />
       </a>
     </main>
   );
@@ -5108,20 +5631,20 @@ export default function HomeMobile() {
   const [cepResult, setCepResult] = useState<any>(null);
   const [endereco, setEndereco] = useState({ rua: "", numero: "", bairro: "", cidade: "" });
   const [enderecoEditado, setEnderecoEditado] = useState(false);
-  // ALTERAÇÃO SOLICITADA: endereço confirmado pelo usuário
   const [enderecoSalvo, setEnderecoSalvo] = useState<{ rua: string; numero: string; bairro: string; cidade: string } | null>(null);
   const [enderecosSalvos, setEnderecosSalvos] = useState<{ rua: string; numero: string; bairro: string; cidade: string }[]>([]);
   const [enderecoAtivoIdx, setEnderecoAtivoIdx] = useState(0);
   const [showAddressPanel, setShowAddressPanel] = useState(false);
-  const [editingIdx, setEditingIdx] = useState<number | null>(null); // ALTERAÇÃO SOLICITADA: edição inline
-  const [editingEndereco, setEditingEndereco] = useState({ rua: "", numero: "", bairro: "", cidade: "" }); // ALTERAÇÃO SOLICITADA
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingEndereco, setEditingEndereco] = useState({ rua: "", numero: "", bairro: "", cidade: "" });
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState("");
   const [showWhatsapp, setShowWhatsapp] = useState(true);
-  // ALTERAÇÃO SOLICITADA: menu de três pontos e role admin
+  const [showAddressBar, setShowAddressBar] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Lê role do cookie
   useEffect(() => {
     try {
       const match = document.cookie.match(/user_session=([^;]+)/);
@@ -5132,15 +5655,49 @@ export default function HomeMobile() {
     } catch { setIsAdmin(false); }
   }, []);
 
+  // Carrega endereços do localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("flame_enderecos");
+    const activeIdx = localStorage.getItem("flame_endereco_ativo");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          setEnderecosSalvos(parsed);
+          const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
+          setEnderecoAtivoIdx(idx);
+          setEnderecoSalvo(parsed[idx]);
+        }
+      } catch (e) { console.error("Erro ao ler localStorage", e); }
+    }
+  }, []);
+
+  // Scroll: esconde barra de endereço e WhatsApp ao rolar para baixo
   useEffect(() => {
     let lastScroll = 0;
     const handleScroll = () => {
       const current = window.scrollY;
-      setShowWhatsapp(current <= lastScroll || current < 50);
+      const isScrollingUp = current <= lastScroll || current < 50;
+      setShowWhatsapp(isScrollingUp);
+      setShowAddressBar(isScrollingUp);
+      if (!isScrollingUp) setShowAddressPanel(false);
       lastScroll = current;
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // ALTERAÇÃO SOLICITADA: Oculta o WhatsApp quando o menu do BottomNavMobile for aberto
+  useEffect(() => {
+    const handleMenuEvent = (e: any) => {
+      if (e.detail) {
+        setShowWhatsapp(false); // Oculta ao abrir
+      } else {
+        setShowWhatsapp(true);  // Mostra ao fechar
+      }
+    };
+    window.addEventListener("toggleMenuMobile", handleMenuEvent);
+    return () => window.removeEventListener("toggleMenuMobile", handleMenuEvent);
   }, []);
 
   const produtos = [
@@ -5224,13 +5781,14 @@ export default function HomeMobile() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ALTERAÇÃO SOLICITADA: salva endereço e fecha modal
   const saveAndClose = () => {
     setEnderecoEditado(true);
     if (!endereco.rua.trim() || !endereco.numero.trim() || !endereco.bairro.trim() || !endereco.cidade.trim()) return;
     const novo = { ...endereco };
     setEnderecosSalvos(prev => {
       const nova = [...prev, novo];
+      localStorage.setItem("flame_enderecos", JSON.stringify(nova));
+      localStorage.setItem("flame_endereco_ativo", String(nova.length - 1));
       setEnderecoAtivoIdx(nova.length - 1);
       return nova;
     });
@@ -5243,12 +5801,6 @@ export default function HomeMobile() {
     setEnderecoEditado(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
-  const navItems = [
-    { href: "/", label: "INÍCIO", icon: null },
-    { href: "/my-orders", label: "PEDIDOS", icon: <ClipboardList size={22} /> },
-    { href: "/perfil", label: "PERFIL", icon: <User size={22} /> },
-  ];
 
   return (
     <>
@@ -5269,13 +5821,19 @@ export default function HomeMobile() {
 
       <main style={{ backgroundColor: "#080808", minHeight: "100svh", color: "#fff", fontFamily: "sans-serif", paddingTop: 0, paddingBottom: "calc(72px + env(safe-area-inset-bottom))", overflowX: "hidden" }}>
 
-        {/* ALTERAÇÃO SOLICITADA: barra de endereço expansível */}
+        {/* ── Barra de endereço fixa ── */}
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 1001,
           transition: "opacity 0.3s ease, transform 0.3s ease",
+          transform: showAddressBar ? "translateY(0)" : "translateY(-100%)",
+          opacity: showAddressBar ? 1 : 0,
+          pointerEvents: showAddressBar ? "auto" : "none",
         }}>
-          {/* Barra principal */}
-          <button onClick={() => enderecoSalvo ? setShowAddressPanel(!showAddressPanel) : setShowCepModal(true)} style={{
+          <button onClick={() => {
+  const isLogged = document.cookie.includes("user_session");
+  if (!isLogged) { router.push("/login?callback=/"); return; }
+  enderecoSalvo ? setShowAddressPanel(!showAddressPanel) : setShowCepModal(true);
+}} style={{
             width: "100%", background: "#111", border: "none", borderBottom: "1px solid #1a1a1a",
             padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer",
           }}>
@@ -5306,7 +5864,6 @@ export default function HomeMobile() {
                 {enderecosSalvos.map((end, idx) => (
                   <div key={idx} style={{ marginBottom: 8 }}>
                     {editingIdx === idx ? (
-                      // ALTERAÇÃO SOLICITADA: edição inline
                       <div style={{ background: "#0a0a0a", border: "1px solid #b91c1c44", borderRadius: 8, padding: 12 }}>
                         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                           <input placeholder="Rua / Avenida" value={editingEndereco.rua}
@@ -5332,6 +5889,7 @@ export default function HomeMobile() {
                             const updated = [...enderecosSalvos];
                             updated[idx] = { ...editingEndereco };
                             setEnderecosSalvos(updated);
+                            localStorage.setItem("flame_enderecos", JSON.stringify(updated));
                             if (idx === enderecoAtivoIdx) setEnderecoSalvo(updated[idx]);
                             setEditingIdx(null);
                           }}
@@ -5341,7 +5899,7 @@ export default function HomeMobile() {
                         </div>
                       </div>
                     ) : (
-                      <div onClick={() => { setEnderecoSalvo(end); setEnderecoAtivoIdx(idx); setShowAddressPanel(false); setEditingIdx(null); }}
+                      <div onClick={() => { setEnderecoSalvo(end); setEnderecoAtivoIdx(idx); localStorage.setItem("flame_endereco_ativo", String(idx)); setShowAddressPanel(false); setEditingIdx(null); }}
                         style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8, background: idx === enderecoAtivoIdx ? "#b91c1c12" : "#0a0a0a", border: `1px solid ${idx === enderecoAtivoIdx ? "#b91c1c44" : "#1a1a1a"}`, cursor: "pointer" }}>
                         <MapPin size={14} color={idx === enderecoAtivoIdx ? "#b91c1c" : "#555"} style={{ flexShrink: 0 }} />
                         <div style={{ flex: 1, overflow: "hidden" }}>
@@ -5352,15 +5910,34 @@ export default function HomeMobile() {
                           <span style={{ background: "#b91c1c", color: "#fff", fontSize: 9, fontWeight: 900, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>ATIVO</span>
                         )}
                         <button onClick={(e) => { e.stopPropagation(); setEditingIdx(idx); setEditingEndereco({ ...end }); }}
-                          style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
-                          EDITAR
-                        </button>
+  style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
+  EDITAR
+</button>
+<button onClick={(e) => {
+  e.stopPropagation();
+  const updated = enderecosSalvos.filter((_, i) => i !== idx);
+  setEnderecosSalvos(updated);
+  localStorage.setItem("flame_enderecos", JSON.stringify(updated));
+  if (updated.length === 0) {
+    setEnderecoSalvo(null);
+    setEnderecoAtivoIdx(0);
+    localStorage.removeItem("flame_enderecos");
+    localStorage.removeItem("flame_endereco_ativo");
+    setShowAddressPanel(false);
+  } else {
+    const newIdx = Math.min(enderecoAtivoIdx, updated.length - 1);
+    setEnderecoAtivoIdx(newIdx);
+    setEnderecoSalvo(updated[newIdx]);
+    localStorage.setItem("flame_endereco_ativo", String(newIdx));
+  }
+}}
+  style={{ background: "none", border: "none", color: "#b91c1c55", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
+  EXCLUIR
+</button>
                       </div>
                     )}
                   </div>
                 ))}
-
-                {/* Botão adicionar novo endereço */}
                 <button onClick={() => { setShowAddressPanel(false); setEditingIdx(null); setShowCepModal(true); }}
                   style={{ width: "100%", background: "none", border: "1px dashed #333", borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
                   <Plus size={14} color="#555" />
@@ -5394,7 +5971,11 @@ export default function HomeMobile() {
 
         {/* ── Botão taxa ── */}
         <div style={{ padding: "0 16px", marginTop: 24 }}>
-          <button onClick={() => setShowCepModal(true)} style={{ width: "100%", backgroundColor: "#171717", border: "1px solid #262626", borderRadius: 12, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", cursor: "pointer" }}>
+          <button onClick={() => {
+  const isLogged = document.cookie.includes("user_session");
+  if (!isLogged) { router.push("/login?callback=/"); return; }
+  setShowCepModal(true);
+}} style={{ width: "100%", backgroundColor: "#171717", border: "1px solid #262626", borderRadius: 12, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", cursor: "pointer" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <MapPin size={20} color="#a3a3a3" />
               <span style={{ fontWeight: 500, fontSize: 14 }}>Calcular taxa e tempo de entrega</span>
@@ -5495,14 +6076,14 @@ export default function HomeMobile() {
         {/* ── WhatsApp ── */}
         <a href="https://wa.me/5519992676339" target="_blank" rel="noopener noreferrer"
           style={{
-            position: "fixed", bottom: "calc(82px + env(safe-area-inset-bottom))", right: 33, zIndex: 9980,
+            position: "fixed", bottom: "calc(82px + env(safe-area-inset-bottom))", right: 48  , zIndex: 9980,
             width: 62, height: 62, borderRadius: "50%", background: "#25D366",
             display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 6px 24px rgba(37,211,102,0.45)", textDecoration: "none",
-            opacity: showWhatsapp ? 1 : 0,
-            transform: showWhatsapp ? "scale(1)" : "scale(0.8)",
+            opacity: showWhatsapp && !showMenu ? 1 : 0,
+            transform: showWhatsapp && !showMenu ? "scale(1)" : "scale(0.8)",
             transition: "opacity 0.3s ease, transform 0.3s ease",
-            pointerEvents: showWhatsapp ? "auto" : "none",
+            pointerEvents: showWhatsapp && !showMenu ? "auto" : "none",
           }}>
           <svg viewBox="0 0 24 24" width="36" height="36" fill="white" xmlns="http://www.w3.org/2000/svg">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
@@ -5603,7 +6184,6 @@ export default function HomeMobile() {
                     <div style={{ borderLeft: "2px solid #b91c1c", paddingLeft: 12, marginBottom: 16 }}>
                       <p style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: 0 }}>Confirme seu endereço</p>
                     </div>
-
                     <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
                       <div style={{ flex: 1 }}>
                         <input placeholder="Rua / Avenida" value={endereco.rua}
@@ -5618,21 +6198,18 @@ export default function HomeMobile() {
                         {enderecoEditado && !endereco.numero.trim() && <p style={{ color: "#b91c1c", fontSize: 11, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
                       </div>
                     </div>
-
                     <div style={{ marginBottom: 4 }}>
                       <input placeholder="Bairro" value={endereco.bairro}
                         onChange={e => { setEndereco({ ...endereco, bairro: e.target.value }); setEnderecoEditado(true); }}
                         style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${enderecoEditado && !endereco.bairro.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "10px 12px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "sans-serif", boxSizing: "border-box" }} />
                       {enderecoEditado && !endereco.bairro.trim() && <p style={{ color: "#b91c1c", fontSize: 11, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
                     </div>
-
                     <div style={{ marginBottom: 16 }}>
                       <input placeholder="Cidade - UF" value={endereco.cidade}
                         onChange={e => { setEndereco({ ...endereco, cidade: e.target.value }); setEnderecoEditado(true); }}
                         style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${enderecoEditado && !endereco.cidade.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "10px 12px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "sans-serif", boxSizing: "border-box" }} />
                       {enderecoEditado && !endereco.cidade.trim() && <p style={{ color: "#b91c1c", fontSize: 11, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
                     </div>
-
                     {endereco.rua.trim() && endereco.numero.trim() && endereco.bairro.trim() && endereco.cidade.trim() && (
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                         <div style={{ background: "#0a0a0a", borderRadius: 8, padding: 12, textAlign: "center", border: "1px solid #1a1a1a" }}>
@@ -5645,7 +6222,6 @@ export default function HomeMobile() {
                         </div>
                       </div>
                     )}
-
                     <button onClick={saveAndClose}
                       style={{ width: "100%", marginTop: 4, background: "#b91c1c", border: "none", color: "#fff", padding: "13px", borderRadius: 8, fontWeight: 900, fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 6px 20px #b91c1c33" }}>
                       SALVAR ENDEREÇO
@@ -5658,78 +6234,6 @@ export default function HomeMobile() {
         )}
 
       </main>
-
-      {/* ALTERAÇÃO SOLICITADA: BottomNav com carrinho, menu e separador */}
-      <nav style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9970,
-        background: "#0a0a0a", borderTop: "1px solid #1a1a1a",
-        display: "flex", alignItems: "stretch",
-        paddingBottom: "env(safe-area-inset-bottom)",
-        height: "calc(60px + env(safe-area-inset-bottom))",
-      }}>
-        {/* Esquerda: Início, Pedidos, Perfil */}
-        <Link href="/" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/" ? "#b91c1c" : "#555", borderTop: pathname === "/" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ position: "relative", display: "inline-flex", filter: pathname === "/" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}>
-            <Home size={22} />
-            {totalItens > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: "#b91c1c", color: "#fff", fontSize: 8, fontWeight: 900, width: 14, height: 14, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{totalItens}</span>}
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>INÍCIO</span>
-        </Link>
-        <Link href="/my-orders" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/my-orders" ? "#b91c1c" : "#555", borderTop: pathname === "/my-orders" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ filter: pathname === "/my-orders" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}><ClipboardList size={22} /></span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>PEDIDOS</span>
-        </Link>
-        <Link href="/perfil" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/perfil" ? "#b91c1c" : "#555", borderTop: pathname === "/perfil" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ filter: pathname === "/perfil" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}><User size={22} /></span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>PERFIL</span>
-        </Link>
-
-        {/* Separador vertical */}
-        <div style={{ width: 1, background: "#2a2a2a", margin: "12px 0" }} />
-
-        {/* Carrinho */}
-        <Link href="/carrinho" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/carrinho" ? "#b91c1c" : "#555", borderTop: pathname === "/carrinho" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ position: "relative", display: "inline-flex", filter: pathname === "/carrinho" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}>
-            <ShoppingCart size={22} />
-            {totalItens > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: "#b91c1c", color: "#fff", fontSize: 8, fontWeight: 900, width: 14, height: 14, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{totalItens}</span>}
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>CARRINHO</span>
-        </Link>
-
-        {/* Três pontos */}
-        <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <button onClick={() => setShowMenu(!showMenu)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: showMenu ? "#b91c1c" : "#555", borderTop: showMenu ? "2px solid #b91c1c" : "2px solid transparent", width: "100%", height: "100%", justifyContent: "center", transition: "color 0.2s" }}>
-            <MoreVertical size={22} />
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>MAIS</span>
-          </button>
-
-          {/* Dropdown menu */}
-          {showMenu && (
-            <>
-              <div onClick={() => setShowMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 9968 }} />
-              <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "#111", border: "1px solid #262626", borderRadius: 12, overflow: "hidden", minWidth: 180, zIndex: 9969, boxShadow: "0 -8px 30px rgba(0,0,0,0.6)" }}>
-                {[
-                  { href: "/", label: "Início" },
-                  { href: "/cardapio", label: "Cardápio" },
-                  { href: "/sobre", label: "Sobre Nós" },
-                  { href: "/contato", label: "Fale Conosco" },
-                  { href: "/my-orders", label: "Meus Pedidos" },
-                ].map(item => (
-                  <Link key={item.href} href={item.href} onClick={() => setShowMenu(false)} style={{ display: "block", padding: "13px 16px", color: pathname === item.href ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", borderBottom: "1px solid #1a1a1a", background: pathname === item.href ? "#b91c1c12" : "none" }}>
-                    {item.label}
-                  </Link>
-                ))}
-                {isAdmin && (
-                  <Link href="/admin" onClick={() => setShowMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 16px", color: pathname === "/admin" ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", background: pathname === "/admin" ? "#b91c1c12" : "none" }}>
-                    <LayoutDashboard size={14} />
-                    Painel Admin
-                  </Link>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </nav>
     </>
   );
 }
@@ -6288,5 +6792,5 @@ if (process.env.NODE_ENV !== 'production') global.prisma = prisma
 RESUMO
 ================================================================================
 
-Total de arquivos exportados: 49
-Total de linhas de código: 5828
+Total de arquivos exportados: 51
+Total de linhas de código: 6311

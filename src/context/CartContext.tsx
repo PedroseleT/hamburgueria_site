@@ -24,7 +24,8 @@ interface CartContextType {
   updateQuantity: (id: string, quantity: number) => void;
   updateItemCustomization: (id: string, newCustomization: any, newPrice: number) => void;
   clearCart: () => void;
-  createOrder: (paymentMethod: string, notes?: string, restaurantId?: string) => Promise<any>;
+  // # ALTERAÇÃO: Adicionado userId como parâmetro opcional
+  createOrder: (paymentMethod: string, notes?: string, restaurantId?: string, userId?: string) => Promise<any>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -89,15 +90,15 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem("pedro-burger-cart");
   };
 
-  // 3. Função para criar o pedido enviando para a API (Sem trava de login para teste)
+  // 3. Função para criar o pedido enviando para a API
   const createOrder = async (
     paymentMethod: string, 
     notes: string = "", 
-    restaurantId: string = "cmmcpmk4q000087yw0dvvdonb"
+    restaurantId: string = "cmmcpmk4q000087yw0dvvdonb",
+    userId?: string // # ALTERAÇÃO: Novo parâmetro recebido do Checkout
   ) => {
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-    // Mapeamos os itens para o formato que o Prisma espera
     const formattedItems = cart.map(item => {
       if (!item.productId) {
         throw new Error(`Produto ${item.name} inválido. Remova-o do carrinho.`);
@@ -114,14 +115,14 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          // Removida a necessidade de Authorization para o teste com userId fixo
         },
         body: JSON.stringify({
           items: formattedItems,
           total: Number(total),
           notes,
           paymentMethod,
-          restaurantId, 
+          restaurantId,
+          userId, // # ALTERAÇÃO: Enviamos o ID real para a API
         }),
       });
 

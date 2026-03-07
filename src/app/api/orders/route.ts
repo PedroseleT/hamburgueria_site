@@ -3,41 +3,27 @@ import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
 import { cookies } from "next/headers";
 
-// ── GET — lista todos os pedidos (admin) ──────────────────────────────────────
 export async function GET() {
   try {
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        user: {
-          select: { name: true, email: true, phone: true },
-        },
-        items: {
-          include: {
-            product: {
-              select: { name: true },
-            },
-          },
-        },
+        user: { select: { name: true, email: true, phone: true } },
+        items: { include: { product: { select: { name: true } } } },
       },
     });
     return NextResponse.json(orders);
   } catch (error: any) {
-    console.error("ERRO AO BUSCAR PEDIDOS:", error);
-    return NextResponse.json(
-      { error: "Erro ao buscar pedidos", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao buscar pedidos" }, { status: 500 });
   }
 }
 
-// ── POST — cria um novo pedido ────────────────────────────────────────────────
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { items, total, restaurantId, paymentMethod, notes } = body;
+    // # ALTERAÇÃO: Agora aceitamos o userId que vier no body (do Mercado Pago)
+    const { items, total, restaurantId, paymentMethod, notes, userId: bodyUserId } = body;
 
-    // Lê o userId do cookie auth_token
     const cookieStore = await cookies();
     const token = cookieStore.get("auth_token")?.value;
     let userId: string | null = null;
@@ -46,17 +32,19 @@ export async function POST(request: Request) {
       try {
         const decoded = await verifyToken(token);
         userId = decoded.id;
-      } catch {
-        userId = null;
-      }
+      } catch { userId = null; }
     }
 
-    // Fallback para testes — remova quando auth estiver 100%
-    if (!userId) userId = "cmmclamu60000n1zyss460pap";
+    // # PRIORIDADE DE ID: 1. Token real | 2. ID enviado pelo Checkout | 3. Erro (Segurança)
+    const finalUserId = userId || bodyUserId;
+
+    if (!finalUserId) {
+      return NextResponse.json({ error: "Usuário não identificado" }, { status: 401 });
+    }
 
     const newOrder = await prisma.order.create({
       data: {
-        userId,
+        userId: finalUserId,
         restaurantId,
         total: Number(total),
         paymentMethod: paymentMethod ?? "PIX",
@@ -76,9 +64,6 @@ export async function POST(request: Request) {
     return NextResponse.json(newOrder, { status: 201 });
   } catch (error: any) {
     console.error("ERRO AO CRIAR PEDIDO:", error);
-    return NextResponse.json(
-      { error: "Erro interno ao criar pedido", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro interno ao criar pedido" }, { status: 500 });
   }
 }

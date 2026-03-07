@@ -90,17 +90,27 @@ export default function Carrinho() {
         const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`);
         const checkData = await checkRes.json();
         
-        if (checkData.status === "approved") {
-          clearInterval(interval);
-          setPixStatus("aprovado");
-          
-          const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-          await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId);
-          
-          setTimeout(() => {
-            router.push("/my-orders");
-          }, 3000);
-        }
+        // ... dentro de processPixPayment no arquivo Carrinho
+if (checkData.status === "approved") {
+  clearInterval(interval);
+  setPixStatus("aprovado");
+  
+  const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+
+  // # CORREÇÃO DO ERRO: Usamos (checkData as any) para o TypeScript ignorar o erro de tipagem
+  const realUserId = (checkData as any).external_reference;
+
+  await createOrder(
+    "PIX", 
+    `MercadoPago: ${data.payment_id}`, 
+    restaurantId,
+    realUserId // Agora o ID real do cliente é passado sem erro
+  );
+  
+  setTimeout(() => {
+    router.push("/my-orders");
+  }, 3000);
+}
       }, 5000);
 
       setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
