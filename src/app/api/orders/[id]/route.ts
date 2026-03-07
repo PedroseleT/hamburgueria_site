@@ -3,10 +3,11 @@ import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // Atualizando a tipagem
 ) {
   try {
-    const { id } = params;
+    // ALTERAÇÃO SOLICITADA: await obrigatório no Next.js 15
+    const { id } = await params; 
     const body = await request.json();
     const { status } = body;
 

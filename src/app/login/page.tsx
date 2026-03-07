@@ -98,7 +98,8 @@ const errorBoxStyle: React.CSSProperties = {
   textAlign: "center"
 };
 
-const containerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 20px 40px 20px" };
+// ALTERAÇÃO SOLICITADA: padding bottom aumentado de 40px para 120px para afastar o footer
+const containerStyle: React.CSSProperties = { minHeight: "100vh", backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 20px 120px 20px" };
 const cardStyle: React.CSSProperties = { backgroundColor: "#0a0a0a", padding: "50px 40px", borderRadius: "8px", width: "100%", maxWidth: "420px", border: "1px solid #1a1a1a", textAlign: "center" };
 const brandStyle: React.CSSProperties = { color: "#fff", fontSize: "28px", fontWeight: "900", letterSpacing: "3px", margin: "10px 0" };
 const subtitleStyle: React.CSSProperties = { color: "#666", fontSize: "13px", marginBottom: "40px", textTransform: "uppercase" };

@@ -16,6 +16,12 @@ export default function Carrinho() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // # ALTERAÇÃO SOLICITADA: Estados do PIX, Modal de Pagamento e Feedback de Cópia
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
+  const [pixStatus, setPixStatus] = useState<string>("pendente");
+  const [copied, setCopied] = useState(false);
+
   const baseOptions = {
     molhosGratis: [
       { nome: "Ketchup", preco: 0 },
@@ -37,19 +43,70 @@ export default function Carrinho() {
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  const handleCheckout = async () => {
+  // # ALTERAÇÃO SOLICITADA: Função robusta para copiar o código PIX
+  const handleCopyPix = async () => {
+    if (!pixData) return;
+    try {
+      await navigator.clipboard.writeText(pixData.qrCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback para navegadores de celular que bloqueiam o clipboard direto
+      const textArea = document.createElement("textarea");
+      textArea.value = pixData.qrCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (e) {
+        console.error("Erro ao copiar", e);
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
+  const processPixPayment = async () => {
+    setShowPaymentModal(false); 
     if (cart.length === 0) return;
     setErrorMessage(null);
-
     setIsSubmitting(true);
+
     try {
-      const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-      await createOrder("PIX", "Pedido via Web", restaurantId);
-      router.push("/my-orders"); 
+      const res = await fetch("/api/checkout/pix", {
+        method: "POST",
+        body: JSON.stringify({ items: cart, total: totalGeral }),
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Erro ao gerar PIX");
+
+      setPixData({ qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id });
+      setPixStatus("pendente");
+
+      const interval = setInterval(async () => {
+        const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`);
+        const checkData = await checkRes.json();
+        
+        if (checkData.status === "approved") {
+          clearInterval(interval);
+          setPixStatus("aprovado");
+          
+          const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+          await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId);
+          
+          setTimeout(() => {
+            router.push("/my-orders");
+          }, 3000);
+        }
+      }, 5000);
+
+      setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
+
     } catch (error: any) {
-      console.error("Erro ao finalizar pedido:", error.message);
-      // Exibe o erro de forma elegante na UI
-      setErrorMessage(error.message || "Erro ao processar pedido.");
+      setErrorMessage(error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -102,12 +159,42 @@ export default function Carrinho() {
   };
 
   return (
-    <main style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingTop: '80px', fontFamily: "'Oswald', sans-serif" }}>
+    <main style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingTop: 0, fontFamily: "'Oswald', sans-serif" }}>
       <style jsx global>{`
         @media (max-width: 600px) {
           .cart-item { flex-direction: column !important; align-items: flex-start !important; }
           .cart-item img { width: 100% !important; height: 180px !important; margin-bottom: 15px; }
           .qty-row { width: 100% !important; justify-content: space-between !important; margin-top: 15px !important; }
+        }
+
+        /* # ALTERAÇÃO SOLICITADA: Layout responsivo para o Modal do PIX */
+        .pix-responsive-layout {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+        }
+        .pix-qr-container {
+          background: #fff;
+          padding: 15px;
+          border-radius: 12px;
+          display: inline-block;
+        }
+        .pix-text-section {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+        }
+        @media (min-width: 768px) {
+          .pix-responsive-layout {
+            flex-direction: row;
+            align-items: flex-start;
+            text-align: left;
+          }
+          .pix-text-section {
+            flex: 1;
+          }
         }
       `}</style>
 
@@ -190,7 +277,7 @@ export default function Carrinho() {
               )}
               
               <button 
-                onClick={handleCheckout} 
+                onClick={() => setShowPaymentModal(true)} 
                 disabled={isSubmitting}
                 style={{
                   ...checkoutBtn,
@@ -255,6 +342,108 @@ export default function Carrinho() {
             <div style={footerModalStyles}>
                 <button onClick={handleSaveEdit} style={confirmBtnStyles}>CONFIRMAR ALTERAÇÕES</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* # ALTERAÇÃO SOLICITADA: Modal de Formas de Pagamento */}
+      {showPaymentModal && (
+        <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}>
+          <div className="modal-content" style={{ ...modalContentStyles, padding: '30px' }}>
+            <button onClick={() => setShowPaymentModal(false)} style={closeBtnStyles}><X size={20} /></button>
+            <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#fff', fontStyle: 'italic', marginBottom: '20px', textAlign: 'center', textTransform: 'uppercase' }}>
+              Formas de Pagamento
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <button
+                onClick={processPixPayment}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '20px', background: '#111', border: '1px solid #32BCAD', borderRadius: '12px',
+                  cursor: 'pointer', transition: 'all 0.2s', width: '100%', textAlign: 'left'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ background: '#32BCAD22', padding: '10px', borderRadius: '8px' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6.32625 5.50361C7.26555 4.56431 8.7885 4.56431 9.72781 5.50361L12.001 7.77684L14.2742 5.50361C15.2135 4.56431 16.7365 4.56431 17.6758 5.50361C18.6151 6.44292 18.6151 7.96587 17.6758 8.90517L15.4025 11.1784L17.6758 13.4516C18.6151 14.3909 18.6151 15.9139 17.6758 16.8532C16.7365 17.7925 15.2135 17.7925 14.2742 16.8532L12.001 14.58L9.72781 16.8532C8.7885 17.7925 7.26555 17.7925 6.32625 16.8532C5.38694 15.9139 5.38694 14.3909 6.32625 13.4516L8.59948 11.1784L6.32625 8.90517C5.38694 7.96587 5.38694 6.44292 6.32625 5.50361Z" fill="#32BCAD"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', color: '#fff', fontWeight: 'bold', fontSize: '16px', marginBottom: '4px' }}>PIX (Mercado Pago)</span>
+                    <span style={{ color: '#888', fontSize: '12px' }}>Aprovação imediata</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* # ALTERAÇÃO SOLICITADA: Modal do PIX Responsivo com Cópia aprimorada */}
+      {pixData && (
+        <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget && pixStatus !== 'aprovado') setPixData(null); }}>
+          <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '650px' }}>
+            <h2 style={{ 
+              fontSize: '28px', fontWeight: '900', fontStyle: 'italic', marginBottom: '10px',
+              color: pixStatus === "aprovado" ? '#22c55e' : '#b91c1c'
+            }}>
+              {pixStatus === "aprovado" ? "PAGAMENTO APROVADO! 🔥" : "PAGUE VIA PIX"}
+            </h2>
+            
+            {pixStatus === "pendente" ? (
+              <div style={{ marginTop: '20px' }}>
+                <p style={{ color: '#888', fontSize: '14px', marginBottom: '30px' }}>Escaneie o QR Code ou use o botão Copia e Cola.</p>
+                
+                <div className="pix-responsive-layout">
+                  <div className="pix-qr-container">
+                    <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '200px', height: '200px', display: 'block' }} />
+                  </div>
+                  
+                  <div className="pix-text-section">
+                    <div className="custom-scrollbar" style={{ background: '#111', border: '1px solid #333', padding: '15px', borderRadius: '8px', wordBreak: 'break-all', fontSize: '12px', color: '#aaa', maxHeight: '100px', overflowY: 'auto' }}>
+                      {pixData.qrCode}
+                    </div>
+                    
+                    <button 
+                      onClick={handleCopyPix} 
+                      style={{ 
+                        ...confirmBtnStyles, 
+                        fontSize: '14px', 
+                        padding: '16px',
+                        background: copied ? '#22c55e' : '#b91c1c',
+                        boxShadow: copied ? '0 4px 15px rgba(34, 197, 94, 0.3)' : '0 4px 15px rgba(185, 28, 28, 0.3)',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      {copied ? "✅ CÓDIGO COPIADO!" : "📋 COPIAR CÓDIGO PIX"}
+                    </button>
+                    
+                    <button onClick={() => setPixData(null)} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '10px', cursor: 'pointer', fontWeight: 'bold', width: '100%', padding: '10px' }}>
+                      Cancelar e voltar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // ALTERAÇÃO SOLICITADA: Layout profissional e centralizado para o status "Aprovado"
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 0', animation: 'fadeIn 0.5s ease' }}>
+                <div style={{ width: '90px', height: '90px', background: 'rgba(34, 197, 94, 0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 0 30px rgba(34, 197, 94, 0.2)' }}>
+                  <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <h3 style={{ color: '#fff', fontSize: '22px', fontWeight: '900', marginBottom: '10px', textTransform: 'uppercase' }}>Tudo certo!</h3>
+                <p style={{ color: '#aaa', fontSize: '15px', marginBottom: '35px', textAlign: 'center', maxWidth: '85%', lineHeight: '1.5' }}>
+                  Recebemos o seu pagamento. Seu pedido já está na grelha sendo preparado pela nossa equipe!
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#b91c1c', fontWeight: 'bold', background: '#111', padding: '12px 24px', borderRadius: '30px', border: '1px solid #222' }}>
+                  <Loader2 className="animate-spin" size={18} />
+                  <span style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>Redirecionando...</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

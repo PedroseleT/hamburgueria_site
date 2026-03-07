@@ -35,11 +35,11 @@ export default function HomeMobile() {
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState("");
   const [showWhatsapp, setShowWhatsapp] = useState(true);
-  // ALTERAÇÃO SOLICITADA: Estado para controlar a barra de endereço
   const [showAddressBar, setShowAddressBar] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Lê role do cookie
   useEffect(() => {
     try {
       const match = document.cookie.match(/user_session=([^;]+)/);
@@ -50,7 +50,7 @@ export default function HomeMobile() {
     } catch { setIsAdmin(false); }
   }, []);
 
-  // Carrega endereços salvos do localStorage
+  // Carrega endereços do localStorage
   useEffect(() => {
     const saved = localStorage.getItem("flame_enderecos");
     const activeIdx = localStorage.getItem("flame_endereco_ativo");
@@ -67,47 +67,32 @@ export default function HomeMobile() {
     }
   }, []);
 
+  // Scroll: esconde barra de endereço e WhatsApp ao rolar para baixo
   useEffect(() => {
     let lastScroll = 0;
     const handleScroll = () => {
       const current = window.scrollY;
-      // ALTERAÇÃO SOLICITADA: Esconde itens ao rolar para baixo
       const isScrollingUp = current <= lastScroll || current < 50;
       setShowWhatsapp(isScrollingUp);
       setShowAddressBar(isScrollingUp);
-      if (!isScrollingUp) setShowAddressPanel(false); // Fecha o painel se rolar para baixo
+      if (!isScrollingUp) setShowAddressPanel(false);
       lastScroll = current;
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Carrega endereços salvos do localStorage
+  // ALTERAÇÃO SOLICITADA: Oculta o WhatsApp quando o menu do BottomNavMobile for aberto
   useEffect(() => {
-    const saved = localStorage.getItem("flame_enderecos");
-    const activeIdx = localStorage.getItem("flame_endereco_ativo");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.length > 0) {
-          setEnderecosSalvos(parsed);
-          const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
-          setEnderecoAtivoIdx(idx);
-          setEnderecoSalvo(parsed[idx]);
-        }
-      } catch (e) { console.error("Erro ao ler localStorage", e); }
-    }
-  }, []);
-
-  useEffect(() => {
-    let lastScroll = 0;
-    const handleScroll = () => {
-      const current = window.scrollY;
-      setShowWhatsapp(current <= lastScroll || current < 50);
-      lastScroll = current;
+    const handleMenuEvent = (e: any) => {
+      if (e.detail) {
+        setShowWhatsapp(false); // Oculta ao abrir
+      } else {
+        setShowWhatsapp(true);  // Mostra ao fechar
+      }
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("toggleMenuMobile", handleMenuEvent);
+    return () => window.removeEventListener("toggleMenuMobile", handleMenuEvent);
   }, []);
 
   const produtos = [
@@ -212,12 +197,6 @@ export default function HomeMobile() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const navItems = [
-    { href: "/", label: "INÍCIO", icon: null },
-    { href: "/my-orders", label: "PEDIDOS", icon: <ClipboardList size={22} /> },
-    { href: "/perfil", label: "PERFIL", icon: <User size={22} /> },
-  ];
-
   return (
     <>
       <style>{`
@@ -237,7 +216,7 @@ export default function HomeMobile() {
 
       <main style={{ backgroundColor: "#080808", minHeight: "100svh", color: "#fff", fontFamily: "sans-serif", paddingTop: 0, paddingBottom: "calc(72px + env(safe-area-inset-bottom))", overflowX: "hidden" }}>
 
-        {/* ALTERAÇÃO SOLICITADA: barra de endereço reativa ao scroll */}
+        {/* ── Barra de endereço fixa ── */}
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 1001,
           transition: "opacity 0.3s ease, transform 0.3s ease",
@@ -245,8 +224,11 @@ export default function HomeMobile() {
           opacity: showAddressBar ? 1 : 0,
           pointerEvents: showAddressBar ? "auto" : "none",
         }}>
-          {/* Barra principal */}
-          <button onClick={() => enderecoSalvo ? setShowAddressPanel(!showAddressPanel) : setShowCepModal(true)} style={{
+          <button onClick={() => {
+  const isLogged = document.cookie.includes("user_session");
+  if (!isLogged) { router.push("/login?callback=/"); return; }
+  enderecoSalvo ? setShowAddressPanel(!showAddressPanel) : setShowCepModal(true);
+}} style={{
             width: "100%", background: "#111", border: "none", borderBottom: "1px solid #1a1a1a",
             padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer",
           }}>
@@ -323,15 +305,34 @@ export default function HomeMobile() {
                           <span style={{ background: "#b91c1c", color: "#fff", fontSize: 9, fontWeight: 900, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>ATIVO</span>
                         )}
                         <button onClick={(e) => { e.stopPropagation(); setEditingIdx(idx); setEditingEndereco({ ...end }); }}
-                          style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
-                          EDITAR
-                        </button>
+  style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
+  EDITAR
+</button>
+<button onClick={(e) => {
+  e.stopPropagation();
+  const updated = enderecosSalvos.filter((_, i) => i !== idx);
+  setEnderecosSalvos(updated);
+  localStorage.setItem("flame_enderecos", JSON.stringify(updated));
+  if (updated.length === 0) {
+    setEnderecoSalvo(null);
+    setEnderecoAtivoIdx(0);
+    localStorage.removeItem("flame_enderecos");
+    localStorage.removeItem("flame_endereco_ativo");
+    setShowAddressPanel(false);
+  } else {
+    const newIdx = Math.min(enderecoAtivoIdx, updated.length - 1);
+    setEnderecoAtivoIdx(newIdx);
+    setEnderecoSalvo(updated[newIdx]);
+    localStorage.setItem("flame_endereco_ativo", String(newIdx));
+  }
+}}
+  style={{ background: "none", border: "none", color: "#b91c1c55", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
+  EXCLUIR
+</button>
                       </div>
                     )}
                   </div>
                 ))}
-
-                {/* Botão adicionar novo endereço */}
                 <button onClick={() => { setShowAddressPanel(false); setEditingIdx(null); setShowCepModal(true); }}
                   style={{ width: "100%", background: "none", border: "1px dashed #333", borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
                   <Plus size={14} color="#555" />
@@ -365,7 +366,11 @@ export default function HomeMobile() {
 
         {/* ── Botão taxa ── */}
         <div style={{ padding: "0 16px", marginTop: 24 }}>
-          <button onClick={() => setShowCepModal(true)} style={{ width: "100%", backgroundColor: "#171717", border: "1px solid #262626", borderRadius: 12, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", cursor: "pointer" }}>
+          <button onClick={() => {
+  const isLogged = document.cookie.includes("user_session");
+  if (!isLogged) { router.push("/login?callback=/"); return; }
+  setShowCepModal(true);
+}} style={{ width: "100%", backgroundColor: "#171717", border: "1px solid #262626", borderRadius: 12, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", cursor: "pointer" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <MapPin size={20} color="#a3a3a3" />
               <span style={{ fontWeight: 500, fontSize: 14 }}>Calcular taxa e tempo de entrega</span>
@@ -466,14 +471,14 @@ export default function HomeMobile() {
         {/* ── WhatsApp ── */}
         <a href="https://wa.me/5519992676339" target="_blank" rel="noopener noreferrer"
           style={{
-            position: "fixed", bottom: "calc(82px + env(safe-area-inset-bottom))", right: 45, zIndex: 9980,
+            position: "fixed", bottom: "calc(82px + env(safe-area-inset-bottom))", right: 48  , zIndex: 9980,
             width: 62, height: 62, borderRadius: "50%", background: "#25D366",
             display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 6px 24px rgba(37,211,102,0.45)", textDecoration: "none",
-            opacity: showWhatsapp ? 1 : 0,
-            transform: showWhatsapp ? "scale(1)" : "scale(0.8)",
+            opacity: showWhatsapp && !showMenu ? 1 : 0,
+            transform: showWhatsapp && !showMenu ? "scale(1)" : "scale(0.8)",
             transition: "opacity 0.3s ease, transform 0.3s ease",
-            pointerEvents: showWhatsapp ? "auto" : "none",
+            pointerEvents: showWhatsapp && !showMenu ? "auto" : "none",
           }}>
           <svg viewBox="0 0 24 24" width="36" height="36" fill="white" xmlns="http://www.w3.org/2000/svg">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
@@ -574,7 +579,6 @@ export default function HomeMobile() {
                     <div style={{ borderLeft: "2px solid #b91c1c", paddingLeft: 12, marginBottom: 16 }}>
                       <p style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: 0 }}>Confirme seu endereço</p>
                     </div>
-
                     <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
                       <div style={{ flex: 1 }}>
                         <input placeholder="Rua / Avenida" value={endereco.rua}
@@ -589,21 +593,18 @@ export default function HomeMobile() {
                         {enderecoEditado && !endereco.numero.trim() && <p style={{ color: "#b91c1c", fontSize: 11, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
                       </div>
                     </div>
-
                     <div style={{ marginBottom: 4 }}>
                       <input placeholder="Bairro" value={endereco.bairro}
                         onChange={e => { setEndereco({ ...endereco, bairro: e.target.value }); setEnderecoEditado(true); }}
                         style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${enderecoEditado && !endereco.bairro.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "10px 12px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "sans-serif", boxSizing: "border-box" }} />
                       {enderecoEditado && !endereco.bairro.trim() && <p style={{ color: "#b91c1c", fontSize: 11, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
                     </div>
-
                     <div style={{ marginBottom: 16 }}>
                       <input placeholder="Cidade - UF" value={endereco.cidade}
                         onChange={e => { setEndereco({ ...endereco, cidade: e.target.value }); setEnderecoEditado(true); }}
                         style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${enderecoEditado && !endereco.cidade.trim() ? "#b91c1c" : "#262626"}`, borderRadius: 8, padding: "10px 12px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "sans-serif", boxSizing: "border-box" }} />
                       {enderecoEditado && !endereco.cidade.trim() && <p style={{ color: "#b91c1c", fontSize: 11, fontWeight: 700, margin: "4px 0 0" }}>Obrigatório</p>}
                     </div>
-
                     {endereco.rua.trim() && endereco.numero.trim() && endereco.bairro.trim() && endereco.cidade.trim() && (
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                         <div style={{ background: "#0a0a0a", borderRadius: 8, padding: 12, textAlign: "center", border: "1px solid #1a1a1a" }}>
@@ -616,7 +617,6 @@ export default function HomeMobile() {
                         </div>
                       </div>
                     )}
-
                     <button onClick={saveAndClose}
                       style={{ width: "100%", marginTop: 4, background: "#b91c1c", border: "none", color: "#fff", padding: "13px", borderRadius: 8, fontWeight: 900, fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 6px 20px #b91c1c33" }}>
                       SALVAR ENDEREÇO
@@ -629,77 +629,6 @@ export default function HomeMobile() {
         )}
 
       </main>
-
-      <nav style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9970,
-        background: "#0a0a0a", borderTop: "1px solid #1a1a1a",
-        display: "flex", alignItems: "stretch",
-        paddingBottom: "env(safe-area-inset-bottom)",
-        height: "calc(60px + env(safe-area-inset-bottom))",
-      }}>
-        {/* Esquerda: Início, Pedidos, Perfil */}
-        <Link href="/" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/" ? "#b91c1c" : "#555", borderTop: pathname === "/" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ position: "relative", display: "inline-flex", filter: pathname === "/" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}>
-            <Home size={22} />
-            {totalItens > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: "#b91c1c", color: "#fff", fontSize: 8, fontWeight: 900, width: 14, height: 14, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{totalItens}</span>}
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>INÍCIO</span>
-        </Link>
-        <Link href="/my-orders" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/my-orders" ? "#b91c1c" : "#555", borderTop: pathname === "/my-orders" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ filter: pathname === "/my-orders" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}><ClipboardList size={22} /></span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>PEDIDOS</span>
-        </Link>
-        <Link href="/perfil" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/perfil" ? "#b91c1c" : "#555", borderTop: pathname === "/perfil" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ filter: pathname === "/perfil" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}><User size={22} /></span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>PERFIL</span>
-        </Link>
-
-        {/* Separador vertical */}
-        <div style={{ width: 1, background: "#2a2a2a", margin: "12px 0" }} />
-
-        {/* Carrinho */}
-        <Link href="/carrinho" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, textDecoration: "none", color: pathname === "/carrinho" ? "#b91c1c" : "#555", borderTop: pathname === "/carrinho" ? "2px solid #b91c1c" : "2px solid transparent", transition: "color 0.2s" }}>
-          <span style={{ position: "relative", display: "inline-flex", filter: pathname === "/carrinho" ? "drop-shadow(0 0 6px #b91c1c88)" : "none" }}>
-            <ShoppingCart size={22} />
-            {totalItens > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: "#b91c1c", color: "#fff", fontSize: 8, fontWeight: 900, width: 14, height: 14, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>{totalItens}</span>}
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>CARRINHO</span>
-        </Link>
-
-        {/* Três pontos */}
-        <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <button onClick={() => setShowMenu(!showMenu)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: showMenu ? "#b91c1c" : "#555", borderTop: showMenu ? "2px solid #b91c1c" : "2px solid transparent", width: "100%", height: "100%", justifyContent: "center", transition: "color 0.2s" }}>
-            <MoreVertical size={22} />
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>MAIS</span>
-          </button>
-
-          {/* Dropdown menu */}
-          {showMenu && (
-            <>
-              <div onClick={() => setShowMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 9968 }} />
-              <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "#111", border: "1px solid #262626", borderRadius: 12, overflow: "hidden", minWidth: 180, zIndex: 9969, boxShadow: "0 -8px 30px rgba(0,0,0,0.6)" }}>
-                {[
-                  { href: "/", label: "Início" },
-                  { href: "/cardapio", label: "Cardápio" },
-                  { href: "/sobre", label: "Sobre Nós" },
-                  { href: "/contato", label: "Fale Conosco" },
-                  { href: "/my-orders", label: "Meus Pedidos" },
-                ].map(item => (
-                  <Link key={item.href} href={item.href} onClick={() => setShowMenu(false)} style={{ display: "block", padding: "13px 16px", color: pathname === item.href ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", borderBottom: "1px solid #1a1a1a", background: pathname === item.href ? "#b91c1c12" : "none" }}>
-                    {item.label}
-                  </Link>
-                ))}
-                {isAdmin && (
-                  <Link href="/admin" onClick={() => setShowMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 16px", color: pathname === "/admin" ? "#b91c1c" : "#ccc", fontSize: 13, fontWeight: 600, textDecoration: "none", background: pathname === "/admin" ? "#b91c1c12" : "none" }}>
-                    <LayoutDashboard size={14} />
-                    Painel Admin
-                  </Link>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </nav>
     </>
   );
 }

@@ -14,7 +14,6 @@ export default function CardapioCompleto() {
   const [customOptions, setCustomOptions] = useState<any[]>([]);
   const [observacao, setObservacao] = useState("");
 
-  // LISTA DE PRODUTOS
   const produtos = [
     { id: "cmmctdp4l0001nsgzj9x6zi5y", nome: "Bacon Handcrafted", desc: "Blend bovino 180g, cheddar e bacon.", preco: 38.90, foto: "/person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg" },
     { id: "cmmcqmzlf0000nsgza56yn8g1", nome: "Smoky Texas Grill", desc: "Hambúrguer na brasa e molho especial.", preco: 42.00, foto: "/grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg" },
@@ -28,13 +27,11 @@ export default function CardapioCompleto() {
   ];
 
   const handleOpenModal = (p: any) => {
-    // Verifica se o usuário está logado via cookie
     const isLogged = document.cookie.includes("user_session");
     if (!isLogged) { 
       router.push("/login?callback=/cardapio"); 
       return; 
     }
-    
     setSelectedProduct(p);
     setQuantity(1);
     setCustomOptions([]);
@@ -63,10 +60,9 @@ export default function CardapioCompleto() {
 
   const handleConfirmarPedido = () => {
     const adicionalTotal = customOptions.reduce((acc, curr) => acc + (curr.preco * curr.qtd), 0);
-    
     addToCart({
       id: `${selectedProduct.id}-${Date.now()}`,
-      productId: selectedProduct.id, // Adicionado para manter consistência com o banco
+      productId: selectedProduct.id,
       name: selectedProduct.nome,
       price: selectedProduct.preco + adicionalTotal,
       image: selectedProduct.foto,
@@ -76,13 +72,14 @@ export default function CardapioCompleto() {
         obs: observacao
       }
     });
-    
     setSelectedProduct(null);
     router.push("/carrinho");
   };
 
   return (
-    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: '80px', minHeight: '100vh' }}>
+    <div style={{ backgroundColor: "#0a0a0a", color: "#fff", paddingBottom: "120px", paddingTop: "80px", minHeight: '100vh' }}>
+      
+      {/* CABEÇALHO SINCRONIZADO COM O FALE CONOSCO */}
       <section style={headerSection}>
         <span style={subtitleStyle}>Escolha seu Burger</span>
         <h1 style={titleStyle}>CARDÁPIO</h1>
@@ -92,16 +89,16 @@ export default function CardapioCompleto() {
         <div className="menu-grid">
           {produtos.map((p) => (
             <div key={p.id} className="card-item" style={cardStyle} onClick={() => handleOpenModal(p)}>
-              <div style={imgWrapperStyle}>
+              <div className="img-wrapper" style={imgWrapperStyle}>
                 <img src={p.foto} alt={p.nome} style={imgStyle} />
               </div>
-              <h3 style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px', textTransform: 'uppercase' }}>{p.nome}</h3>
-              <p style={{ color: "#888", fontSize: "13px", margin: "5px 0", minHeight: "32px" }}>{p.desc}</p>
-              <div style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
+              <h3 className="card-title" style={{ marginTop: "15px", fontWeight: '900', fontSize: '20px', textTransform: 'uppercase' }}>{p.nome}</h3>
+              <p className="card-desc" style={{ color: "#888", fontSize: "13px", margin: "5px 0", minHeight: "32px" }}>{p.desc}</p>
+              <div className="card-price" style={{ color: "#b91c1c", fontWeight: "900", fontSize: "22px", margin: "10px 0" }}>
                 R$ {p.preco.toFixed(2).replace(".", ",")}
               </div>
               <button className="btn-pedir-hover" style={btnPedirStyle}>
-                <ShoppingBasket size={18} /> PEDIR AGORA
+                <ShoppingBasket size={18} /> PEDIR
               </button>
             </div>
           ))}
@@ -136,7 +133,7 @@ export default function CardapioCompleto() {
                 </div>
               ))}
 
-              <textarea placeholder="Observações..." value={observacao} onChange={(e)=>setObservacao(e.target.value)} style={textareaStyle} />
+              <textarea placeholder="Observações..." value={observacao} onChange={(e)=>setObservacao(e.target.value)} style={modalTextareaStyle} />
 
               <div style={footerModalStyle}>
                 <div style={qtyContainerStyle}>
@@ -168,14 +165,48 @@ export default function CardapioCompleto() {
         .btn-confirmar:hover { background: #991b1b; }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; }
+
+        @media (max-width: 768px) {
+          .menu-grid { grid-template-columns: 1fr; gap: 20px; }
+          .card-item { padding: 20px !important; }
+        }
       `}</style>
     </div>
   );
 }
 
-const headerSection: React.CSSProperties = { height: "300px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", backgroundSize: "cover", backgroundPosition: 'center' };
-const subtitleStyle: React.CSSProperties = { color: '#fff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '4px', marginBottom: '10px' };
-const titleStyle: React.CSSProperties = { fontSize: '70px', fontWeight: '900', color: '#b91c1c', fontFamily: 'Impact, sans-serif' };
+// ESTILOS SINCRONIZADOS COM O "FALE CONOSCO"
+const headerSection: React.CSSProperties = { 
+  height: "300px", 
+  width: "100%", 
+  display: "flex", 
+  flexDirection: "column", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  backgroundImage: "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/banner-fome.jpg')", 
+  backgroundSize: "cover", 
+  backgroundPosition: 'center',
+  margin: 0
+};
+
+const subtitleStyle: React.CSSProperties = { 
+  color: '#fff', 
+  fontSize: '14px', 
+  textTransform: 'uppercase', 
+  letterSpacing: '4px', 
+  marginBottom: '10px' 
+};
+
+const titleStyle: React.CSSProperties = { 
+  fontSize: '70px', 
+  fontWeight: '900', 
+  color: '#b91c1c', 
+  margin: 0, 
+  textTransform: 'uppercase', 
+  fontFamily: 'Impact, sans-serif' 
+};
+
+// OUTROS ESTILOS DE COMPONENTES
 const cardStyle: React.CSSProperties = { background: "#111", padding: "30px 20px", borderRadius: "15px", border: "1px solid #222", textAlign: "center", cursor: 'pointer' };
 const imgWrapperStyle: React.CSSProperties = { width: '100%', height: '200px', overflow: 'hidden', borderRadius: '10px', marginBottom: '10px' };
 const imgStyle: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
@@ -184,7 +215,7 @@ const sectionTitleStyle: React.CSSProperties = { fontSize: '12px', borderLeft: '
 const optionRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #222' };
 const counterStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', background: '#000', padding: '5px 12px', borderRadius: '20px', border: '1px solid #333' };
 const miniBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', display: 'flex', alignItems: 'center' };
-const textareaStyle: React.CSSProperties = { width: '100%', background: '#000', border: '1px solid #333', borderRadius: '8px', padding: '12px', color: '#fff', height: '60px', margin: '15px 0', fontSize: '13px' };
+const modalTextareaStyle: React.CSSProperties = { width: '100%', background: '#000', border: '1px solid #333', borderRadius: '8px', padding: '12px', color: '#fff', height: '60px', margin: '15px 0', fontSize: '13px' };
 const footerModalStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', borderTop: '1px solid #222', paddingTop: '15px' };
 const qtyContainerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#1a1a1a', padding: '10px 15px', borderRadius: '10px' };
 const qtyBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', display: 'flex', alignItems: 'center' };

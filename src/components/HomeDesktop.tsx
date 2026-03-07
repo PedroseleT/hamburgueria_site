@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { MessageCircle, X, Plus, Minus, MapPin, Search, ChevronDown } from 'lucide-react';
+import { FaWhatsapp } from "react-icons/fa";
+import { MapPin, Search, X, Plus, Minus } from "lucide-react";
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
@@ -254,7 +255,11 @@ export default function HomeDesktop() {
             
             {/* Barra de Endereço */}
             <div style={{ flex: '1 1 300px', display: 'flex', justifyContent: 'flex-start' }}>
-              <button onClick={() => enderecoSalvo ? setShowAddressPanel(true) : setShowCepModal(true)} style={{ background: "transparent", border: "none", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", padding: 0 }}>
+              <button onClick={() => {
+                const isLogged = document.cookie.includes("user_session");
+                if (!isLogged) { router.push("/login?callback=/"); return; }
+                enderecoSalvo ? setShowAddressPanel(true) : setShowCepModal(true);
+              }}>
                 <MapPin size={24} color="#b91c1c" style={{ flexShrink: 0 }} />
                 <div style={{ overflow: 'hidden' }}>
                   {enderecoSalvo ? (
@@ -499,7 +504,7 @@ export default function HomeDesktop() {
           pointerEvents: showWhatsapp ? "auto" : "none",
           boxShadow: "0 6px 24px rgba(37,211,102,0.45)"
         }}>
-        <MessageCircle size={35} color="#fff" />
+        <FaWhatsapp size={35} color="#fff" />
       </a>
     </main>
   );

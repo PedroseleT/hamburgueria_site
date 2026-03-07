@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import BottomNavMobile from "@/components/BottomNavMobile";
 import { Oswald } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -52,7 +53,7 @@ export default function RootLayout({
           <main style={{ flex: 1 }}>
             {children}
           </main>
-
+          <BottomNavMobile />
           <Footer />
           <CookieBanner />
         </CartProvider>
