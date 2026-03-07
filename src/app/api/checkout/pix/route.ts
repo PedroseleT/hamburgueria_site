@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
+import { cookies } from "next/headers"; // # ADICIONADO: Para identificar o usuário
 
-// Inicializa o Mercado Pago (garanta que a variável está no seu .env)
 const client = new MercadoPagoConfig({ 
   accessToken: process.env.MP_ACCESS_TOKEN || "",
   options: { timeout: 5000 } 
@@ -9,16 +9,22 @@ const client = new MercadoPagoConfig({
 
 const payment = new Payment(client);
 
-// ROTA PARA CRIAR A COBRANÇA PIX
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { items, total } = body;
 
-    // ALTERAÇÃO TEMPORÁRIA PARA TESTE: Valor travado em 1 centavo
-    const transactionAmount = 0.01; // Depois do teste, volte para: Number(Number(total).toFixed(2));
+    // # ALTERAÇÃO SOLICITADA: Captura o ID do usuário logado através do cookie
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get("user_session");
+    
+    if (!sessionCookie || !sessionCookie.value) {
+      return NextResponse.json({ error: "Você precisa estar logado para pedir." }, { status: 401 });
+    }
 
-    // Monta a descrição com base nos itens do carrinho
+    const userId = sessionCookie.value;
+
+    const transactionAmount = 0.01; 
     const description = `Pedido: ${items.map((i: any) => `${i.quantity}x ${i.name}`).join(', ')}`;
 
     // Criando a cobrança no Mercado Pago
@@ -27,10 +33,16 @@ export async function POST(request: Request) {
         transaction_amount: transactionAmount,
         description: description,
         payment_method_id: "pix",
+        // # O SEGREDO ESTÁ AQUI: Enviamos o userId para o MP
+        external_reference: userId, 
         payer: {
-          email: "cliente_loja@sandbox.mercadopago.com", // Para testes ou fallback
+          email: "cliente_loja@sandbox.mercadopago.com", 
           first_name: "Cliente",
           last_name: "Web"
+        },
+        // Metadata ajuda a guardar informações extras que o Webhook pode ler
+        metadata: {
+          user_id: userId
         }
       }
     });
@@ -43,7 +55,7 @@ export async function POST(request: Request) {
         status: result.status
       });
     } else {
-      return NextResponse.json({ error: "O pagamento não ficou pendente. Status: " + result.status }, { status: 400 });
+      return NextResponse.json({ error: "O pagamento não ficou pendente." }, { status: 400 });
     }
 
   } catch (error: any) {
@@ -52,10 +64,8 @@ export async function POST(request: Request) {
   }
 }
 
-// ROTA PARA CONSULTAR SE O PIX FOI PAGO
 export async function GET(request: Request) {
   try {
-    // Pega o ID que o carrinho mandou na URL (ex: ?id=123456789)
     const { searchParams } = new URL(request.url);
     const paymentId = searchParams.get("id");
 
@@ -63,12 +73,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "ID do pagamento não fornecido." }, { status: 400 });
     }
 
-    // Busca as informações do pagamento pelo ID
     const result = await payment.get({ id: paymentId });
 
     return NextResponse.json({
-      status: result.status, // "approved" é o que queremos!
-      payment_id: result.id
+      status: result.status,
+      payment_id: result.id,
+      // # Opcional: retornar o external_reference para confirmar o dono
+      external_reference: result.external_reference 
     });
 
   } catch (error: any) {
