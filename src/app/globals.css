@@ -32,3 +32,9 @@ img {
   display: block;
   max-width: 100%;
 }
+
+/* ALTERAÇÃO SOLICITADA: esconde navbar superior no mobile */
+.desktop-navbar { display: none; }
+@media (min-width: 992px) {
+  .desktop-navbar { display: block; }
+}
