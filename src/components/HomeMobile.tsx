@@ -466,7 +466,7 @@ export default function HomeMobile() {
         {/* ── WhatsApp ── */}
         <a href="https://wa.me/5519992676339" target="_blank" rel="noopener noreferrer"
           style={{
-            position: "fixed", bottom: "calc(82px + env(safe-area-inset-bottom))", right: 33, zIndex: 9980,
+            position: "fixed", bottom: "calc(82px + env(safe-area-inset-bottom))", right: 45, zIndex: 9980,
             width: 62, height: 62, borderRadius: "50%", background: "#25D366",
             display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 6px 24px rgba(37,211,102,0.45)", textDecoration: "none",
