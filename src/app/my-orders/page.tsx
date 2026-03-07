@@ -23,9 +23,9 @@ interface Order {
 
 // ─── Status config ──────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string; icon: React.ReactNode; step: number }> = {
-  RECEIVED:         { label: "Recebido",          color: "#f59e0b", glow: "#f59e0b55", icon: <Flame size={13} />,        step: 1 },
+  RECEIVED:         { label: "Recebido",          color: "#f59e0b", glow: "#f59e0b55", icon: <Flame size={13} />,         step: 1 },
   PREPARING:        { label: "Em Preparo",         color: "#f97316", glow: "#f9731655", icon: <ChefHat size={13} />,      step: 2 },
-  OUT_FOR_DELIVERY: { label: "Saiu para Entrega",  color: "#3b82f6", glow: "#3b82f655", icon: <Bike size={13} />,         step: 3 },
+  OUT_FOR_DELIVERY: { label: "Saiu para Entrega",  color: "#3b82f6", glow: "#3b82f655", icon: <Bike size={13} />,          step: 3 },
   DONE:             { label: "Entregue",            color: "#22c55e", glow: "#22c55e55", icon: <CheckCircle2 size={13} />, step: 4 },
   CANCELLED:        { label: "Cancelado",           color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
 };
@@ -46,7 +46,6 @@ function OrderProgress({ status }: { status: string }) {
         const active = cfg.step >= s.step;
         const current = cfg.step === s.step;
         
-        // Verifica se a linha que conecta os pontos deve estar animada
         const isLineActive = cfg.step > s.step;
         const isOrderDone = cfg.step === 4;
 
@@ -61,7 +60,6 @@ function OrderProgress({ status }: { status: string }) {
               </span>
             </div>
             {i < steps.length - 1 && (
-              // ALTERAÇÃO SOLICITADA: Correção do conflito de estilos (React Warning)
               <div style={{ 
                 flex: 1, 
                 height: 3, 
@@ -165,32 +163,25 @@ export default function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ALTERAÇÃO SOLICITADA: redireciona para login e faz polling (atualização automática)
   useEffect(() => {
-    const isLogged = document.cookie.includes("user_session");
-    if (!isLogged) { router.push("/login?callback=/my-orders"); return; }
-
+    // Busca os pedidos do banco de dados
     const fetchOrders = () => {
       fetch("/api/orders/user")
         .then((res) => res.json())
         .then((data) => { 
           setOrders(Array.isArray(data) ? data : []); 
-          setLoading(false); // Tira o loading apenas na primeira vez
+          setLoading(false);
         })
         .catch(() => setLoading(false));
     };
 
-    // Busca imediatamente ao abrir a tela
     fetchOrders();
 
-    // Cria um loop invisível que atualiza os pedidos a cada 10 segundos
-    const interval = setInterval(() => {
-      fetchOrders();
-    }, 10000);
+    // Loop de atualização (Polling) a cada 5 segundos para refletir mudanças do Admin
+    const interval = setInterval(fetchOrders, 5000);
 
-    // Limpa o loop se o usuário sair da página (evita travar o celular)
     return () => clearInterval(interval);
-  }, [router]);
+  }, []);
 
   return (
     <>
@@ -198,7 +189,6 @@ export default function MyOrdersPage() {
         @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         @keyframes flamePulse { 0%, 100% { text-shadow: 0 0 20px #b91c1c88; } 50% { text-shadow: 0 0 40px #b91c1ccc, 0 0 80px #b91c1c44; } }
-        /* ALTERAÇÃO SOLICITADA: Animação de brilho nas barras */
         @keyframes shimmerBar {
           0% { background-position: 0% 0; }
           100% { background-position: 100% 0; }

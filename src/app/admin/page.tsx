@@ -60,6 +60,7 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
 
   const cfg = STATUS_CONFIG[current];
   const isDisabled = loading || current === "DONE" || current === "CANCELLED";
+  const isAnimated = !["DONE", "CANCELLED"].includes(current);
 
   const modal = open ? createPortal(
     <div
@@ -130,6 +131,7 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
       <button
         onClick={() => { if (!isDisabled) setOpen(true); }}
         disabled={isDisabled}
+        className={isAnimated && !loading ? "shimmer-effect" : ""}
         style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           background: cfg?.bg, border: `1px solid ${cfg?.color}44`,
@@ -137,6 +139,7 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
           fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
           cursor: isDisabled ? "default" : "pointer",
           opacity: loading ? 0.6 : 1, transition: "all 0.2s",
+          position: "relative", overflow: "hidden"
         }}
       >
         {loading ? <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} /> : cfg?.icon}
@@ -242,7 +245,7 @@ export default function AdminPage() {
   const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
   
-  // # ALTERAÇÃO SOLICITADA: Referência para contagem anterior para o som de alerta
+  // Referência para contagem anterior para o som de alerta
   const prevCountRef = useRef(0);
 
   const fetchOrders = async (isSilent = false) => {
@@ -252,10 +255,10 @@ export default function AdminPage() {
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       
-      // # ALTERAÇÃO SOLICITADA: Gatilho do som se houver novos pedidos
+      // Gatilho do som se houver novos pedidos
       if (prevCountRef.current !== 0 && list.length > prevCountRef.current) {
         const audio = new Audio("/notification.mp3");
-        audio.play().catch(e => console.log("Som bloqueado pelo browser até interação."));
+        audio.play().catch(e => console.log("Permissão de áudio pendente."));
       }
 
       setOrders(list);
@@ -264,7 +267,7 @@ export default function AdminPage() {
     finally { setLoading(false); }
   };
 
-  // # ALTERAÇÃO SOLICITADA: Polling automático a cada 15 segundos
+  // Polling automático a cada 15 segundos
   useEffect(() => { 
     fetchOrders(); 
     const interval = setInterval(() => fetchOrders(true), 15000);
@@ -300,6 +303,29 @@ export default function AdminPage() {
         @keyframes fadeIn  { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
         @keyframes modalIn { from{opacity:0;transform:scale(0.92);} to{opacity:1;transform:scale(1);} }
         @keyframes spin    { to{transform:rotate(360deg);} }
+        
+        /* Efeito Shimmer (Cor vai e vem) */
+        @keyframes shimmer {
+          0% { transform: translateX(-150%); }
+          50% { transform: translateX(150%); }
+          100% { transform: translateX(150%); }
+        }
+        .shimmer-effect::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.1),
+            transparent
+          );
+          animation: shimmer 2.5s infinite;
+        }
+
         .filter-btn { transition: all 0.2s; cursor: pointer; }
         .filter-btn:hover  { border-color: #b91c1c44 !important; color: #fff !important; }
         .filter-btn.active { background: #b91c1c18 !important; border-color: #b91c1c44 !important; color: #b91c1c !important; }
@@ -310,7 +336,6 @@ export default function AdminPage() {
         <div style={{ height: 90 }} />
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 20px 80px" }}>
 
-          {/* Header */}
           <header style={{ marginBottom: 36 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
               <div style={{ width: 32, height: 3, background: "linear-gradient(90deg,#b91c1c,#ff4d4d)", boxShadow: "0 0 12px #b91c1c", borderRadius: 2 }} />
@@ -347,7 +372,6 @@ export default function AdminPage() {
             ))}
           </div>
 
-          {/* Filtros */}
           <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10, padding: "16px 20px", marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             <Filter size={14} color="#333" />
             <div style={{ position: "relative", flex: "1 1 200px" }}>
@@ -373,47 +397,32 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Tabela */}
           <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10, overflow: "hidden" }}>
             <div style={{ height: 2, background: "linear-gradient(90deg,#b91c1c,#ff4d4d,transparent)" }} />
-            {loading ? (
-              <div style={{ padding: 60, textAlign: "center" }}>
-                <RefreshCw size={28} color="#b91c1c" style={{ animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
-                <p style={{ color: "#333", fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase" }}>Carregando pedidos...</p>
-              </div>
-            ) : filtered.length === 0 ? (
-              <div style={{ padding: "60px 40px", textAlign: "center" }}>
-                <Package size={44} color="#1a1a1a" style={{ margin: "0 auto 16px" }} />
-                <p style={{ color: "#333", fontSize: 11, fontWeight: 700, letterSpacing: "0.25em", textTransform: "uppercase" }}>
-                  {orders.length === 0 ? "Nenhum pedido ainda." : "Nenhum pedido com esses filtros."}
-                </p>
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #161616" }}>
-                      {["Protocolo", "Cliente", "Data", "Itens", "Total", "Status", ""].map(h => (
-                        <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "#333" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((order, i) => (
-                      <OrderRow key={order.id} order={order} index={i} onUpdate={handleUpdate} />
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #161616" }}>
+                    {["Protocolo", "Cliente", "Data", "Itens", "Total", "Status", ""].map(h => (
+                      <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "#333" }}>{h}</th>
                     ))}
-                  </tbody>
-                </table>
-                <div style={{ padding: "12px 16px", borderTop: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#333", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                    {filtered.length} de {orders.length} pedido{orders.length !== 1 ? "s" : ""}
-                  </span>
-                  <span style={{ color: "#222", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                    Clique em um pedido para ver detalhes
-                  </span>
-                </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((order, i) => (
+                    <OrderRow key={order.id} order={order} index={i} onUpdate={handleUpdate} />
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ padding: "12px 16px", borderTop: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#333", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                  {filtered.length} de {orders.length} pedido{orders.length !== 1 ? "s" : ""}
+                </span>
+                <span style={{ color: "#222", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                  Clique em um pedido para ver detalhes
+                </span>
               </div>
-            )}
+            </div>
           </div>
 
         </div>
