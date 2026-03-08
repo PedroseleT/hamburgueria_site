@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
-import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare, Ticket, CheckCircle } from "lucide-react";
+import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare, Ticket, CheckCircle, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from "sonner";
 
 export default function Carrinho() {
   const { cart, removeFromCart, updateQuantity, updateItemCustomization, createOrder } = useCart();
   const router = useRouter();
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const [editingItem, setEditingItem] = useState<any>(null);
   const [tempOptions, setTempOptions] = useState<any[]>([]);
@@ -35,14 +36,11 @@ export default function Carrinho() {
     complementos: [{ nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }]
   };
 
-  // CÁLCULO REAL PARA EXIBIÇÃO
   const subtotalReal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const taxaEntregaFixa = 5.00;
   
   let valorFrete = address ? taxaEntregaFixa : 0;
-  if (appliedCoupon?.type === 'free_shipping' && address) {
-    valorFrete = 0;
-  }
+  if (appliedCoupon?.type === 'free_shipping' && address) valorFrete = 0;
 
   let valorDesconto = 0;
   if (appliedCoupon?.type === 'discount' && appliedCoupon.value) {
@@ -51,31 +49,48 @@ export default function Carrinho() {
 
   const totalExibicao = subtotalReal - valorDesconto + valorFrete;
 
-  const handleApplyCoupon = () => {
-    const code = couponInput.trim().toUpperCase();
-    if (!code) return;
-
-    if (code === "OFF10") {
-      setAppliedCoupon({ code, type: 'discount', value: 10 });
-      setCouponError("");
-      setCouponInput("");
-      toast.success("Cupom de 10% aplicado!");
-    } else if (code === "FRETEGRATIS") {
-      setAppliedCoupon({ code, type: 'free_shipping' });
-      setCouponError("");
-      setCouponInput("");
-      toast.success("Frete Grátis aplicado!");
-    } else {
-      setCouponError("Cupom inválido.");
-      setAppliedCoupon(null);
+  // FUNÇÃO PARA PARAR A VERIFICAÇÃO
+  const stopPolling = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
   };
 
-  const removeCoupon = () => {
-    setAppliedCoupon(null);
-    setCouponError("");
+  // VERIFICAÇÃO DE STATUS COM TRATAMENTO DE ERROS
+  const checkPaymentStatus = async (paymentId: string) => {
+    try {
+      const checkRes = await fetch(`/api/checkout/pix?id=${paymentId}&t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+      });
+      
+      if (!checkRes.ok) return;
+      const checkData = await checkRes.json();
+      
+      if (checkData.status === "approved") {
+        stopPolling();
+        setPixStatus("aprovado");
+        localStorage.removeItem("pedro-burger-pix"); 
+        
+        // Limpa o carrinho local
+        cart.forEach(item => removeFromCart(item.id));
+        router.refresh();
+        
+        setTimeout(() => { router.push("/my-orders"); }, 2500);
+      } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
+        stopPolling();
+        localStorage.removeItem("pedro-burger-pix");
+        setPixData(null);
+        setIsSubmitting(false);
+        toast.error("O pagamento não foi aprovado ou foi cancelado.");
+      }
+    } catch (e) {
+      console.error("Erro ao verificar status:", e);
+    }
   };
 
+  // CARREGAMENTO INICIAL E RECUPERAÇÃO DE SESSÃO PENDENTE
   useEffect(() => {
     const loadData = () => {
       const saved = localStorage.getItem("flame_enderecos");
@@ -86,131 +101,107 @@ export default function Carrinho() {
           if (parsed.length > 0) {
             const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
             const end = parsed[idx];
-            if (end && end.rua) {
-              setAddress(`${end.rua}, ${end.numero} - ${end.bairro}, ${end.cidade}`);
-            }
+            if (end && end.rua) setAddress(`${end.rua}, ${end.numero} - ${end.bairro}, ${end.cidade}`);
           }
-        } catch (e) { console.error("Erro ao ler endereço:", e); }
+        } catch (e) { console.error(e); }
       }
     };
     loadData();
-    const t = setTimeout(loadData, 200);
-    return () => clearTimeout(t);
-  }, []);
 
-  useEffect(() => {
+    // Recupera PIX que estava em aberto caso a página tenha sido atualizada
     const savedPix = localStorage.getItem("pedro-burger-pix");
     if (savedPix) {
       try {
         const parsedPix = JSON.parse(savedPix);
         setPixData(parsedPix);
-        setPixStatus("pendente");
-
-        const interval = setInterval(async () => {
-          try {
-            const checkRes = await fetch(`/api/checkout/pix?id=${parsedPix.paymentId}`, {
-              cache: 'no-store',
-              headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
-            });
-            const checkData = await checkRes.json();
-            
-            if (checkData.status === "approved") {
-              clearInterval(interval);
-              setPixStatus("aprovado");
-              localStorage.removeItem("pedro-burger-pix"); 
-              cart.forEach(item => removeFromCart(item.id));
-              router.refresh();
-              setTimeout(() => { router.push("/my-orders"); }, 2000);
-            } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
-              clearInterval(interval);
-              localStorage.removeItem("pedro-burger-pix");
-              setPixData(null);
-            }
-          } catch (e) { console.error("Erro na verificação background:", e); }
-        }, 5000);
-        return () => clearInterval(interval);
+        setIsSubmitting(true);
+        checkPaymentStatus(parsedPix.paymentId);
+        intervalRef.current = setInterval(() => checkPaymentStatus(parsedPix.paymentId), 5000);
       } catch (e) { localStorage.removeItem("pedro-burger-pix"); }
     }
-  }, [router, cart, removeFromCart]);
 
-  const handleCopyPix = async () => {
-    if (!pixData) return;
-    try {
-      await navigator.clipboard.writeText(pixData.qrCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) { console.error("Erro ao copiar", err); }
+    return () => stopPolling();
+  }, []);
+
+  const handleApplyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (code === "OFF10") {
+      setAppliedCoupon({ code, type: 'discount', value: 10 });
+      setCouponInput("");
+      toast.success("Cupom de 10% aplicado!");
+    } else if (code === "FRETEGRATIS") {
+      setAppliedCoupon({ code, type: 'free_shipping' });
+      setCouponInput("");
+      toast.success("Frete Grátis aplicado!");
+    } else {
+      toast.error("Cupom inválido.");
+    }
   };
 
   const processPixPayment = async () => {
-    if (!address) {
-      toast.error("Selecione um endereço na Home primeiro.");
-      return;
-    }
-    setShowPaymentModal(false); 
-    if (cart.length === 0) return;
+    if (!address) return toast.error("Selecione o endereço primeiro.");
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
+    setShowPaymentModal(false); 
+    
     try {
       const finalNotes = appliedCoupon ? `[CUPOM: ${appliedCoupon.code}] ${deliveryNotes}` : deliveryNotes;
       const res = await fetch("/api/checkout/pix", {
         method: "POST",
         body: JSON.stringify({ 
           items: cart, 
-          total: 0.01, // VALOR FORÇADO PARA TESTE
+          total: 0.01, // VALOR PARA TESTE
           address, 
           notes: finalNotes, 
           paymentMethod: "PIX" 
         }),
         headers: { "Content-Type": "application/json" }
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao gerar PIX");
+
       const pixObj = { qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id };
       setPixData(pixObj);
       setPixStatus("pendente");
       localStorage.setItem("pedro-burger-pix", JSON.stringify(pixObj));
+
+      // Inicia verificação automática
+      stopPolling();
+      intervalRef.current = setInterval(() => checkPaymentStatus(data.payment_id), 5000);
+
     } catch (error: any) {
       toast.error(error.message);
       setIsSubmitting(false);
     }
   };
 
-  const handleEditClick = (item: any) => {
-    setEditingItem(item);
-    setObsEdit(item.customization?.obs || "");
-    const recuperados: any[] = [];
-    const todosDisponiveis = [...baseOptions.molhosGratis, ...baseOptions.molhosCasa, ...baseOptions.complementos];
-    if (item.customization?.extras) {
-      item.customization.extras.forEach((extraStr: string) => {
-        const match = extraStr.match(/^(\d+)x\s(.+)$/);
-        if (match) {
-          const qtd = parseInt(match[1]);
-          const nomeNoCarrinho = match[2].trim();
-          const infoOriginal = todosDisponiveis.find(opt => opt.nome.trim() === nomeNoCarrinho);
-          if (infoOriginal) recuperados.push({ ...infoOriginal, qtd });
-        }
-      });
-    }
-    setTempOptions(recuperados);
-  };
-
-  const updateTempQtd = (item: any, delta: number, limit: number, sectionItems: any[]) => {
-    const currentInSection = tempOptions.filter(opt => sectionItems.some(s => s.nome === opt.nome));
-    const totalInSection = currentInSection.reduce((acc, curr) => acc + curr.qtd, 0);
-    const existingIndex = tempOptions.findIndex(opt => opt.nome === item.nome);
-    if (delta > 0 && totalInSection >= limit) return;
-    let newOptions = [...tempOptions];
-    if (existingIndex > -1) {
-      const newQtd = newOptions[existingIndex].qtd + delta;
-      if (newQtd <= 0) newOptions.splice(existingIndex, 1);
-      else newOptions[existingIndex].qtd = newQtd;
-    } else if (delta > 0) { newOptions.push({ ...item, qtd: 1 }); }
-    setTempOptions(newOptions);
+  const handleCopyPix = async () => {
+    if (!pixData) return;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(pixData.qrCode);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        toast.success("Copiado com sucesso!");
+      }
+    } catch (err) { toast.error("Erro ao copiar."); }
   };
 
   return (
     <main className="carrinho-container" style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", fontFamily: "'Oswald', sans-serif" }}>
       <Toaster theme="dark" position="top-center" richColors />
+      
+      {/* OVERLAY DE PROCESSAMENTO (IMPEDE DUPLO CLIQUE) */}
+      {isSubmitting && !pixData && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+            <Loader2 className="animate-spin text-[#b91c1c] mb-4" size={50} />
+            <h2 style={{ fontStyle: 'italic', fontWeight: 900 }}>GERANDO PAGAMENTO...</h2>
+            <p style={{ color: '#666', fontSize: '12px', marginTop: '10px' }}>Não atualize a página.</p>
+        </div>
+      )}
+
       <style jsx global>{`
         @media (max-width: 600px) {
           .cart-item { flex-direction: column !important; align-items: flex-start !important; }
@@ -237,41 +228,44 @@ export default function Carrinho() {
       </section>
 
       <section style={{ maxWidth: "850px", margin: "40px auto", padding: "0 20px" }}>
-        {cart.length === 0 ? (
+        {cart.length === 0 && !pixData ? (
           <div style={{ textAlign: "center", marginTop: '50px', marginBottom: '100px', padding: '60px', background: '#111', borderRadius: '20px', border: '1px dashed #333' }}>
             <p style={{ color: '#555', marginBottom: '30px', fontWeight: 'bold', letterSpacing: '2px' }}>CARRINHO VAZIO.</p>
             <Link href="/cardapio" style={btnVoltar}>VER CARDÁPIO</Link>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {cart.map((item) => (
-              <div key={item.id} className="cart-item" style={cartItemStyle}>
-                <img src={item.image} alt={item.name} style={thumbStyle} />
-                <div style={{ flex: 1, width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: "22px", fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase' }}>{item.name}</h3>
-                      <button onClick={() => handleEditClick(item)} style={editBtnSmall}><Edit2 size={12}/> Ajustar Ingredientes</button>
+            {/* Lista de Itens com bloqueio visual se estiver pagando */}
+            <div style={{ opacity: pixData ? 0.3 : 1, pointerEvents: pixData ? 'none' : 'auto' }}>
+                {cart.map((item) => (
+                <div key={item.id} className="cart-item" style={cartItemStyle}>
+                    <img src={item.image} alt={item.name} style={thumbStyle} />
+                    <div style={{ flex: 1, width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                        <h3 style={{ margin: 0, fontSize: "22px", fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase' }}>{item.name}</h3>
+                        <button onClick={() => setEditingItem(item)} style={editBtnSmall}><Edit2 size={12}/> Ajustar Ingredientes</button>
+                        </div>
+                        <button onClick={() => removeFromCart(item.id)} style={deleteBtn}><Trash2 size={20}/></button>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} style={deleteBtn}><Trash2 size={20}/></button>
-                  </div>
-                  <div style={customizationDetails}>
-                    {item.customization?.extras?.map((ex: string, i: number) => (<span key={i} style={tagStyle}>{ex}</span>))}
-                    {item.customization?.obs && (<p style={obsItem}>"{item.customization.obs}"</p>)}
-                  </div>
-                  <div className="qty-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '15px' }}>
-                    <p style={{ color: "#fff", fontWeight: "900", fontSize: '24px', margin: 0, fontStyle: 'italic' }}>R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</p>
-                    <div style={qtyControls}>
-                      <button onClick={() => item.quantity > 1 ? updateQuantity(item.id, item.quantity - 1) : removeFromCart(item.id)} style={qtyBtn}><Minus size={16}/></button>
-                      <span style={{ fontWeight: '900', minWidth: '30px', textAlign: 'center', fontSize: '18px' }}>{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} style={qtyBtn}><Plus size={16}/></button>
+                    <div style={customizationDetails}>
+                        {item.customization?.extras?.map((ex: string, i: number) => (<span key={i} style={tagStyle}>{ex}</span>))}
+                        {item.customization?.obs && (<p style={obsItem}>"{item.customization.obs}"</p>)}
                     </div>
-                  </div>
+                    <div className="qty-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '15px' }}>
+                        <p style={{ color: "#fff", fontWeight: "900", fontSize: '24px', margin: 0, fontStyle: 'italic' }}>R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</p>
+                        <div style={qtyControls}>
+                        <button onClick={() => updateQuantity(item.id, item.quantity - 1)} style={qtyBtn}><Minus size={16}/></button>
+                        <span style={{ fontWeight: '900', minWidth: '30px', textAlign: 'center', fontSize: '18px' }}>{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, item.quantity + 1)} style={qtyBtn}><Plus size={16}/></button>
+                        </div>
+                    </div>
+                    </div>
                 </div>
-              </div>
-            ))}
+                ))}
+            </div>
 
-            <div style={deliverySectionStyle}>
+            <div style={{ ...deliverySectionStyle, opacity: pixData ? 0.3 : 1, pointerEvents: pixData ? 'none' : 'auto' }}>
                 <div style={sectionTitleStyles}><MapPin size={16} /> ENTREGAR EM:</div>
                 {address ? (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#000", padding: "16px", borderRadius: "10px", border: "1px solid #222", marginTop: "10px" }}>
@@ -288,19 +282,6 @@ export default function Carrinho() {
                 <input type="text" placeholder="Ex: Apto, portão..." value={deliveryNotes} onChange={(e) => setDeliveryNotes(e.target.value)} className="delivery-input" style={deliveryInputStyle} />
             </div>
 
-            <div style={couponSectionStyle}>
-              <div style={{ ...sectionTitleStyles, marginBottom: '10px' }}><Ticket size={16} /> CUPOM</div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input type="text" placeholder="CÓDIGO" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} className="coupon-input" style={couponInputStyle} disabled={!!appliedCoupon} />
-                {appliedCoupon ? <button onClick={removeCoupon} style={removeBtnStyle}>REMOVER</button> : <button onClick={handleApplyCoupon} style={applyBtnStyle}>APLICAR</button>}
-              </div>
-              {appliedCoupon && (
-                <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: '#22c55e', fontSize: '13px', fontWeight: 'bold' }}>
-                  <CheckCircle size={16} /> {appliedCoupon.type === 'discount' ? `Cupom ${appliedCoupon.value}% aplicado!` : 'Frete Grátis aplicado!'}
-                </div>
-              )}
-            </div>
-
             <div style={resumoStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: '12px' }}>
                 <span style={{ fontSize: "14px", fontWeight: "bold", color: '#888' }}>SUBTOTAL:</span>
@@ -313,7 +294,7 @@ export default function Carrinho() {
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid #1a1a1a' }}>
-                <span style={{ fontSize: "14px", fontWeight: "bold", color: '#888' }}>ENTREGA:</span>
+                <span style={{ fontSize: "14px", fontWeight: "bold", color: '#888' }}>TAXA DE ENTREGA:</span>
                 <span style={{ color: address ? (valorFrete === 0 ? "#22c55e" : "#555") : "#555", fontSize: "16px", fontWeight: "bold" }}>{!address ? 'Pendente' : (valorFrete === 0 ? 'GRÁTIS' : `+ R$ ${valorFrete.toFixed(2).replace('.', ',')}`)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'baseline' }}>
@@ -326,15 +307,16 @@ export default function Carrinho() {
               <button 
                 onClick={() => {
                    if (!address) {
-                      toast.error("Selecione o endereço na Home primeiro!", { position: "top-center" });
+                      toast.error("Selecione o endereço primeiro!");
                       return;
                    }
+                   if (pixData) return; // Impede abrir se já estiver em checkout
                    setShowPaymentModal(true);
                 }} 
                 disabled={isSubmitting} 
                 style={{ ...checkoutBtn, background: isSubmitting ? "#222" : "#b91c1c", color: isSubmitting ? "#555" : "#fff", cursor: isSubmitting ? "not-allowed" : "pointer" }}
               >
-                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <><Flame size={20} /> FINALIZAR PEDIDO</>}
+                {isSubmitting && !pixData ? <Loader2 className="animate-spin" size={20} /> : <><Flame size={20} /> FINALIZAR PEDIDO</>}
               </button>
 
               <Link href="/cardapio" style={btnKeepShopping}><ArrowLeft size={16}/> Escolher mais</Link>
@@ -343,6 +325,7 @@ export default function Carrinho() {
         )}
       </section>
 
+      {/* MODAL DE SELEÇÃO DE PAGAMENTO */}
       {showPaymentModal && (
         <div style={modalOverlayStyles} onClick={() => setShowPaymentModal(false)}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '30px' }} onClick={e => e.stopPropagation()}>
@@ -361,23 +344,38 @@ export default function Carrinho() {
         </div>
       )}
 
+      {/* MODAL DE PIX COM STATUS EM TEMPO REAL */}
       {pixData && (
         <div style={modalOverlayStyles}>
-          <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '28px', fontWeight: '900', color: pixStatus === "aprovado" ? '#22c55e' : '#b91c1c' }}>
-              {pixStatus === "aprovado" ? "PAGO! 🔥" : "PAGUE COM PIX"}
-            </h2>
+          <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '500px' }}>
             {pixStatus === "pendente" ? (
               <>
-                <div className="pix-qr-container" style={{ margin: '20px 0' }}><img src={`data:image/png;base64,${pixData.qrCodeBase64}`} style={{ width: '200px' }} /></div>
-                <button onClick={handleCopyPix} style={{ ...confirmBtnStyles, background: copied ? '#22c55e' : '#b91c1c' }}>{copied ? "COPIADO!" : "COPIAR CÓDIGO"}</button>
-                <button onClick={() => { setPixData(null); localStorage.removeItem("pedro-burger-pix"); setIsSubmitting(false); }} style={{ background: 'none', border: 'none', color: '#444', marginTop: '15px', cursor: 'pointer' }}>Voltar</button>
+                <h2 style={{ fontSize: '24px', fontWeight: '900', fontStyle: 'italic', marginBottom: '10px', color: '#f59e0b' }}>AGUARDANDO PAGAMENTO</h2>
+                <p style={{ color: '#888', fontSize: '14px', marginBottom: '30px' }}>A tela atualizará sozinha após o pagamento.</p>
+                
+                <div className="pix-qr-container" style={{ margin: '0 auto 30px', background: '#fff', padding: '15px', borderRadius: '15px' }}>
+                    <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '220px', height: '220px', display: 'block' }} />
+                </div>
+                
+                <button onClick={handleCopyPix} style={{ ...confirmBtnStyles, background: copied ? '#22c55e' : '#b91c1c' }}>
+                    {copied ? "CÓDIGO COPIADO!" : "COPIAR CÓDIGO PIX"}
+                </button>
+                
+                <button onClick={() => { setPixData(null); setIsSubmitting(false); stopPolling(); localStorage.removeItem("pedro-burger-pix"); }} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                    CANCELAR E VOLTAR
+                </button>
               </>
             ) : (
-              <div style={{ padding: '20px' }}>
-                <CheckCircle size={60} color="#22c55e" style={{ margin: '0 auto 20px' }} />
-                <h3>Sucesso!</h3>
-                <p>Redirecionando...</p>
+              <div style={{ padding: '30px 0' }}>
+                <div style={{ width: '90px', height: '90px', background: 'rgba(34, 197, 94, 0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+                  <ShieldCheck size={50} color="#22c55e" />
+                </div>
+                <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#22c55e', fontStyle: 'italic' }}>PAGAMENTO APROVADO!</h2>
+                <p style={{ color: '#aaa', marginTop: '10px' }}>Seu pedido já foi enviado para a cozinha.</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#555', marginTop: '40px' }}>
+                  <Loader2 className="animate-spin" size={18} />
+                  <span style={{ fontSize: '13px' }}>Redirecionando...</span>
+                </div>
               </div>
             )}
           </div>
@@ -387,6 +385,8 @@ export default function Carrinho() {
   );
 }
 
+// ESTILOS FINAIS
+const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' };
 const deliverySectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px solid #1a1a1a", marginBottom: "10px" };
 const deliveryInputStyle: React.CSSProperties = { width: "100%", backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none", marginTop: "10px" };
 const couponSectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px dashed #222", marginBottom: "10px" };
@@ -413,4 +413,3 @@ const modalOverlayStyles: React.CSSProperties = { position: 'fixed', inset: 0, b
 const modalContentStyles: React.CSSProperties = { backgroundColor: '#0a0a0a', width: '100%', maxWidth: '500px', borderRadius: '30px', border: '1px solid #222', position: 'relative', overflow: 'hidden' };
 const closeBtnStyles: React.CSSProperties = { position: 'absolute', top: '20px', right: '20px', background: '#1a1a1a', border: 'none', color: '#fff', cursor: 'pointer', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 };
 const confirmBtnStyles: React.CSSProperties = { backgroundColor: '#b91c1c', border: 'none', color: '#fff', fontWeight: '900', padding: '20px', borderRadius: '15px', cursor: 'pointer', width: '100%', textTransform: 'uppercase', fontStyle: 'italic' };
-const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' };
