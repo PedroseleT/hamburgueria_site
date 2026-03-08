@@ -16,7 +16,7 @@ export default function Carrinho() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // # ALTERAÇÃO SOLICITADA: Estados para captura de endereço de entrega
+  // # ALTERAÇÃO SOLICITADA: Estados para gerenciar o endereço puxado da Home
   const [address, setAddress] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
 
@@ -32,6 +32,28 @@ export default function Carrinho() {
   };
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  // # ALTERAÇÃO SOLICITADA: Puxar o endereço salvo pela sua HomeMobile
+  useEffect(() => {
+    const saved = localStorage.getItem("flame_enderecos");
+    const activeIdx = localStorage.getItem("flame_endereco_ativo");
+    
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
+          const end = parsed[idx];
+          if (end) {
+            // Formata no padrão legível para o motoboy
+            setAddress(`${end.rua}, ${end.numero} - ${end.bairro}, ${end.cidade}`);
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao ler endereço:", e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const savedPix = localStorage.getItem("pedro-burger-pix");
@@ -60,7 +82,6 @@ export default function Carrinho() {
               const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
               const realUserId = match ? match[2] : (checkData as any).external_reference;
               
-              // # ALTERAÇÃO SOLICITADA: Incluído o address na criação final do pedido
               await createOrder("PIX", address, `MP: ${parsedPix.paymentId} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
               setTimeout(() => { router.push("/my-orders"); }, 3000);
               
@@ -102,9 +123,9 @@ export default function Carrinho() {
   };
 
   const processPixPayment = async () => {
-    // # ALTERAÇÃO SOLICITADA: Validação de endereço obrigatório
-    if (!address.trim()) {
-      setErrorMessage("Por favor, informe o endereço de entrega.");
+    // Bloqueia se o cliente veio pro carrinho sem ter endereço salvo
+    if (!address) {
+      setErrorMessage("Você precisa selecionar um endereço de entrega na página inicial.");
       setShowPaymentModal(false);
       return;
     }
@@ -117,7 +138,6 @@ export default function Carrinho() {
     try {
       const res = await fetch("/api/checkout/pix", {
         method: "POST",
-        // # ALTERAÇÃO SOLICITADA: Enviando address e notes para a API de PIX
         body: JSON.stringify({ 
           items: cart, 
           total: totalGeral, 
@@ -155,7 +175,6 @@ export default function Carrinho() {
             const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
             const realUserId = match ? match[2] : (checkData as any).external_reference;
             
-            // # ALTERAÇÃO SOLICITADA: Incluído o address na criação final do pedido
             await createOrder("PIX", address, `MP: ${data.payment_id} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
             setTimeout(() => { router.push("/my-orders"); }, 3000);
           }
@@ -324,26 +343,32 @@ export default function Carrinho() {
               </div>
             ))}
 
-            {/* # ALTERAÇÃO SOLICITADA: BLOCO DE INFORMAÇÕES DE ENTREGA */}
+            {/* # ALTERAÇÃO SOLICITADA: Bloco de endereço puxado da memória */}
             <div style={deliverySectionStyle}>
                 <div style={sectionTitleStyles}>
-                    <MapPin size={16} /> ENDEREÇO DE ENTREGA
+                    <MapPin size={16} /> ENTREGAR EM:
                 </div>
-                <input 
-                    type="text" 
-                    placeholder="Rua, Número, Bairro, Cidade..." 
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="delivery-input"
-                    style={deliveryInputStyle}
-                />
+                
+                {address ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#000", padding: "16px", borderRadius: "10px", border: "1px solid #222", marginTop: "10px" }}>
+                    <span style={{ fontSize: "14px", fontWeight: "bold", color: "#ccc" }}>{address}</span>
+                    <Link href="/" style={{ fontSize: "12px", color: "#b91c1c", fontWeight: "bold", textDecoration: "none" }}>TROCAR</Link>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: "10px", padding: "20px", background: "#220000", borderRadius: "10px", border: "1px dashed #b91c1c", textAlign: "center" }}>
+                    <p style={{ color: "#ffaaaa", fontSize: "14px", marginBottom: "15px", fontWeight: "bold" }}>Nenhum endereço selecionado.</p>
+                    <Link href="/" style={{ color: "#fff", background: "#b91c1c", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontSize: "13px", fontWeight: "900", textTransform: "uppercase" }}>
+                      SELECIONAR NA PÁGINA INICIAL
+                    </Link>
+                  </div>
+                )}
                 
                 <div style={{ ...sectionTitleStyles, marginTop: '20px' }}>
-                    <MessageSquare size={16} /> OBSERVAÇÕES DE ENTREGA
+                    <MessageSquare size={16} /> OBSERVAÇÕES PARA O MOTOBOY (Opcional)
                 </div>
                 <input 
                     type="text" 
-                    placeholder="Ex: Apartamento, Bloco, Ponto de referência..." 
+                    placeholder="Ex: Apartamento, Bloco, Chamar no portão..." 
                     value={deliveryNotes}
                     onChange={(e) => setDeliveryNotes(e.target.value)}
                     className="delivery-input"
@@ -371,11 +396,13 @@ export default function Carrinho() {
               
               <button 
                 onClick={() => setShowPaymentModal(true)} 
-                disabled={isSubmitting}
+                disabled={isSubmitting || !address}
                 style={{
                   ...checkoutBtn,
-                  background: isSubmitting ? "#222" : "#b91c1c",
-                  boxShadow: isSubmitting ? "none" : "0 10px 40px rgba(185,28,28,0.3)",
+                  background: isSubmitting || !address ? "#222" : "#b91c1c",
+                  color: isSubmitting || !address ? "#555" : "#fff",
+                  boxShadow: isSubmitting || !address ? "none" : "0 10px 40px rgba(185,28,28,0.3)",
+                  cursor: isSubmitting || !address ? "not-allowed" : "pointer"
                 }}
               >
                 {isSubmitting ? (
@@ -397,7 +424,7 @@ export default function Carrinho() {
         )}
       </section>
 
-      {/* Restante dos modais mantido igual (Edit, Payment, Pix) */}
+      {/* Modais mantidos iguais (Edit, Payment, Pix) */}
       {editingItem && (
         <div style={modalOverlayStyles}>
           <div className="modal-content" style={modalContentStyles}>
@@ -533,27 +560,9 @@ export default function Carrinho() {
   );
 }
 
-// Estilos extras para a seção de entrega
-const deliverySectionStyle: React.CSSProperties = {
-    background: "#0f0f0f",
-    padding: "25px",
-    borderRadius: "20px",
-    border: "1px solid #1a1a1a",
-    marginBottom: "10px"
-};
-
-const deliveryInputStyle: React.CSSProperties = {
-    width: "100%",
-    backgroundColor: "#000",
-    border: "1px solid #222",
-    borderRadius: "10px",
-    padding: "15px",
-    color: "#fff",
-    fontSize: "14px",
-    outline: "none",
-    marginTop: "10px",
-    transition: "all 0.2s"
-};
+// Estilos extras
+const deliverySectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px solid #1a1a1a", marginBottom: "10px" };
+const deliveryInputStyle: React.CSSProperties = { width: "100%", backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none", marginTop: "10px", transition: "all 0.2s" };
 
 // Estilos mantidos originais
 const headerSection: React.CSSProperties = { height: "220px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: 'relative', overflow: 'hidden', borderBottom: '1px solid #1a1a1a' };
