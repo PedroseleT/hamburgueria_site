@@ -28,9 +28,15 @@ export async function GET() {
       return NextResponse.json({ error: "ID de usuário não encontrado" }, { status: 401 });
     }
 
-    // 3. Busca no Prisma usando o ID descriptografado
+    // 3. Busca no Prisma usando o ID descriptografado e ignorando os pendentes
     const orders = await prisma.order.findMany({
-      where: { userId }, 
+      where: { 
+        userId,
+        // # ALTERAÇÃO SOLICITADA: Ocultar os pedidos "fantasmas" (que ainda não foram pagos)
+        status: {
+          not: "PENDING"
+        }
+      }, 
       include: {
         items: {
           include: {
