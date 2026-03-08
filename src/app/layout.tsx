@@ -6,6 +6,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { CartProvider } from "../context/CartContext";
 import CookieBanner from "@/components/CookieBanner";
+// # ALTERAÇÃO SOLICITADA: Importação do alerta de segurança
+import SecurityConsole from "@/components/SecurityConsole";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -50,6 +52,9 @@ export default function RootLayout({
           minHeight: '100vh',
         }}
       >
+        {/* # ALTERAÇÃO SOLICITADA: Alerta contra manipulação via DevTools */}
+        <SecurityConsole />
+
         <CartProvider>
           {/* ALTERAÇÃO SOLICITADA: navbar superior oculta no mobile */}
           <div className="desktop-navbar">
