@@ -2,13 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import webpush from "web-push";
 
-// # ALTERAÇÃO SOLICITADA: Configuração do Web Push com as chaves do seu .env
-webpush.setVapidDetails(
-  "mailto:contato@theflamegrill.com", // Pode ser o seu email
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
-
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -23,7 +16,6 @@ export async function PATCH(
       return NextResponse.json({ error: "Status inválido" }, { status: 400 });
     }
 
-    // # ALTERAÇÃO SOLICITADA: Atualiza o status e já puxa os celulares (pushSubscriptions) logados do cliente
     const updated = await prisma.order.update({
       where: { id },
       data: { status },
@@ -34,7 +26,6 @@ export async function PATCH(
       }
     });
 
-    // Textos premium para cada mudança de status
     const statusMessages: Record<string, string> = {
       PREPARING: "👨‍🍳 Seu pedido foi para a grelha!",
       OUT_FOR_DELIVERY: "🛵 O motoboy está a caminho com seu lanche!",
@@ -44,28 +35,39 @@ export async function PATCH(
 
     const message = statusMessages[status];
 
-    // Se houver uma mensagem para o status e o cliente tiver ativado notificações, dispara o Push!
     if (message && updated.user.pushSubscriptions.length > 0) {
-      const pushPayload = JSON.stringify({
-        title: "The Flame Grill 🔥",
-        body: message,
-        url: "/my-orders"
-      });
+      // # CORREÇÃO: Lê as chaves apenas na hora de usar
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      const privateKey = process.env.VAPID_PRIVATE_KEY;
 
-      // Envia para todos os aparelhos que o cliente autorizou (PC, Celular, etc)
-      await Promise.all(updated.user.pushSubscriptions.map(async (sub) => {
-        try {
-          await webpush.sendNotification({
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth }
-          }, pushPayload);
-        } catch (err: any) {
-          // Se o erro for 404 ou 410, significa que o cliente bloqueou ou trocou de celular. Removemos do banco.
-          if (err.statusCode === 404 || err.statusCode === 410) {
-            await prisma.pushSubscription.delete({ where: { id: sub.id } });
+      if (publicKey && privateKey) {
+        webpush.setVapidDetails(
+          "mailto:contato@theflamegrill.com", 
+          publicKey,
+          privateKey
+        );
+
+        const pushPayload = JSON.stringify({
+          title: "The Flame Grill 🔥",
+          body: message,
+          url: "/my-orders"
+        });
+
+        await Promise.all(updated.user.pushSubscriptions.map(async (sub) => {
+          try {
+            await webpush.sendNotification({
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth }
+            }, pushPayload);
+          } catch (err: any) {
+            if (err.statusCode === 404 || err.statusCode === 410) {
+              await prisma.pushSubscription.delete({ where: { id: sub.id } });
+            }
           }
-        }
-      }));
+        }));
+      } else {
+        console.error("Faltam as chaves VAPID no ambiente.");
+      }
     }
 
     return NextResponse.json(updated);
