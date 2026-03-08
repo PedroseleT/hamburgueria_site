@@ -1,5 +1,12 @@
 "use client";
 
+/*
+  ⚙️  AJUSTE DE NAVBAR INFERIOR
+  Troque BOTTOM_NAV_HEIGHT pelo tamanho em px da sua navbar inferior.
+  Assim os botões de ação nunca ficam escondidos atrás dela.
+*/
+const BOTTOM_NAV_HEIGHT = 64; // px
+
 import { useEffect, useState } from "react";
 import {
   Navigation,
@@ -12,8 +19,6 @@ import {
   MessageSquare,
   AlertTriangle,
   ShieldCheck,
-  Clock,
-  Package,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useParams } from "next/navigation";
@@ -26,14 +31,18 @@ export default function CourierTrackingPage() {
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     fetch(`/api/delivery/info?token=${token}&t=${Date.now()}`)
-      .then((res) => res.json())
+      .then((r) => r.json())
       .then((data) => {
         if (data.error) setErrorMsg(data.error);
-        else setOrder(data);
+        else {
+          setOrder(data);
+          setTimeout(() => setVisible(true), 80);
+        }
       })
       .catch(() => setErrorMsg("Falha ao conectar com o servidor."))
       .finally(() => setLoading(false));
@@ -41,9 +50,9 @@ export default function CourierTrackingPage() {
 
   const openGPS = () => {
     if (!order?.address) return toast.error("Endereço não cadastrado");
-    const encodedAddr = encodeURIComponent(order.address);
+    // Link oficial corrigido para traçar rota direta no Waze/Maps
     window.open(
-      `https://www.google.com/maps/dir/?api=1&destination=${encodedAddr}`,
+      `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.address)}`,
       "_blank"
     );
   };
@@ -63,363 +72,437 @@ export default function CourierTrackingPage() {
       } else {
         toast.error("Erro ao registrar a finalização.");
       }
-    } catch (e) {
+    } catch {
       toast.error("Erro de conexão ao finalizar.");
     } finally {
       setCompleting(false);
     }
   };
 
-  // ─── LOADING ────────────────────────────────────────────────────────────────
+  const isPix = order?.paymentMethod === "PIX";
+
+  /* ═══ LOADING ═══════════════════════════════════════════════════════════ */
   if (loading)
     return (
-      <div className="min-h-[100svh] bg-[#070707] flex flex-col items-center justify-center gap-6">
-        <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-[#b91c1c] opacity-20 blur-2xl scale-150" />
-          <div className="relative w-20 h-20 rounded-full bg-[#111] border border-[#1e1e1e] flex items-center justify-center">
-            <Bike className="text-[#b91c1c] animate-pulse" size={36} />
+      <div className="min-h-[100svh] bg-[#060608] flex flex-col items-center justify-center gap-8">
+        <style>{GLOBAL_STYLES}</style>
+        <div className="relative flex items-center justify-center">
+          <div className="absolute w-28 h-28 rounded-full border border-[#b91c1c]/15 animate-ping" />
+          <div className="absolute w-20 h-20 rounded-full border border-[#b91c1c]/25 animate-ping [animation-delay:200ms]" />
+          <div
+            className="relative w-16 h-16 rounded-full flex items-center justify-center"
+            style={{
+              background: "radial-gradient(circle at 30% 30%, #1a0a0a, #0a0305)",
+              border: "1px solid rgba(185,28,28,0.3)",
+              boxShadow: "0 0 40px rgba(185,28,28,0.2), inset 0 1px 0 rgba(255,255,255,0.05)",
+            }}
+          >
+            <Bike size={28} className="text-[#b91c1c]" />
           </div>
         </div>
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="animate-spin text-[#b91c1c]" size={20} />
-          <p className="text-[#444] font-mono text-xs tracking-[0.3em] uppercase">
-            Buscando Rota...
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={14} className="animate-spin text-[#b91c1c]/50" />
+          <p className="flame text-[#555] text-sm tracking-[0.5em] uppercase">
+            Buscando Rota
           </p>
         </div>
       </div>
     );
 
-  // ─── ERROR ──────────────────────────────────────────────────────────────────
+  /* ═══ ERROR ══════════════════════════════════════════════════════════════ */
   if (errorMsg)
     return (
-      <div className="min-h-[100svh] bg-[#070707] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-[#0f0f0f] border border-[#1e1e1e] rounded-3xl overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-[#b91c1c]/20 to-transparent border-b border-[#1e1e1e] p-6 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#b91c1c]/10 border border-[#b91c1c]/20 flex items-center justify-center">
-                <XCircle size={24} className="text-[#ef4444]" />
-              </div>
-              <div>
-                <h1 className="text-white font-black text-lg uppercase italic tracking-wide">
-                  Link Inválido
-                </h1>
-                <p className="text-[#555] text-xs font-mono">Acesso negado</p>
-              </div>
+      <div className="min-h-[100svh] bg-[#060608] flex items-center justify-center p-5">
+        <style>{GLOBAL_STYLES}</style>
+        <div
+          className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl"
+          style={{ background: "#0a0a0d", border: "1px solid rgba(185,28,28,0.15)" }}
+        >
+          <div
+            className="h-1 w-full"
+            style={{ background: "linear-gradient(90deg, #b91c1c, #ef4444 50%, transparent)" }}
+          />
+          <div className="p-8 text-center space-y-6">
+            <div
+              className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.15)" }}
+            >
+              <XCircle size={28} className="text-[#ef4444]" />
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-[#888] text-sm leading-relaxed">{errorMsg}</p>
-              <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-3">
-                <p className="text-[#333] text-[10px] font-mono break-all">
-                  TOKEN: {token}
-                </p>
-              </div>
+            <div>
+              <p className="flame text-white text-3xl uppercase tracking-wide">Link Inválido</p>
+              <p className="text-[#666] text-sm mt-2 leading-relaxed">{errorMsg}</p>
             </div>
+            <code
+              className="block text-[10px] text-[#444] font-mono rounded-xl px-3 py-3 break-all"
+              style={{ background: "#06060a", border: "1px solid #111116" }}
+            >
+              {token}
+            </code>
           </div>
         </div>
       </div>
     );
 
-  // ─── DONE / CANCELLED ───────────────────────────────────────────────────────
+  /* ═══ DONE / CANCELLED ══════════════════════════════════════════════════ */
   if (order?.status === "DONE" || order?.status === "CANCELLED")
     return (
-      <div className="min-h-[100svh] bg-[#070707] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-[#0f0f0f] border border-[#22c55e]/20 rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(34,197,94,0.08)] text-center">
-            <div className="p-10 space-y-4">
-              <div className="relative mx-auto w-24 h-24">
-                <div className="absolute inset-0 bg-[#22c55e] opacity-10 rounded-full blur-2xl" />
-                <div className="relative w-24 h-24 rounded-full bg-[#22c55e]/10 border border-[#22c55e]/20 flex items-center justify-center mx-auto">
-                  <ShieldCheck size={40} className="text-[#22c55e]" />
-                </div>
+      <div className="min-h-[100svh] bg-[#060608] flex items-center justify-center p-5">
+        <style>{GLOBAL_STYLES}</style>
+        <div
+          className="w-full max-w-sm rounded-3xl overflow-hidden"
+          style={{
+            background: "#0a0a0d",
+            border: "1px solid rgba(34,197,94,0.12)",
+            boxShadow: "0 0 80px rgba(34,197,94,0.05)",
+          }}
+        >
+          <div
+            className="h-1 w-full"
+            style={{ background: "linear-gradient(90deg, #22c55e, #16a34a 50%, transparent)" }}
+          />
+          <div className="p-10 text-center space-y-6">
+            <div className="relative mx-auto w-20 h-20">
+              <div className="absolute inset-0 rounded-2xl blur-xl" style={{ background: "rgba(34,197,94,0.15)" }} />
+              <div
+                className="relative w-20 h-20 rounded-2xl flex items-center justify-center"
+                style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)" }}
+              >
+                <ShieldCheck size={36} className="text-[#22c55e]" />
               </div>
-              <div className="space-y-2 pt-2">
-                <p className="text-[#22c55e] font-mono text-xs tracking-[0.3em] uppercase">
-                  Missão Cumprida
-                </p>
-                <h1 className="text-white text-4xl font-black uppercase italic tracking-tight">
-                  ENTREGUE
-                </h1>
-                <p className="text-[#555] text-sm leading-relaxed max-w-xs mx-auto">
-                  Esta entrega já foi registrada e finalizada no sistema. Bom
-                  trabalho!
-                </p>
-              </div>
+            </div>
+            <div>
+              <p className="text-[#22c55e] text-[9px] tracking-[0.5em] uppercase font-bold mb-2">
+                Missão Cumprida
+              </p>
+              <p className="flame text-white text-4xl uppercase tracking-wide">ENTREGUE</p>
+              <p className="text-[#666] text-sm mt-3 leading-relaxed">
+                Entrega registrada no sistema. Excelente trabalho!
+              </p>
             </div>
           </div>
         </div>
       </div>
     );
 
-  const isPix = order?.paymentMethod === "PIX";
+  /* ═══ MAIN PAGE ══════════════════════════════════════════════════════════ */
+  // Espaçamento calculado para o último card nunca ficar atrás da barra inferior
+  const contentPaddingBottom = 90 + BOTTOM_NAV_HEIGHT;
 
-  // ─── MAIN ───────────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-[100svh] bg-[#070707] text-white font-sans">
+    <main
+      className={`min-h-[100svh] bg-[#060608] text-white transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      style={{
+        backgroundImage: "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(185,28,28,0.03) 0%, transparent 60%)",
+      }}
+    >
+      <style>{GLOBAL_STYLES}</style>
       <Toaster theme="dark" position="top-center" richColors />
 
-      {/* ── HEADER ── */}
-      <header className="sticky top-0 z-20 bg-[#070707]/80 backdrop-blur-xl border-b border-[#111]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+      <header
+        className="sticky top-0 z-30 px-5 pt-safe"
+        style={{
+          background: "rgba(6,6,8,0.85)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderBottom: "1px solid rgba(255,255,255,0.03)",
+        }}
+      >
+        <div className="max-w-2xl mx-auto h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="absolute inset-0 bg-[#b91c1c] blur-md opacity-40 rounded-full" />
-              <div className="relative w-9 h-9 bg-[#b91c1c] rounded-full flex items-center justify-center">
+              <div
+                className="absolute inset-0 rounded-full blur-md"
+                style={{ background: "#b91c1c", opacity: 0.4, transform: "scale(1.2)" }}
+              />
+              <div
+                className="relative w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(145deg, #b91c1c, #6b0f0f)",
+                  boxShadow: "0 2px 10px rgba(185,28,28,0.3)",
+                }}
+              >
                 <Bike size={18} className="text-white" />
               </div>
             </div>
-            <div className="leading-none">
-              <h1 className="font-black italic text-base uppercase tracking-wider text-white">
+            <div>
+              <p className="flame text-[16px] text-white uppercase leading-tight tracking-wide">
                 The Flame Grill
-              </h1>
-              <p className="text-[#b91c1c] text-[10px] font-bold uppercase tracking-[0.2em]">
+              </p>
+              <p className="text-[9px] font-bold tracking-[0.25em] uppercase text-[#b91c1c]">
                 Rota de Entrega
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-[#0f0f0f] border border-[#1a1a1a] rounded-full px-3 py-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
-            <span className="text-[#555] text-[10px] font-mono tracking-widest uppercase">
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#fbbf24] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#fbbf24]" />
+            </span>
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#777]">
               Em Rota
             </span>
           </div>
         </div>
       </header>
 
-      {/* ── CONTENT GRID ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+      {/* ── SCROLL CONTENT ──────────────────────────────────────────────────── */}
+      <div
+        className="max-w-2xl mx-auto px-5 pt-6 flex flex-col gap-4"
+        style={{ paddingBottom: `${contentPaddingBottom}px` }}
+      >
+        {/* ── [1] PAYMENT CARD ───────────────────────────────────────────────── */}
+        <div
+          className="card-0 relative rounded-3xl overflow-hidden"
+          style={{
+            background: isPix
+              ? "linear-gradient(135deg, rgba(22,163,74,0.08) 0%, rgba(6,6,8,0) 100%)"
+              : "linear-gradient(135deg, rgba(185,28,28,0.12) 0%, rgba(6,6,8,0) 100%)",
+            border: isPix
+              ? "1px solid rgba(34,197,94,0.15)"
+              : "1px solid rgba(185,28,28,0.25)",
+          }}
+        >
+          <div
+            className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[50px] pointer-events-none"
+            style={{ background: isPix ? "#22c55e" : "#b91c1c", opacity: 0.1 }}
+          />
+          <div
+            style={{
+              height: 2,
+              background: isPix
+                ? "linear-gradient(90deg, #22c55e, rgba(34,197,94,0.2) 70%, transparent)"
+                : "linear-gradient(90deg, #b91c1c, rgba(185,28,28,0.2) 70%, transparent)",
+            }}
+          />
 
-          {/* ── LEFT COLUMN (desktop sidebar) ── */}
-          <aside className="lg:col-span-4 flex flex-col gap-4">
-
-            {/* Payment Card */}
-            <div className={`relative rounded-2xl overflow-hidden border ${
-              isPix
-                ? "bg-[#0f0f0f] border-[#22c55e]/20"
-                : "bg-[#0f0f0f] border-[#b91c1c]/30"
-            }`}>
-              {/* Decorative glow */}
-              <div className={`absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-10 ${
-                isPix ? "bg-[#22c55e]" : "bg-[#b91c1c]"
-              }`} />
-              
-              {/* Top stripe */}
-              <div className={`h-1 w-full ${isPix ? "bg-[#22c55e]" : "bg-[#b91c1c]"}`} />
-
-              <div className="p-6 relative z-10">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <p className="text-[#444] text-[10px] font-bold uppercase tracking-[0.25em] mb-1">
-                      {isPix ? "Pago Online" : "Cobrar do Cliente"}
-                    </p>
-                    <div className="flex items-baseline gap-1">
-                      <span className={`text-lg font-black ${isPix ? "text-[#22c55e]" : "text-[#b91c1c]"}`}>
-                        R$
-                      </span>
-                      <span className="text-5xl font-black italic tracking-tighter text-white leading-none">
-                        {order?.total?.toFixed(2).replace(".", ",")}
-                      </span>
-                    </div>
-                  </div>
-                  <span className={`text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider border ${
-                    isPix
-                      ? "bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/20"
-                      : "bg-[#b91c1c]/10 text-[#ef4444] border-[#b91c1c]/20"
-                  }`}>
-                    {order?.paymentMethod}
-                  </span>
-                </div>
-
-                {!isPix && (
-                  <div className="flex items-center gap-2 bg-[#b91c1c]/10 border border-[#b91c1c]/20 p-3 rounded-xl mt-2">
-                    <AlertTriangle size={14} className="text-[#fbbf24] shrink-0" />
-                    <p className="text-sm font-semibold text-[#fbbf24]">
-                      Receber no ato da entrega
-                    </p>
-                  </div>
-                )}
-
-                {isPix && (
-                  <div className="flex items-center gap-2 bg-[#22c55e]/10 border border-[#22c55e]/20 p-3 rounded-xl mt-2">
-                    <CheckCircle size={14} className="text-[#22c55e] shrink-0" />
-                    <p className="text-sm font-semibold text-[#22c55e]">
-                      Pagamento já confirmado
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Customer Card */}
-            <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl p-5">
-              <p className="text-[#333] text-[10px] font-bold uppercase tracking-[0.25em] mb-3">
-                Cliente
+          <div className="p-6 relative z-10">
+            <div className="flex items-center justify-between mb-5">
+              <p
+                className="text-[10px] font-black tracking-[0.25em] uppercase"
+                style={{ color: isPix ? "#22c55e" : "#b91c1c" }}
+              >
+                {isPix ? "✓ Pago Online" : "⚠ Cobrar na Entrega"}
               </p>
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-xl font-black uppercase text-white truncate">
-                    {order?.user?.name || "Sem Nome"}
-                  </h2>
-                  {order?.user?.phone && (
-                    <p className="text-[#444] text-sm font-mono mt-0.5">
-                      {order.user.phone}
-                    </p>
-                  )}
-                </div>
-                {order?.user?.phone && (
-                  <a
-                    href={`tel:${order.user.phone}`}
-                    className="shrink-0 w-12 h-12 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/20 flex items-center justify-center text-[#22c55e] hover:bg-[#22c55e]/20 transition-colors active:scale-95"
-                  >
-                    <Phone size={20} fill="currentColor" />
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Desktop action buttons */}
-            <div className="hidden lg:grid grid-cols-2 gap-3">
-              <button
-                onClick={openGPS}
-                className="bg-[#0f0f0f] border border-[#1a1a1a] h-14 rounded-xl flex items-center justify-center gap-2 text-white hover:border-[#3b82f6]/40 hover:bg-[#3b82f6]/5 transition-all active:scale-95 group"
+              <span
+                className="text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest"
+                style={{
+                  background: isPix ? "rgba(34,197,94,0.1)" : "rgba(185,28,28,0.1)",
+                  border: isPix
+                    ? "1px solid rgba(34,197,94,0.2)"
+                    : "1px solid rgba(185,28,28,0.2)",
+                  color: isPix ? "#22c55e" : "#ef4444",
+                }}
               >
-                <Navigation size={18} className="text-[#3b82f6] group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-black uppercase tracking-widest">MAPA</span>
-              </button>
-              <button
-                onClick={handleFinish}
-                disabled={completing}
-                className="bg-[#b91c1c] h-14 rounded-xl flex items-center justify-center gap-2 text-white hover:bg-[#991b1b] transition-colors active:scale-95 shadow-[0_4px_20px_rgba(185,28,28,0.3)] disabled:opacity-50 disabled:scale-100"
+                {order?.paymentMethod}
+              </span>
+            </div>
+
+            <div className="flex items-start gap-1 leading-none">
+              <span
+                className="flame text-2xl mt-2"
+                style={{ color: isPix ? "#22c55e" : "#fff", opacity: 0.6 }}
               >
-                {completing ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <>
-                    <CheckCircle size={18} />
-                    <span className="text-sm font-black italic uppercase tracking-wider">
-                      ENTREGUE
-                    </span>
-                  </>
-                )}
-              </button>
-            </div>
-          </aside>
-
-          {/* ── RIGHT COLUMN ── */}
-          <div className="lg:col-span-8 flex flex-col gap-4">
-
-            {/* Address Card */}
-            <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl overflow-hidden">
-              <div className="border-b border-[#111] px-5 py-4 flex items-center gap-2">
-                <MapPin size={14} className="text-[#b91c1c]" />
-                <p className="text-[#444] text-[10px] font-bold uppercase tracking-[0.25em]">
-                  Endereço de Entrega
-                </p>
-              </div>
-              <div className="p-5">
-                <p className="text-white text-lg font-bold leading-snug">
-                  {order?.address || "Endereço não informado"}
-                </p>
-
-                {/* Map preview button */}
-                <button
-                  onClick={openGPS}
-                  className="mt-4 w-full lg:hidden bg-[#111] border border-[#1a1a1a] rounded-xl h-24 flex flex-col items-center justify-center gap-2 text-[#555] hover:border-[#3b82f6]/30 hover:text-[#3b82f6] transition-all active:scale-[0.98] group"
-                >
-                  <Navigation size={24} className="text-[#3b82f6] group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold uppercase tracking-widest">
-                    Abrir no Google Maps
-                  </span>
-                </button>
-
-                <button
-                  onClick={openGPS}
-                  className="mt-4 w-full hidden lg:flex bg-[#111] border border-[#1a1a1a] rounded-xl h-16 items-center justify-center gap-3 text-[#555] hover:border-[#3b82f6]/30 hover:text-[#3b82f6] transition-all active:scale-[0.98] group"
-                >
-                  <Navigation size={18} className="text-[#3b82f6]" />
-                  <span className="text-xs font-bold uppercase tracking-widest">
-                    Ver rota no Google Maps
-                  </span>
-                </button>
-              </div>
+                R$
+              </span>
+              <span
+                className="flame"
+                style={{
+                  fontSize: "clamp(64px, 18vw, 84px)",
+                  lineHeight: 1,
+                  color: isPix ? "#22c55e" : "#fff",
+                  textShadow: isPix
+                    ? "0 0 50px rgba(34,197,94,0.2)"
+                    : "0 0 30px rgba(255,255,255,0.05)",
+                }}
+              >
+                {order?.total?.toFixed(2).replace(".", ",")}
+              </span>
             </div>
 
-            {/* Notes Card */}
-            {order?.notes && (
-              <div className="bg-[#0f0f0f] border border-[#fbbf24]/10 rounded-2xl overflow-hidden">
-                <div className="border-b border-[#fbbf24]/10 px-5 py-4 flex items-center gap-2">
-                  <MessageSquare size={14} className="text-[#fbbf24]" />
-                  <p className="text-[#664] text-[10px] font-bold uppercase tracking-[0.25em]">
-                    Observações do Pedido
-                  </p>
-                </div>
-                <div className="p-5">
-                  <p className="text-[#fbbf24] font-semibold leading-relaxed text-sm">
-                    "{order.notes}"
-                  </p>
-                </div>
+            {!isPix && (
+              <div
+                className="mt-6 flex items-center gap-3 px-4 py-3.5 rounded-xl"
+                style={{
+                  background: "rgba(251,191,36,0.08)",
+                  border: "1px solid rgba(251,191,36,0.15)",
+                }}
+              >
+                <AlertTriangle size={18} className="text-[#fbbf24] shrink-0" />
+                <p className="text-[#fbbf24] text-[13px] font-bold tracking-wide">
+                  Receber em dinheiro no ato da entrega
+                </p>
               </div>
             )}
-
-            {/* Order meta row */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Package size={13} className="text-[#444]" />
-                  <p className="text-[#333] text-[10px] font-bold uppercase tracking-[0.2em]">
-                    Pedido
-                  </p>
-                </div>
-                <p className="text-white font-black text-lg">
-                  #{order?.id?.toString().slice(-5) || "—"}
-                </p>
-              </div>
-              <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock size={13} className="text-[#444]" />
-                  <p className="text-[#333] text-[10px] font-bold uppercase tracking-[0.2em]">
-                    Status
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[#fbbf24] animate-pulse" />
-                  <p className="text-[#fbbf24] font-black text-sm uppercase tracking-wide">
-                    Em Rota
-                  </p>
-                </div>
-              </div>
-            </div>
-
           </div>
         </div>
-      </div>
 
-      {/* ── MOBILE FOOTER ACTIONS ── */}
-      <div className="fixed bottom-0 left-0 right-0 lg:hidden z-50">
-        <div className="bg-gradient-to-t from-[#070707] via-[#070707]/95 to-transparent pt-8 pb-5 px-4">
-          <div className="grid grid-cols-12 gap-3 max-w-md mx-auto">
+        {/* ── [2] CUSTOMER CARD ──────────────────────────────────────────────── */}
+        <div
+          className="card-1 rounded-3xl p-5 flex items-center justify-between gap-4"
+          style={{
+            background: "#0a0a0d",
+            border: "1px solid rgba(255,255,255,0.04)",
+          }}
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div
+              className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center flame text-2xl shadow-inner"
+              style={{
+                background: "rgba(185,28,28,0.08)",
+                border: "1px solid rgba(185,28,28,0.2)",
+                color: "#b91c1c",
+              }}
+            >
+              {(order?.user?.name?.[0] ?? "?").toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold tracking-[0.25em] uppercase text-[#555] mb-1">
+                Cliente
+              </p>
+              <p className="flame text-2xl text-white uppercase truncate tracking-wide leading-none">
+                {order?.user?.name || "Sem Nome"}
+              </p>
+            </div>
+          </div>
+
+          {order?.user?.phone && (
+            <a
+              href={`tel:${order.user.phone}`}
+              className="press shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-[#22c55e]"
+              style={{
+                background: "rgba(34,197,94,0.1)",
+                border: "1px solid rgba(34,197,94,0.2)",
+              }}
+            >
+              <Phone size={22} fill="currentColor" />
+            </a>
+          )}
+        </div>
+
+        {/* ── [3] ADDRESS CARD ───────────────────────────────────────────────── */}
+        <div
+          className="card-2 rounded-3xl overflow-hidden"
+          style={{ background: "#0a0a0d", border: "1px solid rgba(255,255,255,0.04)" }}
+        >
+          <div
+            className="flex items-center gap-2 px-6 py-4"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+          >
+            <MapPin size={14} style={{ color: "#b91c1c" }} />
+            <p className="text-[10px] font-bold tracking-[0.25em] uppercase text-[#666]">
+              Endereço de Entrega
+            </p>
+          </div>
+
+          <div className="px-6 pb-6 pt-5">
+            <p className="text-white text-[18px] font-bold leading-snug tracking-wide">
+              {order?.address || "Endereço não informado"}
+            </p>
+
             <button
               onClick={openGPS}
-              className="col-span-4 bg-[#0f0f0f] border border-[#1e1e1e] h-16 rounded-2xl flex flex-col items-center justify-center gap-1 text-white active:scale-95 transition-transform"
+              className="press mt-5 w-full flex items-center justify-between px-5 py-4 rounded-2xl"
+              style={{
+                background: "rgba(59,130,246,0.08)",
+                border: "1px solid rgba(59,130,246,0.15)",
+              }}
             >
-              <Navigation size={20} className="text-[#3b82f6]" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-[#555]">
+              <div className="flex items-center gap-3">
+                <Navigation size={18} className="text-[#3b82f6]" />
+                <span className="text-[#3b82f6] text-[14px] font-bold tracking-wide">
+                  Abrir no Waze / Maps
+                </span>
+              </div>
+              <span className="text-[#3b82f6] text-lg font-black opacity-60">→</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── [4] NOTES ──────────────────────────────────────────────────────── */}
+        {order?.notes && (
+          <div
+            className="card-3 rounded-3xl overflow-hidden"
+            style={{
+              background: "#0a0a0d",
+              border: "1px solid rgba(251,191,36,0.15)",
+            }}
+          >
+            <div
+              className="flex items-center gap-2 px-6 py-4"
+              style={{ borderBottom: "1px solid rgba(251,191,36,0.08)" }}
+            >
+              <MessageSquare size={14} className="text-[#fbbf24]" />
+              <p className="text-[10px] font-bold tracking-[0.25em] uppercase text-[#a18228]">
+                Observações do Pedido
+              </p>
+            </div>
+            <div className="px-6 pb-6 pt-4">
+              <p className="text-[#fbbf24] text-[15px] font-semibold leading-relaxed">
+                "{order.notes}"
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── ACTION BAR FIXED ────────────────────────────────────────────────── */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 flex flex-col pointer-events-none"
+      >
+        <div
+          className="w-full pointer-events-auto"
+          style={{
+            padding: "24px 20px",
+            paddingBottom: `calc(20px + ${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom))`,
+            background: "linear-gradient(to top, rgba(6,6,8,1) 0%, rgba(6,6,8,0.95) 70%, rgba(6,6,8,0) 100%)",
+          }}
+        >
+          <div className="max-w-2xl mx-auto flex gap-3">
+            <button
+              onClick={openGPS}
+              className="press flex-none flex flex-col items-center justify-center gap-2 rounded-[20px]"
+              style={{
+                width: 80,
+                height: 80,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+              }}
+            >
+              <Navigation size={24} className="text-[#3b82f6]" />
+              <span className="text-[9px] font-black tracking-[0.2em] uppercase text-[#777]">
                 MAPA
               </span>
             </button>
+
             <button
               onClick={handleFinish}
               disabled={completing}
-              className="col-span-8 bg-[#b91c1c] h-16 rounded-2xl flex items-center justify-center gap-2.5 text-white active:scale-95 transition-transform shadow-[0_8px_24px_rgba(185,28,28,0.35)] disabled:opacity-50 disabled:scale-100"
+              className="press flex-1 flex items-center justify-center gap-3 rounded-[20px] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                height: 80,
+                background: completing
+                  ? "rgba(185,28,28,0.3)"
+                  : "linear-gradient(135deg, #c92020 0%, #8b1010 100%)",
+                border: "1px solid rgba(185,28,28,0.5)",
+                boxShadow: completing
+                  ? "none"
+                  : "0 8px 30px rgba(185,28,28,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+              }}
             >
               {completing ? (
-                <Loader2 className="animate-spin" size={22} />
+                <Loader2 className="animate-spin text-white" size={28} />
               ) : (
                 <>
-                  <CheckCircle size={22} />
-                  <span className="text-base font-black italic uppercase tracking-wider">
-                    ENTREGUE
+                  <CheckCircle size={26} className="text-white" strokeWidth={2.5} />
+                  <span className="flame text-[24px] text-white uppercase tracking-wider">
+                    Marcar Entregue
                   </span>
                 </>
               )}
@@ -427,9 +510,38 @@ export default function CourierTrackingPage() {
           </div>
         </div>
       </div>
-
-      {/* Mobile bottom padding so content isn't hidden behind footer */}
-      <div className="h-32 lg:hidden" />
     </main>
   );
 }
+
+/* ─── GLOBAL STYLES ─────────────────────────────────────────────────────── */
+const GLOBAL_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&display=swap');
+
+  .flame {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-style: italic;
+  }
+
+  .press {
+    transition: transform 0.1s cubic-bezier(.22,.68,0,1.4), box-shadow 0.1s ease;
+    cursor: pointer;
+  }
+  .press:active {
+    transform: scale(0.96);
+  }
+
+  @keyframes _slideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-0 { animation: _slideUp 0.5s cubic-bezier(.22,.68,0,1) 0.05s both; }
+  .card-1 { animation: _slideUp 0.5s cubic-bezier(.22,.68,0,1) 0.12s both; }
+  .card-2 { animation: _slideUp 0.5s cubic-bezier(.22,.68,0,1) 0.19s both; }
+  .card-3 { animation: _slideUp 0.5s cubic-bezier(.22,.68,0,1) 0.26s both; }
+  
+  /* Ajuste de área segura para iOS */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+`;

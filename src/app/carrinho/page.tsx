@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
-import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare, Ticket, CheckCircle } from "lucide-react";import { useRouter } from "next/navigation";
+import { toast, Toaster } from "sonner"; // # ALTERAÇÃO: Adicionado Toaster para feedback do cupom
 
 export default function Carrinho() {
   const { cart, removeFromCart, updateQuantity, updateItemCustomization, createOrder } = useCart();
@@ -16,9 +16,13 @@ export default function Carrinho() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // # ALTERAÇÃO SOLICITADA: Estados para gerenciar o endereço puxado da Home
   const [address, setAddress] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
+
+  // # ALTERAÇÃO SOLICITADA: Estados para gerenciar o cupom
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: 'discount' | 'free_shipping'; value?: number } | null>(null);
+  const [couponError, setCouponError] = useState("");
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
@@ -31,9 +35,54 @@ export default function Carrinho() {
     complementos: [{ nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }]
   };
 
+  // 1. CÁLCULO BASE
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  // # ALTERAÇÃO SOLICITADA: Puxar o endereço salvo pela sua HomeMobile
+  // 2. LÓGICA DE CUPOM E FRETE
+  const taxaEntregaFixa = 5.00;
+  
+  // Se tem FRETEGRATIS, taxa fica 0
+  let valorFrete = address ? taxaEntregaFixa : 0;
+  if (appliedCoupon?.type === 'free_shipping' && address) {
+    valorFrete = 0;
+  }
+
+  // Se tem OFF10, tira 10% do subtotal
+  let valorDesconto = 0;
+  if (appliedCoupon?.type === 'discount' && appliedCoupon.value) {
+    valorDesconto = totalGeral * (appliedCoupon.value / 100);
+  }
+
+  // O total que o cliente realmente vai pagar
+  const totalComFrete = totalGeral - valorDesconto + valorFrete;
+
+  // # ALTERAÇÃO SOLICITADA: Funções de aplicar e remover cupom
+  const handleApplyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+
+    if (code === "OFF10") {
+      setAppliedCoupon({ code, type: 'discount', value: 10 });
+      setCouponError("");
+      setCouponInput("");
+      toast.success("Cupom de 10% aplicado com sucesso!");
+    } else if (code === "FRETEGRATIS") {
+      setAppliedCoupon({ code, type: 'free_shipping' });
+      setCouponError("");
+      setCouponInput("");
+      toast.success("Parabéns! Você ganhou Frete Grátis!");
+    } else {
+      setCouponError("Cupom inválido ou expirado.");
+      setAppliedCoupon(null);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError("");
+    toast.info("Cupom removido.");
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("flame_enderecos");
     const activeIdx = localStorage.getItem("flame_endereco_ativo");
@@ -44,8 +93,7 @@ export default function Carrinho() {
         if (parsed.length > 0) {
           const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
           const end = parsed[idx];
-          if (end) {
-            // Formata no padrão legível para o motoboy
+          if (end && end.rua) {
             setAddress(`${end.rua}, ${end.numero} - ${end.bairro}, ${end.cidade}`);
           }
         }
@@ -82,7 +130,9 @@ export default function Carrinho() {
               const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
               const realUserId = match ? match[2] : (checkData as any).external_reference;
               
-              await createOrder("PIX", address, `MP: ${parsedPix.paymentId} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
+              const finalNotes = appliedCoupon ? `[CUPOM: ${appliedCoupon.code}] ${deliveryNotes}` : deliveryNotes;
+
+              await createOrder("PIX", address, `MP: ${parsedPix.paymentId} | Obs: ${finalNotes}`, restaurantId, realUserId);
               setTimeout(() => { router.push("/my-orders"); }, 3000);
               
             } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
@@ -100,7 +150,7 @@ export default function Carrinho() {
         localStorage.removeItem("pedro-burger-pix");
       }
     }
-  }, [createOrder, router, address, deliveryNotes]);
+  }, [createOrder, router, address, deliveryNotes, appliedCoupon]);
 
   const handleCopyPix = async () => {
     if (!pixData) return;
@@ -123,7 +173,6 @@ export default function Carrinho() {
   };
 
   const processPixPayment = async () => {
-    // Bloqueia se o cliente veio pro carrinho sem ter endereço salvo
     if (!address) {
       setErrorMessage("Você precisa selecionar um endereço de entrega na página inicial.");
       setShowPaymentModal(false);
@@ -136,13 +185,15 @@ export default function Carrinho() {
     setIsSubmitting(true);
 
     try {
+      const finalNotes = appliedCoupon ? `[CUPOM: ${appliedCoupon.code}] ${deliveryNotes}` : deliveryNotes;
+
       const res = await fetch("/api/checkout/pix", {
         method: "POST",
         body: JSON.stringify({ 
           items: cart, 
-          total: totalGeral, 
+          total: totalComFrete, 
           address, 
-          notes: deliveryNotes,
+          notes: finalNotes,
           paymentMethod: "PIX" 
         }),
         headers: { "Content-Type": "application/json" }
@@ -175,7 +226,7 @@ export default function Carrinho() {
             const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
             const realUserId = match ? match[2] : (checkData as any).external_reference;
             
-            await createOrder("PIX", address, `MP: ${data.payment_id} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
+            await createOrder("PIX", address, `MP: ${data.payment_id} | Obs: ${finalNotes}`, restaurantId, realUserId);
             setTimeout(() => { router.push("/my-orders"); }, 3000);
           }
         } catch (err) {
@@ -242,44 +293,31 @@ export default function Carrinho() {
   };
 
   return (
-    <main style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", paddingTop: 0, fontFamily: "'Oswald', sans-serif" }}>
+    <main className="carrinho-container" style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", fontFamily: "'Oswald', sans-serif" }}>      <Toaster theme="dark" position="top-center" richColors />
       <style jsx global>{`
         @media (max-width: 600px) {
           .cart-item { flex-direction: column !important; align-items: flex-start !important; }
           .cart-item img { width: 100% !important; height: 180px !important; margin-bottom: 15px; }
           .qty-row { width: 100% !important; justify-content: space-between !important; margin-top: 15px !important; }
         }
-        .pix-responsive-layout {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 20px;
-        }
-        .pix-qr-container {
-          background: #fff;
-          padding: 15px;
-          border-radius: 12px;
-          display: inline-block;
-        }
-        .pix-text-section {
-          width: 100%;
-          display: flex;
-          flex-direction: column;
-          gap: 15px;
-        }
+        .pix-responsive-layout { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .pix-qr-container { background: #fff; padding: 15px; border-radius: 12px; display: inline-block; }
+        .pix-text-section { width: 100%; display: flex; flex-direction: column; gap: 15px; }
         @media (min-width: 768px) {
-          .pix-responsive-layout {
-            flex-direction: row;
-            align-items: flex-start;
-            text-align: left;
-          }
-          .pix-text-section {
-            flex: 1;
-          }
+          .pix-responsive-layout { flex-direction: row; align-items: flex-start; text-align: left; }
+          .pix-text-section { flex: 1; }
         }
-        .delivery-input:focus {
+        .delivery-input:focus, .coupon-input:focus {
             border-color: #b91c1c !important;
             box-shadow: 0 0 10px rgba(185, 28, 28, 0.2);
+        }
+        .carrinho-container {
+          padding-top: 0px; /* Mobile não tem navbar no topo */
+        }
+        @media (min-width: 768px) {
+          .carrinho-container {
+            padding-top: 100px; /* Espaço exato da Navbar no Desktop */
+          }
         }
       `}</style>
 
@@ -299,10 +337,10 @@ export default function Carrinho() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            {/* Lista de Itens */}
             {cart.map((item) => (
               <div key={item.id} className="cart-item" style={cartItemStyle}>
                 <img src={item.image} alt={item.name} style={thumbStyle} />
-                
                 <div style={{ flex: 1, width: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -311,7 +349,6 @@ export default function Carrinho() {
                     </div>
                     <button onClick={() => removeFromCart(item.id)} style={deleteBtn}><Trash2 size={20}/></button>
                   </div>
-                  
                   <div style={customizationDetails}>
                     {item.customization?.extras?.map((ex: string, i: number) => (
                       <span key={i} style={tagStyle}>{ex}</span>
@@ -322,33 +359,26 @@ export default function Carrinho() {
                       </div>
                     )}
                   </div>
-
                   <div className="qty-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '15px' }}>
                     <p style={{ color: "#fff", fontWeight: "900", fontSize: '24px', margin: 0, fontStyle: 'italic' }}>
                       <span style={{ fontSize: '14px', color: '#b91c1c', marginRight: '4px', fontStyle: 'normal' }}>R$</span>
                       {(item.price * item.quantity).toFixed(2).replace('.', ',')}
                     </p>
-                    
                     <div style={qtyControls}>
-                      <button onClick={() => item.quantity > 1 ? updateQuantity(item.id, item.quantity - 1) : removeFromCart(item.id)} style={qtyBtn}>
-                        <Minus size={16}/>
-                      </button>
+                      <button onClick={() => item.quantity > 1 ? updateQuantity(item.id, item.quantity - 1) : removeFromCart(item.id)} style={qtyBtn}><Minus size={16}/></button>
                       <span style={{ fontWeight: '900', minWidth: '30px', textAlign: 'center', fontSize: '18px' }}>{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} style={qtyBtn}>
-                        <Plus size={16}/>
-                      </button>
+                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} style={qtyBtn}><Plus size={16}/></button>
                     </div>
                   </div>
                 </div>
               </div>
             ))}
 
-            {/* # ALTERAÇÃO SOLICITADA: Bloco de endereço puxado da memória */}
+            {/* Endereço */}
             <div style={deliverySectionStyle}>
                 <div style={sectionTitleStyles}>
                     <MapPin size={16} /> ENTREGAR EM:
                 </div>
-                
                 {address ? (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#000", padding: "16px", borderRadius: "10px", border: "1px solid #222", marginTop: "10px" }}>
                     <span style={{ fontSize: "14px", fontWeight: "bold", color: "#ccc" }}>{address}</span>
@@ -357,12 +387,9 @@ export default function Carrinho() {
                 ) : (
                   <div style={{ marginTop: "10px", padding: "20px", background: "#220000", borderRadius: "10px", border: "1px dashed #b91c1c", textAlign: "center" }}>
                     <p style={{ color: "#ffaaaa", fontSize: "14px", marginBottom: "15px", fontWeight: "bold" }}>Nenhum endereço selecionado.</p>
-                    <Link href="/" style={{ color: "#fff", background: "#b91c1c", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontSize: "13px", fontWeight: "900", textTransform: "uppercase" }}>
-                      SELECIONAR NA PÁGINA INICIAL
-                    </Link>
+                    <Link href="/" style={{ color: "#fff", background: "#b91c1c", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontSize: "13px", fontWeight: "900", textTransform: "uppercase" }}>SELECIONAR NA PÁGINA INICIAL</Link>
                   </div>
                 )}
-                
                 <div style={{ ...sectionTitleStyles, marginTop: '20px' }}>
                     <MessageSquare size={16} /> OBSERVAÇÕES PARA O MOTOBOY (Opcional)
                 </div>
@@ -376,13 +403,73 @@ export default function Carrinho() {
                 />
             </div>
 
+            {/* # ALTERAÇÃO SOLICITADA: Bloco de Cupom */}
+            <div style={couponSectionStyle}>
+              <div style={{ ...sectionTitleStyles, marginBottom: '10px' }}>
+                <Ticket size={16} /> CUPOM DE DESCONTO
+              </div>
+              
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input 
+                  type="text" 
+                  placeholder="EX: OFF10" 
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value)}
+                  className="coupon-input"
+                  style={couponInputStyle}
+                  disabled={appliedCoupon !== null}
+                />
+                {appliedCoupon ? (
+                  <button onClick={removeCoupon} style={removeBtnStyle}>REMOVER</button>
+                ) : (
+                  <button onClick={handleApplyCoupon} style={applyBtnStyle}>APLICAR</button>
+                )}
+              </div>
+              
+              {couponError && <p style={{ color: '#ef4444', fontSize: '12px', fontWeight: 'bold', marginTop: '8px' }}>{couponError}</p>}
+              
+              {appliedCoupon && (
+                <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '10px 15px', borderRadius: '8px' }}>
+                  <CheckCircle size={16} color="#22c55e" />
+                  <span style={{ color: '#22c55e', fontSize: '13px', fontWeight: 'bold' }}>
+                    {appliedCoupon.type === 'discount' ? `Cupom de ${appliedCoupon.value}% aplicado!` : 'Frete Grátis ativado!'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Resumo Financeiro */}
             <div style={resumoStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'center', marginBottom: '12px' }}>
+                <span style={{ fontSize: "14px", fontWeight: "bold", color: '#888' }}>SUBTOTAL:</span>
+                <span style={{ color: "#ccc", fontSize: "16px", fontWeight: "bold" }}>
+                  R$ {totalGeral.toFixed(2).replace('.', ',')}
+                </span>
+              </div>
+              
+              {/* # ALTERAÇÃO SOLICITADA: Exibição do desconto se houver */}
+              {valorDesconto > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: "14px", fontWeight: "bold", color: '#22c55e' }}>DESCONTO ({appliedCoupon?.code}):</span>
+                  <span style={{ color: "#22c55e", fontSize: "16px", fontWeight: "bold" }}>
+                    - R$ {valorDesconto.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'center', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid #1a1a1a' }}>
+                <span style={{ fontSize: "14px", fontWeight: "bold", color: '#888' }}>TAXA DE ENTREGA:</span>
+                <span style={{ color: address ? (valorFrete === 0 ? "#22c55e" : "#555") : "#555", fontSize: "16px", fontWeight: "bold" }}>
+                  {!address ? 'Pendente' : (valorFrete === 0 ? 'GRÁTIS' : `+ R$ ${valorFrete.toFixed(2).replace('.', ',')}`)}
+                </span>
+              </div>
+
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'baseline' }}>
-                <span style={{ fontSize: "16px", fontWeight: "bold", color: '#555' }}>SUBTOTAL DO PEDIDO:</span>
+                <span style={{ fontSize: "16px", fontWeight: "bold", color: '#555' }}>TOTAL DO PEDIDO:</span>
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ color: "#fff", fontSize: "36px", fontWeight: "900", fontStyle: 'italic' }}>
                     <span style={{ fontSize: '18px', color: '#b91c1c', fontStyle: 'normal', marginRight: '8px' }}>R$</span>
-                    {totalGeral.toFixed(2).replace('.', ',')}
+                    {totalComFrete.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
               </div>
@@ -424,7 +511,7 @@ export default function Carrinho() {
         )}
       </section>
 
-      {/* Modais mantidos iguais (Edit, Payment, Pix) */}
+      {/* Modais de Edição e Pagamento */}
       {editingItem && (
         <div style={modalOverlayStyles}>
           <div className="modal-content" style={modalContentStyles}>
@@ -563,6 +650,12 @@ export default function Carrinho() {
 // Estilos extras
 const deliverySectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px solid #1a1a1a", marginBottom: "10px" };
 const deliveryInputStyle: React.CSSProperties = { width: "100%", backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none", marginTop: "10px", transition: "all 0.2s" };
+
+// # ALTERAÇÃO SOLICITADA: Estilos do Cupom
+const couponSectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px dashed #222", marginBottom: "10px" };
+const couponInputStyle: React.CSSProperties = { flex: 1, backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none", textTransform: "uppercase", transition: "all 0.2s" };
+const applyBtnStyle: React.CSSProperties = { backgroundColor: "#1a1a1a", border: "1px solid #333", color: "#fff", fontWeight: "900", padding: "0 20px", borderRadius: "10px", cursor: "pointer", transition: "all 0.2s" };
+const removeBtnStyle: React.CSSProperties = { backgroundColor: "rgba(185, 28, 28, 0.1)", border: "1px solid #b91c1c", color: "#ef4444", fontWeight: "900", padding: "0 20px", borderRadius: "10px", cursor: "pointer", transition: "all 0.2s" };
 
 // Estilos mantidos originais
 const headerSection: React.CSSProperties = { height: "220px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: 'relative', overflow: 'hidden', borderBottom: '1px solid #1a1a1a' };
