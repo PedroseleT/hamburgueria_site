@@ -4,10 +4,13 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Flame, ChefHat, Bike, CheckCircle2, XCircle,
   ChevronDown, Calendar, Search, RefreshCw, User, Phone, Mail,
-  Package, Clock, Filter, X
+  Package, Clock, Filter, X, Share2, Copy, ExternalLink
 } from "lucide-react";
 
 import { createPortal } from "react-dom";
+// # ALTERAÇÃO SOLICITADA: Importação para notificações in-app no admin
+import { Toaster, toast } from 'sonner';
+
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface OrderItem {
   id: string;
@@ -23,6 +26,8 @@ interface Order {
   createdAt: string;
   paymentMethod: string;
   notes?: string;
+  address?: string; // # ADICIONADO PARA LOGÍSTICA
+  deliveryToken?: string; // # ADICIONADO PARA LOGÍSTICA
   user: { name: string; email: string; phone?: string };
   items: OrderItem[];
 }
@@ -38,38 +43,67 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 const STATUS_ORDER = ["RECEIVED", "PREPARING", "OUT_FOR_DELIVERY", "DONE", "CANCELLED"];
 
-// ── StatusSelector — ALTERAÇÃO SOLICITADA: modal centralizado ─────────────────
-function StatusSelector({ orderId, current, onUpdate }: { orderId: string; current: string; onUpdate: (id: string, status: string) => void }) {
+// ── StatusSelector — ATUALIZADO COM FLUXO DE DESPACHO ─────────────────────────
+function StatusSelector({ order, onUpdate }: { order: Order; onUpdate: (id: string, status: string, extra?: any) => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDispatchOptions, setShowDispatchOptions] = useState(false);
+  const [deliveryUrl, setDeliveryUrl] = useState(order.deliveryToken ? `${window.location.origin}/delivery/track/${order.deliveryToken}` : "");
 
   const handleSelect = async (newStatus: string) => {
-    if (newStatus === current) { setOpen(false); return; }
+    if (newStatus === order.status) { setOpen(false); return; }
+
+    // # ALTERAÇÃO SOLICITADA: Intercepta o status de entrega para mostrar opções de despacho
+    if (newStatus === "OUT_FOR_DELIVERY" && !order.deliveryToken) {
+      setShowDispatchOptions(true);
+      return;
+    }
+
     setLoading(true);
     setOpen(false);
     try {
-      const res = await fetch(`/api/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) onUpdate(orderId, newStatus);
+      if (res.ok) onUpdate(order.id, newStatus);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  const cfg = STATUS_CONFIG[current];
-  
-  // # ALTERAÇÃO SOLICITADA: Removida a trava de "DONE" e "CANCELLED" para o atendente ter controle total
+  // # ALTERAÇÃO SOLICITADA: Função para gerar o link e despachar
+  const handleGenerateDispatch = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "EXTERNAL", courierName: "Externo" })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const url = `${window.location.origin}/delivery/track/${data.token}`;
+        setDeliveryUrl(url);
+        onUpdate(order.id, "OUT_FOR_DELIVERY", { deliveryToken: data.token });
+        toast.success("Pedido Despachado!", { description: "Link gerado para o motoboy." });
+        setShowDispatchOptions(false);
+        setOpen(false);
+      }
+    } catch (e) { toast.error("Erro ao despachar"); }
+    finally { setLoading(false); }
+  };
+
+  const cfg = STATUS_CONFIG[order.status];
   const isDisabled = loading; 
-  const isAnimated = !["DONE", "CANCELLED"].includes(current);
+  const isAnimated = !["DONE", "CANCELLED"].includes(order.status);
 
   const modal = open ? createPortal(
     <div
-      onClick={() => setOpen(false)}
+      onClick={() => { setOpen(false); setShowDispatchOptions(false); }}
       style={{
         position: "fixed", inset: 0, zIndex: 99999,
-        background: "rgba(0,0,0,0.80)", backdropFilter: "blur(6px)",
+        background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
@@ -84,44 +118,62 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a" }}>
           <div>
-            <p style={{ color: "#444", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", margin: 0 }}>Atualizar status</p>
-            <p style={{ color: "#666", fontSize: 11, fontFamily: "monospace", margin: "4px 0 0", letterSpacing: "0.1em" }}>#{orderId.slice(-8).toUpperCase()}</p>
+            <p style={{ color: "#444", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", margin: 0 }}>
+              {showDispatchOptions ? "Logística de Entrega" : "Atualizar status"}
+            </p>
+            <p style={{ color: "#666", fontSize: 11, fontFamily: "monospace", margin: "4px 0 0", letterSpacing: "0.1em" }}>#{order.id.slice(-8).toUpperCase()}</p>
           </div>
-          <button onClick={() => setOpen(false)} style={{ background: "#161616", border: "1px solid #222", color: "#555", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button onClick={() => { setOpen(false); setShowDispatchOptions(false); }} style={{ background: "#161616", border: "1px solid #222", color: "#555", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <X size={13} />
           </button>
         </div>
+
         <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-          {STATUS_ORDER.map((s) => {
-            const c = STATUS_CONFIG[s];
-            const isCurrent = s === current;
-            return (
-              <button
-                key={s}
-                onClick={() => handleSelect(s)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 12,
-                  padding: "12px 16px", borderRadius: 8,
-                  background: isCurrent ? c.bg : "#111",
-                  border: `1px solid ${isCurrent ? c.color + "55" : "#1a1a1a"}`,
-                  color: isCurrent ? c.color : "#555",
-                  fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
-                  textTransform: "uppercase", cursor: "pointer", textAlign: "left",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => { if (!isCurrent) { const b = e.currentTarget as HTMLButtonElement; b.style.background = "#161616"; b.style.borderColor = "#2a2a2a"; b.style.color = "#888"; } }}
-                onMouseLeave={e => { if (!isCurrent) { const b = e.currentTarget as HTMLButtonElement; b.style.background = "#111"; b.style.borderColor = "#1a1a1a"; b.style.color = "#555"; } }}
+          {showDispatchOptions ? (
+            <div style={{ padding: "10px 0" }}>
+               <button
+                onClick={handleGenerateDispatch}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "16px", borderRadius: 8, background: "#3b82f618", border: "1px solid #3b82f644", color: "#3b82f6", fontSize: 12, fontWeight: 800, textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}
               >
-                <span style={{ color: c.color, display: "flex" }}>{c.icon}</span>
-                {c.label}
-                {isCurrent && (
-                  <span style={{ marginLeft: "auto", fontSize: 9, background: c.color + "22", border: `1px solid ${c.color}44`, color: c.color, padding: "2px 8px", borderRadius: 10, fontWeight: 900 }}>
-                    ATUAL
-                  </span>
-                )}
+                <Share2 size={16} /> Gerar Link para Motoboy
               </button>
-            );
-          })}
+              <button
+                onClick={() => setShowDispatchOptions(false)}
+                style={{ width: "100%", background: "none", border: "none", color: "#444", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" }}
+              >
+                Voltar aos status
+              </button>
+            </div>
+          ) : (
+            STATUS_ORDER.map((s) => {
+              const c = STATUS_CONFIG[s];
+              const isCurrent = s === order.status;
+              return (
+                <button
+                  key={s}
+                  onClick={() => handleSelect(s)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 16px", borderRadius: 8,
+                    background: isCurrent ? c.bg : "#111",
+                    border: `1px solid ${isCurrent ? c.color + "55" : "#1a1a1a"}`,
+                    color: isCurrent ? c.color : "#555",
+                    fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
+                    textTransform: "uppercase", cursor: "pointer", textAlign: "left",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <span style={{ color: c.color, display: "flex" }}>{c.icon}</span>
+                  {c.label}
+                  {isCurrent && (
+                    <span style={{ marginLeft: "auto", fontSize: 9, background: c.color + "22", border: `1px solid ${c.color}44`, color: c.color, padding: "2px 8px", borderRadius: 10, fontWeight: 900 }}>
+                      ATUAL
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
     </div>,
@@ -130,31 +182,47 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
 
   return (
     <>
-      <button
-        onClick={() => { if (!isDisabled) setOpen(true); }}
-        disabled={isDisabled}
-        className={isAnimated && !loading ? "shimmer-effect" : ""}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          background: cfg?.bg, border: `1px solid ${cfg?.color}44`,
-          color: cfg?.color, padding: "6px 12px", borderRadius: 8,
-          fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
-          cursor: isDisabled ? "default" : "pointer",
-          opacity: loading ? 0.6 : 1, transition: "all 0.2s",
-          position: "relative", overflow: "hidden"
-        }}
-      >
-        {loading ? <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} /> : cfg?.icon}
-        {cfg?.label}
-        {!isDisabled && <ChevronDown size={11} />}
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button
+          onClick={() => { if (!isDisabled) setOpen(true); }}
+          disabled={isDisabled}
+          className={isAnimated && !loading ? "shimmer-effect" : ""}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            background: cfg?.bg, border: `1px solid ${cfg?.color}44`,
+            color: cfg?.color, padding: "6px 12px", borderRadius: 8,
+            fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
+            cursor: isDisabled ? "default" : "pointer",
+            opacity: loading ? 0.6 : 1, transition: "all 0.2s",
+            position: "relative", overflow: "hidden"
+          }}
+        >
+          {loading ? <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} /> : cfg?.icon}
+          {cfg?.label}
+          {!isDisabled && <ChevronDown size={11} />}
+        </button>
+
+        {order.deliveryToken && (
+           <button 
+            onClick={() => { 
+              const url = `${window.location.origin}/delivery/track/${order.deliveryToken}`;
+              navigator.clipboard.writeText(url);
+              toast.info("Link de entrega copiado!");
+            }}
+            style={{ background: "#111", border: "1px solid #222", color: "#3b82f6", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            title="Copiar link do motoboy"
+          >
+            <Share2 size={12} />
+          </button>
+        )}
+      </div>
       {modal}
     </>
   );
 }
 
 // ── OrderRow ──────────────────────────────────────────────────────────────────
-function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onUpdate: (id: string, status: string) => void }) {
+function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onUpdate: (id: string, status: string, extra?: any) => void }) {
   const [expanded, setExpanded] = useState(false);
   const date = new Date(order.createdAt);
 
@@ -184,7 +252,7 @@ function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onU
           </div>
         </td>
         <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-          <StatusSelector orderId={order.id} current={order.status} onUpdate={onUpdate} />
+          <StatusSelector order={order} onUpdate={onUpdate} />
         </td>
         <td style={{ padding: "14px 16px", textAlign: "center" }}>
           <ChevronDown size={16} color="#333" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
@@ -247,7 +315,6 @@ export default function AdminPage() {
   const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
   
-  // Referência para contagem anterior para o som de alerta
   const prevCountRef = useRef(0);
 
   const fetchOrders = async (isSilent = false) => {
@@ -257,7 +324,6 @@ export default function AdminPage() {
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       
-      // Gatilho do som se houver novos pedidos
       if (prevCountRef.current !== 0 && list.length > prevCountRef.current) {
         const audio = new Audio("/notification.mp3");
         audio.play().catch(e => console.log("Permissão de áudio pendente."));
@@ -269,15 +335,14 @@ export default function AdminPage() {
     finally { setLoading(false); }
   };
 
-  // Polling automático a cada 15 segundos
   useEffect(() => { 
     fetchOrders(); 
     const interval = setInterval(() => fetchOrders(true), 15000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleUpdate = (id: string, newStatus: string) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
+  const handleUpdate = (id: string, newStatus: string, extra?: any) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus, ...extra } : o));
   };
 
   const filtered = useMemo(() => {
@@ -301,12 +366,12 @@ export default function AdminPage() {
 
   return (
     <>
+      <Toaster theme="dark" position="top-center" richColors />
       <style>{`
         @keyframes fadeIn  { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
         @keyframes modalIn { from{opacity:0;transform:scale(0.92);} to{opacity:1;transform:scale(1);} }
         @keyframes spin    { to{transform:rotate(360deg);} }
         
-        /* Efeito Shimmer (Cor vai e vem) */
         @keyframes shimmer {
           0% { transform: translateX(-150%); }
           50% { transform: translateX(150%); }
@@ -349,16 +414,13 @@ export default function AdminPage() {
                   PAINEL <span style={{ color: "#b91c1c" }}>ADMIN</span>
                 </h1>
               </div>
-              <button onClick={() => fetchOrders()} style={{ display: "flex", alignItems: "center", gap: 7, background: "#111", border: "1px solid #222", color: "#666", padding: "9px 16px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.2s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#b91c1c44"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#222"; (e.currentTarget as HTMLButtonElement).style.color = "#666"; }}>
+              <button onClick={() => fetchOrders()} style={{ display: "flex", alignItems: "center", gap: 7, background: "#111", border: "1px solid #222", color: "#666", padding: "9px 16px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.2s" }}>
                 <RefreshCw size={13} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
                 Atualizar
               </button>
             </div>
           </header>
 
-          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 28 }}>
             {[
               { label: "Total Pedidos", value: stats.todos },
@@ -394,9 +456,6 @@ export default function AdminPage() {
             </div>
             <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
               style={{ background: "#080808", border: "1px solid #1e1e1e", borderRadius: 6, padding: "7px 10px", color: "#666", fontSize: 12, outline: "none", fontFamily: "sans-serif", cursor: "pointer" }} />
-            {filterDate && (
-              <button onClick={() => setFilterDate("")} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>✕ Limpar data</button>
-            )}
           </div>
 
           <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10, overflow: "hidden" }}>
@@ -416,17 +475,8 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
-              <div style={{ padding: "12px 16px", borderTop: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#333", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                  {filtered.length} de {orders.length} pedido{orders.length !== 1 ? "s" : ""}
-                </span>
-                <span style={{ color: "#222", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                  Clique em um pedido para ver detalhes
-                </span>
-              </div>
             </div>
           </div>
-
         </div>
       </div>
     </>

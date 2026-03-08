@@ -14,6 +14,7 @@ enum Role {
   CLIENT
   ATTENDANT
   ADMIN
+  COURIER // # ALTERAÇÃO SOLICITADA: Novo cargo para entregadores fixos
 }
 
 enum OrderStatus {
@@ -26,18 +27,16 @@ enum OrderStatus {
 
 // 3. Modelos de Dados
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  phone     String?
-  role      Role     @default(CLIENT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  restaurant Restaurant?
-  orders     Order[]
-  
-  // # ALTERAÇÃO SOLICITADA: Relação com as inscrições de notificação (um usuário pode ter celular e PC)
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  password          String
+  phone             String?
+  role              Role               @default(CLIENT)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  restaurant        Restaurant?
+  orders            Order[]
   pushSubscriptions PushSubscription[]
 }
 
@@ -71,6 +70,13 @@ model Order {
   paymentMethod String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  // # ALTERAÇÃO SOLICITADA: Campos para Logística de Entrega
+  address       String?     // Endereço completo para o GPS
+  deliveryToken String?     @unique // Token secreto para o motoboy indireto acessar o link
+  courierName   String?     // Nome do motoboy (seja da casa ou externo)
+  dispatchedAt  DateTime?   // Horário que saiu para entrega
+  completedAt   DateTime?   // Horário que o motoboy finalizou a entrega
   
   userId        String
   user          User        @relation(fields: [userId], references: [id])
@@ -90,11 +96,9 @@ model OrderItem {
   product   Menu   @relation(fields: [productId], references: [id])
   
   orderId   String
-  // # ALTERAÇÃO SOLICITADA
   order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-// # ALTERAÇÃO SOLICITADA: Nova tabela para salvar as chaves do navegador/celular do cliente
 model PushSubscription {
   id        String   @id @default(cuid())
   endpoint  String   @unique
