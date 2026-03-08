@@ -51,8 +51,9 @@ export async function POST(request: Request) {
       },
     });
 
-    const transactionAmount = total; // Usando o total real do carrinho
-    const description = `Pedido #${order.id.slice(-6)} - The Flame Grill`;
+    // # ALTERAÇÃO SOLICITADA: Forçando 1 centavo para testes (Lembre-se de voltar para 'total' em produção)
+    const transactionAmount = 0.01; 
+    const description = `Pedido #${order.id.slice(-6)} - The Flame Grill (TESTE)`;
 
     // # ALTERAÇÃO: Enviar o ID do PEDIDO (order.id) como external_reference
     const result = await payment.create({
