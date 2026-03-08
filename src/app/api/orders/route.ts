@@ -6,6 +6,12 @@ import { cookies } from "next/headers";
 export async function GET() {
   try {
     const orders = await prisma.order.findMany({
+      // # ALTERAÇÃO SOLICITADA: Filtra para NÃO enviar pedidos com status PENDING para a cozinha
+      where: {
+        status: {
+          not: "PENDING"
+        }
+      },
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { name: true, email: true, phone: true } },
