@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Flame, ChefHat, Bike, CheckCircle2, XCircle,
   ChevronDown, Calendar, Search, RefreshCw, User, Phone, Mail,
-  Package, Clock, Filter, X, Share2, Copy, ExternalLink, AlertCircle // ADICIONADO ALERTCIRCLE
+  Package, MapPin, Clock, Filter, X, Share2, Copy, ExternalLink, AlertCircle // ADICIONADO ALERTCIRCLE
 } from "lucide-react";
 
 import { createPortal } from "react-dom";
