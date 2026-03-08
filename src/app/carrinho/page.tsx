@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
 import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle } from "lucide-react";
@@ -16,34 +16,56 @@ export default function Carrinho() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // # ALTERAÇÃO SOLICITADA: Estados do PIX, Modal de Pagamento e Feedback de Cópia
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
   const [pixStatus, setPixStatus] = useState<string>("pendente");
   const [copied, setCopied] = useState(false);
 
   const baseOptions = {
-    molhosGratis: [
-      { nome: "Ketchup", preco: 0 },
-      { nome: "Mostarda", preco: 0 },
-      { nome: "Maionese Tradicional", preco: 0 }
-    ],
-    molhosCasa: [
-      { nome: "Maionese Artesanal 30ml", preco: 3.50 },
-      { nome: "Barbecue Defumado 30ml", preco: 4.00 },
-      { nome: "Chipotle Picante 30ml", preco: 4.50 }
-    ],
-    complementos: [
-      { nome: "Hambúrguer Extra 180g", preco: 12.00 },
-      { nome: "Bacon em Tiras", preco: 6.00 },
-      { nome: "Queijo Cheddar", preco: 5.00 },
-      { nome: "Salada Fresca", preco: 3.00 }
-    ]
+    molhosGratis: [{ nome: "Ketchup", preco: 0 }, { nome: "Mostarda", preco: 0 }, { nome: "Maionese Tradicional", preco: 0 }],
+    molhosCasa: [{ nome: "Maionese Artesanal 30ml", preco: 3.50 }, { nome: "Barbecue Defumado 30ml", preco: 4.00 }, { nome: "Chipotle Picante 30ml", preco: 4.50 }],
+    complementos: [{ nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }]
   };
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  // # ALTERAÇÃO SOLICITADA: Função robusta para copiar o código PIX
+  // # ALTERAÇÃO: RECUPERAÇÃO DE PIX (Se o cliente fechou o navegador para ir pro app do banco)
+  useEffect(() => {
+    const savedPixId = localStorage.getItem("pedro-burger-pix-id");
+    if (savedPixId) {
+      setShowPaymentModal(true);
+      setPixStatus("pendente");
+
+      const interval = setInterval(async () => {
+        try {
+          const checkRes = await fetch(`/api/checkout/pix?id=${savedPixId}`);
+          const checkData = await checkRes.json();
+          
+          if (checkData.status === "approved") {
+            clearInterval(interval);
+            setPixStatus("aprovado");
+            localStorage.removeItem("pedro-burger-pix-id"); // Limpa da memória pois já foi pago
+            
+            const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+            const realUserId = (checkData as any).external_reference; // Evita erro de tipagem
+            
+            await createOrder("PIX", `MercadoPago: ${savedPixId}`, restaurantId, realUserId);
+            
+            setTimeout(() => { router.push("/my-orders"); }, 3000);
+          } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
+            clearInterval(interval);
+            localStorage.removeItem("pedro-burger-pix-id");
+            setShowPaymentModal(false);
+          }
+        } catch (e) {
+          console.error("Erro ao verificar PIX recuperado:", e);
+        }
+      }, 5000);
+
+      return () => clearInterval(interval);
+    }
+  }, [createOrder, router]);
+
   const handleCopyPix = async () => {
     if (!pixData) return;
     try {
@@ -51,7 +73,6 @@ export default function Carrinho() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      // Fallback para navegadores de celular que bloqueiam o clipboard direto
       const textArea = document.createElement("textarea");
       textArea.value = pixData.qrCode;
       document.body.appendChild(textArea);
@@ -60,9 +81,7 @@ export default function Carrinho() {
         document.execCommand("copy");
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-      } catch (e) {
-        console.error("Erro ao copiar", e);
-      }
+      } catch (e) { console.error("Erro ao copiar", e); }
       document.body.removeChild(textArea);
     }
   };
@@ -85,35 +104,32 @@ export default function Carrinho() {
 
       setPixData({ qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id });
       setPixStatus("pendente");
+      
+      // # ALTERAÇÃO: Salva o ID do PIX na memória para o caso da janela fechar
+      localStorage.setItem("pedro-burger-pix-id", data.payment_id);
 
       const interval = setInterval(async () => {
         const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`);
         const checkData = await checkRes.json();
         
-        // ... dentro de processPixPayment no arquivo Carrinho
-if (checkData.status === "approved") {
-  clearInterval(interval);
-  setPixStatus("aprovado");
-  
-  const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-
-  // # CORREÇÃO DO ERRO: Usamos (checkData as any) para o TypeScript ignorar o erro de tipagem
-  const realUserId = (checkData as any).external_reference;
-
-  await createOrder(
-    "PIX", 
-    `MercadoPago: ${data.payment_id}`, 
-    restaurantId,
-    realUserId // Agora o ID real do cliente é passado sem erro
-  );
-  
-  setTimeout(() => {
-    router.push("/my-orders");
-  }, 3000);
-}
+        if (checkData.status === "approved") {
+          clearInterval(interval);
+          setPixStatus("aprovado");
+          localStorage.removeItem("pedro-burger-pix-id"); // Limpa ao aprovar
+          
+          const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+          const realUserId = (checkData as any).external_reference; // Evita erro de tipagem
+          
+          await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId, realUserId);
+          
+          setTimeout(() => { router.push("/my-orders"); }, 3000);
+        }
       }, 5000);
 
-      setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
+      setTimeout(() => {
+        clearInterval(interval);
+        localStorage.removeItem("pedro-burger-pix-id"); // Limpa se demorar muito (expirou)
+      }, 5 * 60 * 1000);
 
     } catch (error: any) {
       setErrorMessage(error.message);
@@ -177,7 +193,6 @@ if (checkData.status === "approved") {
           .qty-row { width: 100% !important; justify-content: space-between !important; margin-top: 15px !important; }
         }
 
-        /* # ALTERAÇÃO SOLICITADA: Layout responsivo para o Modal do PIX */
         .pix-responsive-layout {
           display: flex;
           flex-direction: column;
@@ -356,7 +371,6 @@ if (checkData.status === "approved") {
         </div>
       )}
 
-      {/* # ALTERAÇÃO SOLICITADA: Modal de Formas de Pagamento */}
       {showPaymentModal && (
         <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '30px' }}>
@@ -391,7 +405,6 @@ if (checkData.status === "approved") {
         </div>
       )}
 
-      {/* # ALTERAÇÃO SOLICITADA: Modal do PIX Responsivo com Cópia aprimorada */}
       {pixData && (
         <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget && pixStatus !== 'aprovado') setPixData(null); }}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '650px' }}>
@@ -437,7 +450,6 @@ if (checkData.status === "approved") {
                 </div>
               </div>
             ) : (
-              // ALTERAÇÃO SOLICITADA: Layout profissional e centralizado para o status "Aprovado"
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 0', animation: 'fadeIn 0.5s ease' }}>
                 <div style={{ width: '90px', height: '90px', background: 'rgba(34, 197, 94, 0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 0 30px rgba(34, 197, 94, 0.2)' }}>
                   <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
