@@ -1,0 +1,21 @@
+{
+  "name": "The Flame Grill",
+  "short_name": "Flame Grill",
+  "description": "A melhor hamburgueria da região.",
+  "start_url": "/my-orders",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#b91c1c",
+  "icons": [
+    {
+      "src": "/logo_hamburgueria.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo_hamburgueria.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

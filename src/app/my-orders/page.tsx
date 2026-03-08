@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle } from "lucide-react";
+import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle, Bell } from "lucide-react";
+import { Toaster, toast } from 'sonner';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 interface OrderItem {
@@ -30,6 +31,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string
   CANCELLED:        { label: "Cancelado",           color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
 };
 
+const STATUS_TOASTS: Record<string, { title: string; desc: string; icon: string }> = {
+  PREPARING:        { title: "Fogo na Grelha! 🔥", desc: "Seu pedido começou a ser preparado.", icon: "👨‍🍳" },
+  OUT_FOR_DELIVERY: { title: "Saiu para Entrega! 🛵", desc: "O motoboy já está a caminho.", icon: "📦" },
+  DONE:             { title: "Pedido Entregue! ✅", desc: "Bom apetite! Cuidado para não queimar a língua.", icon: "🍔" },
+  CANCELLED:        { title: "Pedido Cancelado ❌", desc: "Seu pedido foi cancelado no sistema.", icon: "😔" }
+};
+
 // ─── Progress bar ───────────────────────────────────────────────────────────────
 function OrderProgress({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.RECEIVED;
@@ -45,7 +53,6 @@ function OrderProgress({ status }: { status: string }) {
       {steps.map((s, i) => {
         const active = cfg.step >= s.step;
         const current = cfg.step === s.step;
-        
         const isLineActive = cfg.step > s.step;
         const isOrderDone = cfg.step === 4;
 
@@ -157,31 +164,121 @@ function SkeletonCard() {
   );
 }
 
+// ─── Auxiliar Web Push ──────────────────────────────────────────────────────────
+const urlBase64ToUint8Array = (base64String: string) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function MyOrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Ref para guardar o status dos pedidos e evitar notificação duplicada
+  const previousStatuses = useRef<Record<string, string>>({});
+
+  const [permissionStatus, setPermissionStatus] = useState<string>("default");
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
-    // Busca os pedidos do banco de dados
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPermissionStatus(Notification.permission);
+    }
+
     const fetchOrders = () => {
       fetch("/api/orders/user")
         .then((res) => res.json())
         .then((data) => { 
-          setOrders(Array.isArray(data) ? data : []); 
+          const newData = Array.isArray(data) ? data : [];
+          
+          newData.forEach(order => {
+            const oldStatus = previousStatuses.current[order.id];
+            
+            // Se o status mudou (ou seja, é diferente do que estava gravado no useRef)
+            if (oldStatus && oldStatus !== order.status) {
+              const toastInfo = STATUS_TOASTS[order.status];
+              if (toastInfo) {
+                toast(toastInfo.title, {
+                  description: toastInfo.desc,
+                  icon: toastInfo.icon,
+                });
+                const audio = new Audio('/notification.mp3');
+                audio.play().catch(e => console.log('Bloqueado:', e));
+              }
+            }
+            // Atualiza a memória para não tocar de novo na próxima checagem
+            previousStatuses.current[order.id] = order.status;
+          });
+
+          setOrders(newData);
           setLoading(false);
         })
         .catch(() => setLoading(false));
     };
 
     fetchOrders();
-
-    // Loop de atualização (Polling) a cada 5 segundos para refletir mudanças do Admin
     const interval = setInterval(fetchOrders, 5000);
-
     return () => clearInterval(interval);
   }, []);
+
+  const handleSubscribe = async () => {
+    // Tratamento de segurança: HTTP vs HTTPS
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      toast.error("Conexão Insegura 🔒", { 
+        description: "Notificações push só funcionam em sites com HTTPS (como na Vercel)." 
+      });
+      return;
+    }
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (isIOS) {
+        toast.error("Adicione à Tela de Início! 📱", { 
+          description: "No iPhone, clique em 'Compartilhar' > 'Adicionar à Tela de Início' para liberar notificações.",
+          duration: 8000
+        });
+      } else {
+        toast.error("Navegador não suportado.", { description: "Seu navegador não permite notificações em segundo plano." });
+      }
+      return;
+    }
+    
+    setIsSubscribing(true);
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BGDxT31aOk5hDpKskaRXj63fMgv5LFplmJ8ZmYLpA0xRUdG3VwORWr4Kv6BpSwRgHcVfYoheyGrwJl16HjldaZ0")
+      });
+
+      const response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(sub),
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        setPermissionStatus("granted");
+        toast.success("Notificações ativadas!", { description: "Você será avisado mesmo com a aba fechada." });
+      } else {
+        throw new Error("Erro na API ao salvar no banco.");
+      }
+    } catch (error: any) {
+      console.error("Erro Push:", error);
+      toast.error("Erro ao ativar", { description: error.message || "Tente novamente mais tarde." });
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
 
   return (
     <>
@@ -194,6 +291,8 @@ export default function MyOrdersPage() {
           100% { background-position: 100% 0; }
         }
       `}</style>
+      
+      <Toaster theme="dark" position="top-center" richColors />
 
       <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'Oswald', sans-serif" }}>
         <div style={{ height: 90 }} />
@@ -206,6 +305,27 @@ export default function MyOrdersPage() {
               MEUS <span style={{ color: "#b91c1c" }}>PEDIDOS</span>
             </h1>
           </header>
+
+          {permissionStatus !== "granted" && !loading && (
+            <div style={{ background: "#0e0e0e", border: "1px solid #1e1e1e", borderRadius: 12, padding: "16px 20px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", animation: "fadeSlideUp 0.4s ease" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ background: "#b91c1c22", padding: 10, borderRadius: 50, border: "1px solid #b91c1c55" }}>
+                  <Bell color="#b91c1c" size={20} />
+                </div>
+                <div>
+                  <span style={{ display: "block", color: "#fff", fontWeight: 800, fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase" }}>Ativar Notificações</span>
+                  <span style={{ color: "#777", fontSize: 11, fontWeight: 600 }}>Avisamos você fora do site!</span>
+                </div>
+              </div>
+              <button 
+                onClick={handleSubscribe} 
+                disabled={isSubscribing}
+                style={{ background: "#b91c1c", border: "none", color: "#fff", fontWeight: 900, fontSize: 11, letterSpacing: "0.1em", padding: "10px 20px", borderRadius: 30, cursor: isSubscribing ? "not-allowed" : "pointer", textTransform: "uppercase", opacity: isSubscribing ? 0.7 : 1, transition: "0.2s" }}
+              >
+                {isSubscribing ? "Ativando..." : "Permitir"}
+              </button>
+            </div>
+          )}
 
           {loading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

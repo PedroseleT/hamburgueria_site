@@ -16,6 +16,8 @@ const oswald = Oswald({
 export const metadata: Metadata = {
   title: "The Flame Grill",
   description: "O Brasil em cada mordida",
+  // # ALTERAÇÃO SOLICITADA: Registro nativo do manifest para o PWA/Notificações
+  manifest: "/manifest.json",
 };
 
 export const viewport = {
@@ -32,6 +34,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-br" className={oswald.variable}>
+      <head>
+        {/* # ALTERAÇÃO SOLICITADA: Fallback direto no head para garantir compatibilidade com o Safari do iOS */}
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body
         className={oswald.className}
         style={{
