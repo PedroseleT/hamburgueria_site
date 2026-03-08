@@ -214,10 +214,27 @@ export default function ProfilePage() {
             </button>
           )}
           
-          <button type="button" onClick={() => {
-            document.cookie = "user_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            router.push("/login");
-          }} style={logoutButtonStyle}>SAIR DA CONTA</button>
+          {/* BOTÃO SAIR DA CONTA ATUALIZADO */}
+<button 
+  type="button" 
+  onClick={() => {
+    // 1. Limpa o Cookie de Sessão
+    document.cookie = "user_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    
+    // 2. # ALTERAÇÃO SOLICITADA: Limpa o LocalStorage (Carrinho e Endereços)
+    // Isso evita que a conta nova herde lixo da conta antiga
+    localStorage.clear();
+
+    // 3. Limpa caches de sessão do navegador
+    sessionStorage.clear();
+
+    // 4. Redireciona e força um reload total para limpar o estado da aplicação
+    window.location.href = "/login";
+  }} 
+  style={logoutButtonStyle}
+>
+  SAIR DA CONTA
+</button>
         </form>
       </div>
     </div>
