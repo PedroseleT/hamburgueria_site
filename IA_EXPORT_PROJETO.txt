@@ -2,7 +2,7 @@
 INFORMAÇÕES DO PROJETO
 ================================================================================
 
-Data da exportação: 2026-03-07 19:52:16.528814
+Data da exportação: 2026-03-08 09:34:51.163658
 
 ================================================================================
 ESTRUTURA DE PASTAS
@@ -37,9 +37,11 @@ ESTRUTURA DE PASTAS
     design_mordida2.png
     grilled-gourmet-cheeseburger-with-fresh-vegetables-fries-generated-by-ai.jpg
     logo_hamburgueria.png
+    manifest.json
     notification.mp3
     person-holding-delicious-burger-with-beef-yellow-cheese-bacon.jpg
     still-life-delicious-american-hamburger.jpg
+    sw.js
   src/
     middleware.ts
     app/
@@ -62,6 +64,11 @@ ESTRUTURA DE PASTAS
         checkout/
           pix/
             route.ts
+        delivery/
+          complete/
+            route.ts
+            info/
+              route.ts
         login/
           route.ts
         me/
@@ -72,19 +79,28 @@ ESTRUTURA DE PASTAS
             route.ts
           [id]/
             route.ts
+            dispatch/
+              route.ts
+        push/
+          subscribe/
+            route.ts
         register/
           route.ts
         restaurant/
           route.ts
+        webhooks/
+          mercadopago/
+            route.ts
       cardapio/
         page.tsx
       carrinho/
         page.tsx
       contato/
         page.tsx
-      entregador/
-        [id]/
-          page.tsx
+      delivery/
+        track/
+          [token]/
+            page.tsx
       login/
         page.tsx
       my-orders/
@@ -106,6 +122,7 @@ ESTRUTURA DE PASTAS
       HomeMobile.tsx
       Menu.tsx
       Navbar.tsx
+      SecurityConsole.tsx
     config/
       site-config.ts
     context/
@@ -115,6 +132,7 @@ ESTRUTURA DE PASTAS
       isMobile.ts
       jwt.ts
       prisma.ts
+      rate-limit.ts
 
 ================================================================================
 CÓDIGO FONTE
@@ -284,7 +302,23 @@ const nextConfig: NextConfig = {
   typescript: {
     // Isso permite o build mesmo se houver avisos de tipos
     ignoreBuildErrors: true, 
-  }
+  },
+  // # ALTERAÇÃO SOLICITADA: Adição de cabeçalhos de segurança avançados (Escudo Externo)
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-DNS-Prefetch-Control", value: "on" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sdk.mercadopago.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:;" }
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
@@ -310,13 +344,17 @@ ARQUIVO: .\package.json
     "dotenv": "^16.4.5",
     "jose": "^6.2.0",
     "jsonwebtoken": "^9.0.2",
+    "lru-cache": "^11.2.6",
     "lucide-react": "^0.447.0",
     "mercadopago": "^2.12.0",
     "next": "15.1.9",
     "nodemailer": "^8.0.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-icons": "^5.6.0"
+    "react-icons": "^5.6.0",
+    "sonner": "^2.0.7",
+    "web-push": "^3.6.7",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
@@ -326,6 +364,7 @@ ARQUIVO: .\package.json
     "@types/nodemailer": "^7.0.11",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9.0.0",
     "eslint-config-next": "15.1.9",
     "postcss": "^8.4.49",
@@ -559,50 +598,145 @@ ADD COLUMN     "role" TEXT NOT NULL DEFAULT 'CLIENT';
 
 
 --------------------------------------------------------------------------------
-ARQUIVO: .\src\middleware.ts
+ARQUIVO: .\public\manifest.json
 --------------------------------------------------------------------------------
 
-export const runtime = "nodejs";
+{
+  "name": "The Flame Grill",
+  "short_name": "Flame Grill",
+  "description": "A melhor hamburgueria da região.",
+  "start_url": "/my-orders",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#b91c1c",
+  "icons": [
+    {
+      "src": "/logo_hamburgueria.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo_hamburgueria.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\public\sw.js
+--------------------------------------------------------------------------------
+
+self.addEventListener('push', function (event) {
+  if (event.data) {
+    const data = event.data.json();
+    
+    const options = {
+      body: data.body,
+      icon: '/logo_hamburgueria.png', // Usa a sua logo
+      badge: '/logo_hamburgueria.png',
+      vibrate: [200, 100, 200, 100, 200], // Faz o telemóvel vibrar
+      data: {
+        url: data.url || '/my-orders'
+      }
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title, options)
+    );
+  }
+});
+
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.openWindow(event.notification.data.url)
+  );
+});
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\middleware.ts
+--------------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyToken } from "@/lib/jwt";
 
+// # ALTERAÇÃO SOLICITADA: Definição de rotas públicas que o segurança ignora
+const PUBLIC_API_ROUTES = ["/api/webhooks/mercadopago"];
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const isAdminPage = pathname.startsWith("/admin");
-  if (isAdminPage) {
+  // # 1. EXCEÇÃO DE SEGURANÇA: Permite que o Mercado Pago envie o Webhook sem Token
+  if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) {
+    return NextResponse.next();
+  }
+
+  // # 2. PROTEÇÃO DE PÁGINAS E APIS DE ADMIN
+  const isAdminPath = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+  
+  if (isAdminPath) {
     const cookieToken = req.cookies.get("auth_token")?.value;
-    if (!cookieToken) return NextResponse.redirect(new URL("/login", req.url));
+    
+    // Se não tem token, bloqueia
+    if (!cookieToken) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Acesso negado: Token ausente" }, { status: 401 });
+      }
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+
     try {
-      const decoded = await verifyToken(cookieToken);  // ← await
-      if (decoded.role === "CLIENT") return NextResponse.redirect(new URL("/", req.url));
+      const decoded = await verifyToken(cookieToken);
+      
+      // Se for CLIENT tentando acessar ADMIN, expulsa para a Home
+      if (decoded.role !== "ADMIN" && decoded.role !== "ATTENDANT") {
+        if (pathname.startsWith("/api/")) {
+          return NextResponse.json({ error: "Acesso negado: Permissão insuficiente" }, { status: 403 });
+        }
+        return NextResponse.redirect(new URL("/", req.url));
+      }
     } catch {
       return NextResponse.redirect(new URL("/login", req.url));
     }
+    
     return NextResponse.next();
   }
 
-  const token = req.headers.get("authorization")?.split(" ")[1];
-  if (!token) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  // # 3. PROTEÇÃO GERAL DE OUTRAS APIS (Obrigatório Token)
+  const isProtectedApi = pathname.startsWith("/api/order") || pathname.startsWith("/api/menu");
+  
+  if (isProtectedApi) {
+    // Tenta pegar o token do Cookie primeiro (usado pelo Front) ou do Header (usado por bots/mobile)
+    const token = req.cookies.get("auth_token")?.value || req.headers.get("authorization")?.split(" ")[1];
 
-  try {
-    await verifyToken(token);  // ← await
-    return NextResponse.next();
-  } catch {
-    return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    if (!token) {
+      return NextResponse.json({ error: "Sessão expirada ou não autorizado" }, { status: 401 });
+    }
+
+    try {
+      await verifyToken(token);
+      return NextResponse.next();
+    } catch {
+      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    }
   }
+
+  return NextResponse.next();
 }
 
+// # ALTERAÇÃO SOLICITADA: Matcher atualizado para cobrir todas as áreas críticas
 export const config = {
   matcher: [
     "/api/restaurant/:path*",
     "/api/menu/:path*",
     "/api/order/:path*",
     "/api/admin/:path*",
-    "/admin",
     "/admin/:path*",
+    "/api/webhooks/:path*" // Monitoramos para aplicar a exceção
   ],
 };
 
@@ -674,6 +808,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { CartProvider } from "../context/CartContext";
 import CookieBanner from "@/components/CookieBanner";
+// # ALTERAÇÃO SOLICITADA: Importação do alerta de segurança
+import SecurityConsole from "@/components/SecurityConsole";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -684,6 +820,8 @@ const oswald = Oswald({
 export const metadata: Metadata = {
   title: "The Flame Grill",
   description: "O Brasil em cada mordida",
+  // # ALTERAÇÃO SOLICITADA: Registro nativo do manifest para o PWA/Notificações
+  manifest: "/manifest.json",
 };
 
 export const viewport = {
@@ -700,6 +838,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-br" className={oswald.variable}>
+      <head>
+        {/* # ALTERAÇÃO SOLICITADA: Fallback direto no head para garantir compatibilidade com o Safari do iOS */}
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body
         className={oswald.className}
         style={{
@@ -712,6 +854,9 @@ export default function RootLayout({
           minHeight: '100vh',
         }}
       >
+        {/* # ALTERAÇÃO SOLICITADA: Alerta contra manipulação via DevTools */}
+        <SecurityConsole />
+
         <CartProvider>
           {/* ALTERAÇÃO SOLICITADA: navbar superior oculta no mobile */}
           <div className="desktop-navbar">
@@ -768,10 +913,13 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Flame, ChefHat, Bike, CheckCircle2, XCircle,
   ChevronDown, Calendar, Search, RefreshCw, User, Phone, Mail,
-  Package, Clock, Filter, X
+  Package, Clock, Filter, X, Share2, Copy, ExternalLink
 } from "lucide-react";
 
 import { createPortal } from "react-dom";
+// # ALTERAÇÃO SOLICITADA: Importação para notificações in-app no admin
+import { Toaster, toast } from 'sonner';
+
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface OrderItem {
   id: string;
@@ -787,6 +935,8 @@ interface Order {
   createdAt: string;
   paymentMethod: string;
   notes?: string;
+  address?: string; // # ADICIONADO PARA LOGÍSTICA
+  deliveryToken?: string; // # ADICIONADO PARA LOGÍSTICA
   user: { name: string; email: string; phone?: string };
   items: OrderItem[];
 }
@@ -802,36 +952,67 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 const STATUS_ORDER = ["RECEIVED", "PREPARING", "OUT_FOR_DELIVERY", "DONE", "CANCELLED"];
 
-// ── StatusSelector — ALTERAÇÃO SOLICITADA: modal centralizado ─────────────────
-function StatusSelector({ orderId, current, onUpdate }: { orderId: string; current: string; onUpdate: (id: string, status: string) => void }) {
+// ── StatusSelector — ATUALIZADO COM FLUXO DE DESPACHO ─────────────────────────
+function StatusSelector({ order, onUpdate }: { order: Order; onUpdate: (id: string, status: string, extra?: any) => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDispatchOptions, setShowDispatchOptions] = useState(false);
+  const [deliveryUrl, setDeliveryUrl] = useState(order.deliveryToken ? `${window.location.origin}/delivery/track/${order.deliveryToken}` : "");
 
   const handleSelect = async (newStatus: string) => {
-    if (newStatus === current) { setOpen(false); return; }
+    if (newStatus === order.status) { setOpen(false); return; }
+
+    // # ALTERAÇÃO SOLICITADA: Intercepta o status de entrega para mostrar opções de despacho
+    if (newStatus === "OUT_FOR_DELIVERY" && !order.deliveryToken) {
+      setShowDispatchOptions(true);
+      return;
+    }
+
     setLoading(true);
     setOpen(false);
     try {
-      const res = await fetch(`/api/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) onUpdate(orderId, newStatus);
+      if (res.ok) onUpdate(order.id, newStatus);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  const cfg = STATUS_CONFIG[current];
-  const isDisabled = loading || current === "DONE" || current === "CANCELLED";
-  const isAnimated = !["DONE", "CANCELLED"].includes(current);
+  // # ALTERAÇÃO SOLICITADA: Função para gerar o link e despachar
+  const handleGenerateDispatch = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "EXTERNAL", courierName: "Externo" })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const url = `${window.location.origin}/delivery/track/${data.token}`;
+        setDeliveryUrl(url);
+        onUpdate(order.id, "OUT_FOR_DELIVERY", { deliveryToken: data.token });
+        toast.success("Pedido Despachado!", { description: "Link gerado para o motoboy." });
+        setShowDispatchOptions(false);
+        setOpen(false);
+      }
+    } catch (e) { toast.error("Erro ao despachar"); }
+    finally { setLoading(false); }
+  };
+
+  const cfg = STATUS_CONFIG[order.status];
+  const isDisabled = loading; 
+  const isAnimated = !["DONE", "CANCELLED"].includes(order.status);
 
   const modal = open ? createPortal(
     <div
-      onClick={() => setOpen(false)}
+      onClick={() => { setOpen(false); setShowDispatchOptions(false); }}
       style={{
         position: "fixed", inset: 0, zIndex: 99999,
-        background: "rgba(0,0,0,0.80)", backdropFilter: "blur(6px)",
+        background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
@@ -846,44 +1027,62 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a" }}>
           <div>
-            <p style={{ color: "#444", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", margin: 0 }}>Atualizar status</p>
-            <p style={{ color: "#666", fontSize: 11, fontFamily: "monospace", margin: "4px 0 0", letterSpacing: "0.1em" }}>#{orderId.slice(-8).toUpperCase()}</p>
+            <p style={{ color: "#444", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", margin: 0 }}>
+              {showDispatchOptions ? "Logística de Entrega" : "Atualizar status"}
+            </p>
+            <p style={{ color: "#666", fontSize: 11, fontFamily: "monospace", margin: "4px 0 0", letterSpacing: "0.1em" }}>#{order.id.slice(-8).toUpperCase()}</p>
           </div>
-          <button onClick={() => setOpen(false)} style={{ background: "#161616", border: "1px solid #222", color: "#555", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button onClick={() => { setOpen(false); setShowDispatchOptions(false); }} style={{ background: "#161616", border: "1px solid #222", color: "#555", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <X size={13} />
           </button>
         </div>
+
         <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-          {STATUS_ORDER.map((s) => {
-            const c = STATUS_CONFIG[s];
-            const isCurrent = s === current;
-            return (
-              <button
-                key={s}
-                onClick={() => handleSelect(s)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 12,
-                  padding: "12px 16px", borderRadius: 8,
-                  background: isCurrent ? c.bg : "#111",
-                  border: `1px solid ${isCurrent ? c.color + "55" : "#1a1a1a"}`,
-                  color: isCurrent ? c.color : "#555",
-                  fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
-                  textTransform: "uppercase", cursor: "pointer", textAlign: "left",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => { if (!isCurrent) { const b = e.currentTarget as HTMLButtonElement; b.style.background = "#161616"; b.style.borderColor = "#2a2a2a"; b.style.color = "#888"; } }}
-                onMouseLeave={e => { if (!isCurrent) { const b = e.currentTarget as HTMLButtonElement; b.style.background = "#111"; b.style.borderColor = "#1a1a1a"; b.style.color = "#555"; } }}
+          {showDispatchOptions ? (
+            <div style={{ padding: "10px 0" }}>
+               <button
+                onClick={handleGenerateDispatch}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "16px", borderRadius: 8, background: "#3b82f618", border: "1px solid #3b82f644", color: "#3b82f6", fontSize: 12, fontWeight: 800, textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}
               >
-                <span style={{ color: c.color, display: "flex" }}>{c.icon}</span>
-                {c.label}
-                {isCurrent && (
-                  <span style={{ marginLeft: "auto", fontSize: 9, background: c.color + "22", border: `1px solid ${c.color}44`, color: c.color, padding: "2px 8px", borderRadius: 10, fontWeight: 900 }}>
-                    ATUAL
-                  </span>
-                )}
+                <Share2 size={16} /> Gerar Link para Motoboy
               </button>
-            );
-          })}
+              <button
+                onClick={() => setShowDispatchOptions(false)}
+                style={{ width: "100%", background: "none", border: "none", color: "#444", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" }}
+              >
+                Voltar aos status
+              </button>
+            </div>
+          ) : (
+            STATUS_ORDER.map((s) => {
+              const c = STATUS_CONFIG[s];
+              const isCurrent = s === order.status;
+              return (
+                <button
+                  key={s}
+                  onClick={() => handleSelect(s)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 16px", borderRadius: 8,
+                    background: isCurrent ? c.bg : "#111",
+                    border: `1px solid ${isCurrent ? c.color + "55" : "#1a1a1a"}`,
+                    color: isCurrent ? c.color : "#555",
+                    fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
+                    textTransform: "uppercase", cursor: "pointer", textAlign: "left",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <span style={{ color: c.color, display: "flex" }}>{c.icon}</span>
+                  {c.label}
+                  {isCurrent && (
+                    <span style={{ marginLeft: "auto", fontSize: 9, background: c.color + "22", border: `1px solid ${c.color}44`, color: c.color, padding: "2px 8px", borderRadius: 10, fontWeight: 900 }}>
+                      ATUAL
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
     </div>,
@@ -892,31 +1091,47 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
 
   return (
     <>
-      <button
-        onClick={() => { if (!isDisabled) setOpen(true); }}
-        disabled={isDisabled}
-        className={isAnimated && !loading ? "shimmer-effect" : ""}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          background: cfg?.bg, border: `1px solid ${cfg?.color}44`,
-          color: cfg?.color, padding: "6px 12px", borderRadius: 8,
-          fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
-          cursor: isDisabled ? "default" : "pointer",
-          opacity: loading ? 0.6 : 1, transition: "all 0.2s",
-          position: "relative", overflow: "hidden"
-        }}
-      >
-        {loading ? <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} /> : cfg?.icon}
-        {cfg?.label}
-        {!isDisabled && <ChevronDown size={11} />}
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button
+          onClick={() => { if (!isDisabled) setOpen(true); }}
+          disabled={isDisabled}
+          className={isAnimated && !loading ? "shimmer-effect" : ""}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            background: cfg?.bg, border: `1px solid ${cfg?.color}44`,
+            color: cfg?.color, padding: "6px 12px", borderRadius: 8,
+            fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
+            cursor: isDisabled ? "default" : "pointer",
+            opacity: loading ? 0.6 : 1, transition: "all 0.2s",
+            position: "relative", overflow: "hidden"
+          }}
+        >
+          {loading ? <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} /> : cfg?.icon}
+          {cfg?.label}
+          {!isDisabled && <ChevronDown size={11} />}
+        </button>
+
+        {order.deliveryToken && (
+           <button 
+            onClick={() => { 
+              const url = `${window.location.origin}/delivery/track/${order.deliveryToken}`;
+              navigator.clipboard.writeText(url);
+              toast.info("Link de entrega copiado!");
+            }}
+            style={{ background: "#111", border: "1px solid #222", color: "#3b82f6", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            title="Copiar link do motoboy"
+          >
+            <Share2 size={12} />
+          </button>
+        )}
+      </div>
       {modal}
     </>
   );
 }
 
 // ── OrderRow ──────────────────────────────────────────────────────────────────
-function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onUpdate: (id: string, status: string) => void }) {
+function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onUpdate: (id: string, status: string, extra?: any) => void }) {
   const [expanded, setExpanded] = useState(false);
   const date = new Date(order.createdAt);
 
@@ -946,7 +1161,7 @@ function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onU
           </div>
         </td>
         <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-          <StatusSelector orderId={order.id} current={order.status} onUpdate={onUpdate} />
+          <StatusSelector order={order} onUpdate={onUpdate} />
         </td>
         <td style={{ padding: "14px 16px", textAlign: "center" }}>
           <ChevronDown size={16} color="#333" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
@@ -1009,7 +1224,6 @@ export default function AdminPage() {
   const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
   
-  // Referência para contagem anterior para o som de alerta
   const prevCountRef = useRef(0);
 
   const fetchOrders = async (isSilent = false) => {
@@ -1019,7 +1233,6 @@ export default function AdminPage() {
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       
-      // Gatilho do som se houver novos pedidos
       if (prevCountRef.current !== 0 && list.length > prevCountRef.current) {
         const audio = new Audio("/notification.mp3");
         audio.play().catch(e => console.log("Permissão de áudio pendente."));
@@ -1031,15 +1244,14 @@ export default function AdminPage() {
     finally { setLoading(false); }
   };
 
-  // Polling automático a cada 15 segundos
   useEffect(() => { 
     fetchOrders(); 
     const interval = setInterval(() => fetchOrders(true), 15000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleUpdate = (id: string, newStatus: string) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
+  const handleUpdate = (id: string, newStatus: string, extra?: any) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus, ...extra } : o));
   };
 
   const filtered = useMemo(() => {
@@ -1063,12 +1275,12 @@ export default function AdminPage() {
 
   return (
     <>
+      <Toaster theme="dark" position="top-center" richColors />
       <style>{`
         @keyframes fadeIn  { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
         @keyframes modalIn { from{opacity:0;transform:scale(0.92);} to{opacity:1;transform:scale(1);} }
         @keyframes spin    { to{transform:rotate(360deg);} }
         
-        /* Efeito Shimmer (Cor vai e vem) */
         @keyframes shimmer {
           0% { transform: translateX(-150%); }
           50% { transform: translateX(150%); }
@@ -1111,16 +1323,13 @@ export default function AdminPage() {
                   PAINEL <span style={{ color: "#b91c1c" }}>ADMIN</span>
                 </h1>
               </div>
-              <button onClick={() => fetchOrders()} style={{ display: "flex", alignItems: "center", gap: 7, background: "#111", border: "1px solid #222", color: "#666", padding: "9px 16px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.2s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#b91c1c44"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#222"; (e.currentTarget as HTMLButtonElement).style.color = "#666"; }}>
+              <button onClick={() => fetchOrders()} style={{ display: "flex", alignItems: "center", gap: 7, background: "#111", border: "1px solid #222", color: "#666", padding: "9px 16px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.2s" }}>
                 <RefreshCw size={13} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
                 Atualizar
               </button>
             </div>
           </header>
 
-          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 28 }}>
             {[
               { label: "Total Pedidos", value: stats.todos },
@@ -1156,9 +1365,6 @@ export default function AdminPage() {
             </div>
             <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
               style={{ background: "#080808", border: "1px solid #1e1e1e", borderRadius: 6, padding: "7px 10px", color: "#666", fontSize: 12, outline: "none", fontFamily: "sans-serif", cursor: "pointer" }} />
-            {filterDate && (
-              <button onClick={() => setFilterDate("")} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>✕ Limpar data</button>
-            )}
           </div>
 
           <div style={{ background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 10, overflow: "hidden" }}>
@@ -1178,17 +1384,8 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
-              <div style={{ padding: "12px 16px", borderTop: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#333", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                  {filtered.length} de {orders.length} pedido{orders.length !== 1 ? "s" : ""}
-                </span>
-                <span style={{ color: "#222", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                  Clique em um pedido para ver detalhes
-                </span>
-              </div>
             </div>
           </div>
-
         </div>
       </div>
     </>
@@ -1203,83 +1400,81 @@ ARQUIVO: .\src\app\api\auth\login\route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { generateToken } from "@/lib/jwt"; // ✅ ADICIONADO
+import { generateToken } from "@/lib/jwt"; 
+import { z } from "zod";
+// # ALTERAÇÃO SOLICITADA: Importação do segurança
+import { rateLimit } from "@/lib/rate-limit";
+
+const loginSchema = z.object({
+  email: z.string().email("Formato de e-mail inválido").max(100),
+  password: z.string().min(6).max(100),
+});
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, password } = body;
-
-    if (!email || !password) {
+    // # ALTERAÇÃO SOLICITADA: Pega o IP do usuário e verifica se ele não está tentando logar demais
+    const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+    const isAllowed = await rateLimit(ip, 5); // Limite de 5 tentativas por minuto
+    
+    if (!isAllowed.success) {
       return NextResponse.json(
-        { error: "Preencha todos os campos" },
-        { status: 400 }
+        { error: "Muitas tentativas. Tente novamente em 1 minuto." },
+        { status: 429 }
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const body = await request.json();
+    const validation = loginSchema.safeParse(body);
+    
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message || "Dados inválidos";
+      return NextResponse.json({ error: firstError }, { status: 400 });
+    }
+
+    const { email, password } = validation.data;
+
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Usuário não encontrado" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 401 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: "Senha incorreta" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Senha incorreta" }, { status: 401 });
     }
 
     const response = NextResponse.json({
       message: "Login realizado com sucesso",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
 
-    // 6. COOKIE DE SESSÃO (original — não alterado)
     response.cookies.set("user_session", JSON.stringify({
-      id: user.id,
-      role: user.role,
-      name: user.name,
-      email: user.email,
-      phone: user.phone
+      id: user.id, role: user.role, name: user.name, email: user.email, phone: user.phone
     }), {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      httpOnly: false, 
+      secure: true, 
+      sameSite: "strict", 
     });
 
-    // 7. ✅ ADICIONADO: Cookie JWT para proteção de rotas no middleware
-    const token = await generateToken({ id: user.id, role: user.role }); // ← await
+    const token = await generateToken({ id: user.id, role: user.role }); 
     response.cookies.set("auth_token", token, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
       sameSite: "strict",
     });
 
+    response.headers.set("Cache-Control", "no-store, max-age=0");
     return response;
 
   } catch (error) {
     console.error("ERRO NO LOGIN:", error);
-    return NextResponse.json(
-      { error: "Erro interno no servidor" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
 
@@ -1291,41 +1486,58 @@ ARQUIVO: .\src\app\api\auth\register\route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
+// # ALTERAÇÃO SOLICITADA: Importação do segurança de requisições
+import { rateLimit } from "@/lib/rate-limit";
+
+// # ALTERAÇÃO SOLICITADA: Schema de validação rigorosa para o Registro
+const registerSchema = z.object({
+  name: z.string().min(3, "O nome deve ter no mínimo 3 caracteres").max(50, "Nome muito longo"),
+  email: z.string().email("Formato de e-mail inválido").max(100),
+  password: z.string().min(6, "A senha deve ter no mínimo 6 caracteres").max(100),
+  phone: z.string().min(10, "Telefone inválido").max(15, "Telefone muito longo").optional().nullable(),
+});
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, email, password, phone } = body;
+    // # ALTERAÇÃO SOLICITADA: Rate Limit para evitar spam de criação de contas
+    const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+    const isAllowed = await rateLimit(ip, 3); // Apenas 3 registros por minuto por IP
 
-    if (!name || !email || !password) {
+    if (!isAllowed.success) {
       return NextResponse.json(
-        { error: "Nome, e-mail e senha são obrigatórios." },
-        { status: 400 }
+        { error: "Muitas tentativas de registro. Tente novamente em 1 minuto." },
+        { status: 429 }
       );
     }
 
-    // ── Verifica e-mail duplicado ─────────────────────────────────────────────
+    const body = await request.json();
+
+    // # ALTERAÇÃO SOLICITADA: Validação Zod
+    const validation = registerSchema.safeParse(body);
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message || "Dados inválidos";
+      return NextResponse.json({ error: firstError }, { status: 400 });
+    }
+
+    const { name, email, password, phone } = validation.data;
+
+    // ── Verifica e e-mail duplicado ─────────────────────────────────────────────
     const emailExists = await prisma.user.findUnique({ where: { email } });
     if (emailExists) {
-      return NextResponse.json(
-        { error: "Este e-mail já está cadastrado." },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "Este e-mail já está cadastrado." }, { status: 409 });
     }
 
     // ── Verifica telefone duplicado ───────────────────────────────────────────
     if (phone) {
       const phoneExists = await prisma.user.findFirst({ where: { phone } });
       if (phoneExists) {
-        return NextResponse.json(
-          { error: "Este número de telefone já está cadastrado." },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "Este número de telefone já está cadastrado." }, { status: 409 });
       }
     }
 
     // ── Cria o usuário ────────────────────────────────────────────────────────
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12); // Aumentado o salt para 12 (mais lento/seguro)
 
     const user = await prisma.user.create({
       data: {
@@ -1342,6 +1554,7 @@ export async function POST(request: Request) {
       { status: 201 }
     );
 
+    // # ALTERAÇÃO SOLICITADA: Cookies com segurança máxima
     response.cookies.set("user_session", JSON.stringify({
       id: user.id,
       role: user.role,
@@ -1352,8 +1565,12 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       httpOnly: false,
-      sameSite: "lax",
+      secure: true,
+      sameSite: "strict",
     });
+
+    // Impede que o navegador guarde dados sensíveis
+    response.headers.set("Cache-Control", "no-store, max-age=0");
 
     return response;
 
@@ -1519,9 +1736,12 @@ export async function POST(req: Request) {
 ARQUIVO: .\src\app\api\checkout\pix\route.ts
 --------------------------------------------------------------------------------
 
+import { prisma } from "@/lib/prisma"; // # ALTERAÇÃO: Importação do banco
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { cookies } from "next/headers"; // # ADICIONADO: Para identificar o usuário
+import { cookies } from "next/headers";
+
+export const dynamic = "force-dynamic";
 
 const client = new MercadoPagoConfig({ 
   accessToken: process.env.MP_ACCESS_TOKEN || "",
@@ -1533,9 +1753,9 @@ const payment = new Payment(client);
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { items, total } = body;
+    // # ALTERAÇÃO: Agora recebemos address e notes do front-end
+    const { items, total, address, notes, paymentMethod } = body;
 
-    // # ALTERAÇÃO SOLICITADA: Captura o ID do usuário logado através do cookie
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get("user_session");
     
@@ -1543,69 +1763,176 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Você precisa estar logado para pedir." }, { status: 401 });
     }
 
-    const userId = sessionCookie.value;
+    // O cookie guarda um JSON, vamos extrair o ID do usuário
+    const userData = JSON.parse(sessionCookie.value);
+    const userId = userData.id;
 
+    // # ALTERAÇÃO: 1. CRIAR O PEDIDO NO BANCO ANTES DE GERAR O PIX
+    // Criamos o pedido primeiro para ter o ID dele e passar para o Mercado Pago
+    const order = await prisma.order.create({
+      data: {
+        userId: userId,
+        restaurantId: "cmmcpmk4q000087yw0dvvdonb", // Certifique-se de ter um ID válido aqui
+        total: total,
+        address: address || "Retirada no Local", // Salva o endereço aqui!
+        notes: notes || "",
+        paymentMethod: paymentMethod || "PIX",
+        status: "RECEIVED",
+        items: {
+          // # ALTERAÇÃO SOLICITADA: Ajuste para ler productId e unitPrice corretamente, aceitando os dois padrões
+          create: items.map((item: any) => ({
+            productId: item.productId || item.id,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice || item.price,
+          })),
+        },
+      },
+    });
+
+    // # ALTERAÇÃO SOLICITADA: Forçando 1 centavo para testes (Lembre-se de voltar para 'total' em produção)
     const transactionAmount = 0.01; 
-    const description = `Pedido: ${items.map((i: any) => `${i.quantity}x ${i.name}`).join(', ')}`;
+    const description = `Pedido #${order.id.slice(-6)} - The Flame Grill (TESTE)`;
 
-    // Criando a cobrança no Mercado Pago
+    // # ALTERAÇÃO: Enviar o ID do PEDIDO (order.id) como external_reference
     const result = await payment.create({
       body: {
         transaction_amount: transactionAmount,
         description: description,
         payment_method_id: "pix",
-        // # O SEGREDO ESTÁ AQUI: Enviamos o userId para o MP
-        external_reference: userId, 
+        external_reference: order.id, // VINCULA O PAGAMENTO AO PEDIDO
+        notification_url: "https://theflamegrill.vercel.app/api/webhooks/mercadopago", 
         payer: {
-          email: "cliente_loja@sandbox.mercadopago.com", 
-          first_name: "Cliente",
-          last_name: "Web"
-        },
-        // Metadata ajuda a guardar informações extras que o Webhook pode ler
-        metadata: {
-          user_id: userId
+          email: userData.email || "cliente@email.com", 
+          first_name: userData.name.split(' ')[0],
+          last_name: userData.name.split(' ').slice(1).join(' ') || "Cliente"
         }
       }
     });
 
     if (result.status === "pending" || result.status === "created") {
       return NextResponse.json({
+        order_id: order.id, // Retornamos o ID do nosso banco
         payment_id: result.id,
         qr_code: result.point_of_interaction?.transaction_data?.qr_code,
         qr_code_base64: result.point_of_interaction?.transaction_data?.qr_code_base64,
         status: result.status
       });
     } else {
-      return NextResponse.json({ error: "O pagamento não ficou pendente." }, { status: 400 });
+      return NextResponse.json({ error: "Erro ao gerar PIX." }, { status: 400 });
     }
 
   } catch (error: any) {
-    console.error("Erro MP (POST):", error);
-    return NextResponse.json({ error: "Erro interno no servidor ao gerar o PIX." }, { status: 500 });
+    console.error("Erro Checkout:", error);
+    return NextResponse.json({ error: "Erro interno no servidor." }, { status: 500 });
   }
 }
 
+// O GET continua igual para consulta manual
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const paymentId = searchParams.get("id");
+    if (!paymentId) return NextResponse.json({ error: "ID ausente" }, { status: 400 });
+    const result = await payment.get({ id: paymentId });
+    return NextResponse.json({ status: result.status, payment_id: result.id, external_reference: result.external_reference });
+  } catch (error: any) {
+    return NextResponse.json({ error: "Erro ao buscar PIX" }, { status: 500 });
+  }
+}
 
-    if (!paymentId) {
-      return NextResponse.json({ error: "ID do pagamento não fornecido." }, { status: 400 });
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\delivery\complete\route.ts
+--------------------------------------------------------------------------------
+
+import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { token } = body;
+
+    if (!token) {
+      return NextResponse.json({ error: "Token inválido" }, { status: 400 });
     }
 
-    const result = await payment.get({ id: paymentId });
-
-    return NextResponse.json({
-      status: result.status,
-      payment_id: result.id,
-      // # Opcional: retornar o external_reference para confirmar o dono
-      external_reference: result.external_reference 
+    // Procura o pedido pelo token secreto
+    const order = await prisma.order.findUnique({
+      where: { deliveryToken: token }
     });
 
-  } catch (error: any) {
-    console.error("Erro MP (GET):", error);
-    return NextResponse.json({ error: "Erro interno ao buscar status do PIX." }, { status: 500 });
+    if (!order) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+    }
+
+    // Atualiza para concluído e limpa o token (opcional, para o link expirar após o uso)
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: "DONE",
+        completedAt: new Date(),
+        // deliveryToken: null // Descomente se quiser que o link pare de funcionar após a entrega
+      },
+    });
+
+    return NextResponse.json({ message: "Entrega finalizada com sucesso!" });
+
+  } catch (error) {
+    return NextResponse.json({ error: "Erro ao finalizar entrega" }, { status: 500 });
+  }
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\delivery\complete\info\route.ts
+--------------------------------------------------------------------------------
+
+import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
+
+// # ALTERAÇÃO SOLICITADA: API de consulta pública via Token para o Entregador
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get("token");
+
+    if (!token) {
+      return NextResponse.json({ error: "Token não fornecido" }, { status: 400 });
+    }
+
+    // Procura o pedido pelo token e traz os dados do cliente e itens
+    const order = await prisma.order.findUnique({
+      where: { deliveryToken: token },
+      include: {
+        user: {
+          select: {
+            name: true,
+            phone: true,
+          }
+        },
+        items: {
+          include: {
+            product: true
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return NextResponse.json({ error: "Link de entrega inválido ou expirado" }, { status: 404 });
+    }
+
+    // Se o pedido já foi finalizado, não mostramos os dados por privacidade
+    if (order.status === "DONE" || order.status === "CANCELLED") {
+      return NextResponse.json({ error: "Este pedido já foi concluído" }, { status: 410 });
+    }
+
+    return NextResponse.json(order);
+
+  } catch (error) {
+    console.error("ERRO AO BUSCAR INFO DE ENTREGA:", error);
+    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
   }
 }
 
@@ -1694,41 +2021,27 @@ import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
 import { cookies } from "next/headers";
 
-// ── GET — lista todos os pedidos (admin) ──────────────────────────────────────
 export async function GET() {
   try {
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        user: {
-          select: { name: true, email: true, phone: true },
-        },
-        items: {
-          include: {
-            product: {
-              select: { name: true },
-            },
-          },
-        },
+        user: { select: { name: true, email: true, phone: true } },
+        items: { include: { product: { select: { name: true } } } },
       },
     });
     return NextResponse.json(orders);
   } catch (error: any) {
-    console.error("ERRO AO BUSCAR PEDIDOS:", error);
-    return NextResponse.json(
-      { error: "Erro ao buscar pedidos", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao buscar pedidos" }, { status: 500 });
   }
 }
 
-// ── POST — cria um novo pedido ────────────────────────────────────────────────
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { items, total, restaurantId, paymentMethod, notes } = body;
+    // # ALTERAÇÃO: Agora aceitamos o userId que vier no body (do Mercado Pago)
+    const { items, total, restaurantId, paymentMethod, notes, userId: bodyUserId } = body;
 
-    // Lê o userId do cookie auth_token
     const cookieStore = await cookies();
     const token = cookieStore.get("auth_token")?.value;
     let userId: string | null = null;
@@ -1737,17 +2050,19 @@ export async function POST(request: Request) {
       try {
         const decoded = await verifyToken(token);
         userId = decoded.id;
-      } catch {
-        userId = null;
-      }
+      } catch { userId = null; }
     }
 
-    // Fallback para testes — remova quando auth estiver 100%
-    if (!userId) userId = "cmmclamu60000n1zyss460pap";
+    // # PRIORIDADE DE ID: 1. Token real | 2. ID enviado pelo Checkout | 3. Erro (Segurança)
+    const finalUserId = userId || bodyUserId;
+
+    if (!finalUserId) {
+      return NextResponse.json({ error: "Usuário não identificado" }, { status: 401 });
+    }
 
     const newOrder = await prisma.order.create({
       data: {
-        userId,
+        userId: finalUserId,
         restaurantId,
         total: Number(total),
         paymentMethod: paymentMethod ?? "PIX",
@@ -1767,10 +2082,7 @@ export async function POST(request: Request) {
     return NextResponse.json(newOrder, { status: 201 });
   } catch (error: any) {
     console.error("ERRO AO CRIAR PEDIDO:", error);
-    return NextResponse.json(
-      { error: "Erro interno ao criar pedido", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro interno ao criar pedido" }, { status: 500 });
   }
 }
 
@@ -1782,24 +2094,36 @@ ARQUIVO: .\src\app\api\orders\user\route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
+import { verifyToken } from "@/lib/jwt"; // Importando sua função oficial de leitura
 
-// # ALTERAÇÃO SOLICITADA: Força a rota a sempre buscar dados novos no banco (sem cache)
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    // # ALTERAÇÃO SOLICITADA: Captura o ID do usuário logado via cookie para evitar que todos vejam os mesmos pedidos
+    // 1. Lê o cookie oficial de autenticação
     const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("user_session");
+    const token = cookieStore.get("auth_token")?.value;
 
-    if (!sessionCookie || !sessionCookie.value) {
+    if (!token) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const userId = sessionCookie.value;
+    // 2. Descriptografa o token para pegar o ID real do usuário
+    let userId: string | null = null;
+    try {
+      const decoded = await verifyToken(token);
+      userId = decoded.id;
+    } catch (e) {
+      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    }
 
+    if (!userId) {
+      return NextResponse.json({ error: "ID de usuário não encontrado" }, { status: 401 });
+    }
+
+    // 3. Busca no Prisma usando o ID descriptografado
     const orders = await prisma.order.findMany({
-      where: { userId }, // Filtra apenas pelos pedidos do dono da sessão
+      where: { userId }, 
       include: {
         items: {
           include: {
@@ -1826,29 +2150,76 @@ ARQUIVO: .\src\app\api\orders\[id]\route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import webpush from "web-push";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } // Atualizando a tipagem
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // ALTERAÇÃO SOLICITADA: await obrigatório no Next.js 15
     const { id } = await params; 
     const body = await request.json();
     const { status } = body;
 
     const validStatuses = ["RECEIVED", "PREPARING", "OUT_FOR_DELIVERY", "DONE", "CANCELLED"];
     if (!status || !validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: "Status inválido" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Status inválido" }, { status: 400 });
     }
 
     const updated = await prisma.order.update({
       where: { id },
       data: { status },
+      include: {
+        user: {
+          include: { pushSubscriptions: true }
+        }
+      }
     });
+
+    // # ALTERAÇÃO SOLICITADA: Adicionado a mensagem de push para o status RECEIVED
+    const statusMessages: Record<string, string> = {
+      RECEIVED: "🔥 Recebemos seu pedido e ele já está na fila!",
+      PREPARING: "👨‍🍳 Seu pedido foi para a grelha!",
+      OUT_FOR_DELIVERY: "🛵 O motoboy está a caminho com seu lanche!",
+      DONE: "✅ Pedido entregue. Bom apetite!",
+      CANCELLED: "❌ Seu pedido foi cancelado."
+    };
+
+    const message = statusMessages[status];
+
+    if (message && updated.user.pushSubscriptions.length > 0) {
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      const privateKey = process.env.VAPID_PRIVATE_KEY;
+
+      if (publicKey && privateKey) {
+        webpush.setVapidDetails(
+          "mailto:contato@theflamegrill.com", 
+          publicKey,
+          privateKey
+        );
+
+        const pushPayload = JSON.stringify({
+          title: "The Flame Grill 🔥",
+          body: message,
+          url: "/my-orders"
+        });
+
+        await Promise.all(updated.user.pushSubscriptions.map(async (sub) => {
+          try {
+            await webpush.sendNotification({
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth }
+            }, pushPayload);
+          } catch (err: any) {
+            if (err.statusCode === 404 || err.statusCode === 410) {
+              await prisma.pushSubscription.delete({ where: { id: sub.id } });
+            }
+          }
+        }));
+      } else {
+        console.error("Faltam as chaves VAPID no ambiente.");
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error: any) {
@@ -1857,6 +2228,95 @@ export async function PATCH(
       { error: "Erro ao atualizar pedido", details: error.message },
       { status: 500 }
     );
+  }
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\orders\[id]\dispatch\route.ts
+--------------------------------------------------------------------------------
+
+import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
+import crypto from "crypto";
+
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } } // MUDOU AQUI de orderId para id
+) {
+  try {
+    const { id } = params; // MUDOU AQUI
+    const body = await request.json();
+    const { courierName } = body;
+
+    const deliveryToken = crypto.randomBytes(16).toString("hex");
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: id }, // MUDOU AQUI
+      data: {
+        status: "OUT_FOR_DELIVERY",
+        deliveryToken: deliveryToken,
+        courierName: courierName || "Externo",
+        dispatchedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({
+      message: "Pedido despachado com sucesso",
+      token: deliveryToken,
+      order: updatedOrder
+    });
+
+  } catch (error) {
+    console.error("ERRO AO DESPACHAR:", error);
+    return NextResponse.json(
+      { error: "Erro ao processar o despacho." },
+      { status: 500 }
+    );
+  }
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\push\subscribe\route.ts
+--------------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
+import { verifyToken } from "@/lib/jwt";
+
+export async function POST(req: Request) {
+  try {
+    const subscription = await req.json();
+    const cookieStore = await cookies();
+    const token = cookieStore.get("auth_token")?.value;
+
+    if (!token) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    const decoded = await verifyToken(token);
+    if (!decoded.id) return NextResponse.json({ error: "ID inválido" }, { status: 401 });
+
+    // Salva o telemóvel do cliente (ou atualiza se já existir)
+    await prisma.pushSubscription.upsert({
+      where: { endpoint: subscription.endpoint },
+      create: {
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+        userId: decoded.id,
+      },
+      update: {
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+        userId: decoded.id,
+      }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Erro no Push Subscription:", error);
+    return NextResponse.json({ error: "Erro ao salvar subscrição" }, { status: 500 });
   }
 }
 
@@ -1962,6 +2422,70 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json(restaurant);
+}
+
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\app\api\webhooks\mercadopago\route.ts
+--------------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+// # ALTERAÇÃO SOLICITADA: Exportação explícita do método POST para evitar Erro 405
+export async function POST(request: Request) {
+  try {
+    // 1. Tenta ler o corpo da requisição
+    const body = await request.json();
+    console.log("📦 Webhook recebido:", body);
+
+    // 2. O Mercado Pago às vezes envia testes sem ID. Respondemos 200 para validar a rota.
+    if (!body?.data?.id) {
+      return NextResponse.json({ received: true }, { status: 200 });
+    }
+
+    const paymentId = body.data.id;
+
+    // 3. Double Check: Busca o pagamento direto na API do Mercado Pago
+    // Isso é a segurança máxima: não acreditamos no que o Webhook diz, nós perguntamos pro MP.
+    const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+      },
+    });
+
+    if (!mpResponse.ok) {
+      throw new Error("Falha ao consultar pagamento no Mercado Pago");
+    }
+
+    const paymentData = await mpResponse.json();
+
+    // 4. Se o status for aprovado, atualizamos nosso banco
+    if (paymentData.status === "approved") {
+      const orderId = paymentData.external_reference;
+
+      if (orderId) {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: "RECEIVED" },
+        });
+        console.log(`✅ Pedido ${orderId} aprovado via Webhook.`);
+      }
+    }
+
+    // O Mercado Pago EXIGE um status 200 ou 201 como resposta, senão ele fica enviando de novo.
+    return NextResponse.json({ success: true }, { status: 200 });
+
+  } catch (error: any) {
+    console.error("❌ ERRO WEBHOOK MP:", error.message);
+    // Retornamos 200 mesmo no erro para evitar loop de retentativas do MP que travam o servidor
+    return NextResponse.json({ error: "Erro processado" }, { status: 200 });
+  }
+}
+
+// # ALTERAÇÃO SOLICITADA: Bloqueia outros métodos para aumentar a segurança
+export async function GET() {
+  return NextResponse.json({ error: "Método não permitido" }, { status: 405 });
 }
 
 
@@ -2198,10 +2722,10 @@ ARQUIVO: .\src\app\carrinho\page.tsx
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
-import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle } from "lucide-react";
+import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function Carrinho() {
@@ -2214,34 +2738,92 @@ export default function Carrinho() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // # ALTERAÇÃO SOLICITADA: Estados do PIX, Modal de Pagamento e Feedback de Cópia
+  // # ALTERAÇÃO SOLICITADA: Estados para gerenciar o endereço puxado da Home
+  const [address, setAddress] = useState("");
+  const [deliveryNotes, setDeliveryNotes] = useState("");
+
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
   const [pixStatus, setPixStatus] = useState<string>("pendente");
   const [copied, setCopied] = useState(false);
 
   const baseOptions = {
-    molhosGratis: [
-      { nome: "Ketchup", preco: 0 },
-      { nome: "Mostarda", preco: 0 },
-      { nome: "Maionese Tradicional", preco: 0 }
-    ],
-    molhosCasa: [
-      { nome: "Maionese Artesanal 30ml", preco: 3.50 },
-      { nome: "Barbecue Defumado 30ml", preco: 4.00 },
-      { nome: "Chipotle Picante 30ml", preco: 4.50 }
-    ],
-    complementos: [
-      { nome: "Hambúrguer Extra 180g", preco: 12.00 },
-      { nome: "Bacon em Tiras", preco: 6.00 },
-      { nome: "Queijo Cheddar", preco: 5.00 },
-      { nome: "Salada Fresca", preco: 3.00 }
-    ]
+    molhosGratis: [{ nome: "Ketchup", preco: 0 }, { nome: "Mostarda", preco: 0 }, { nome: "Maionese Tradicional", preco: 0 }],
+    molhosCasa: [{ nome: "Maionese Artesanal 30ml", preco: 3.50 }, { nome: "Barbecue Defumado 30ml", preco: 4.00 }, { nome: "Chipotle Picante 30ml", preco: 4.50 }],
+    complementos: [{ nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }]
   };
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  // # ALTERAÇÃO SOLICITADA: Função robusta para copiar o código PIX
+  // # ALTERAÇÃO SOLICITADA: Puxar o endereço salvo pela sua HomeMobile
+  useEffect(() => {
+    const saved = localStorage.getItem("flame_enderecos");
+    const activeIdx = localStorage.getItem("flame_endereco_ativo");
+    
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
+          const end = parsed[idx];
+          if (end) {
+            // Formata no padrão legível para o motoboy
+            setAddress(`${end.rua}, ${end.numero} - ${end.bairro}, ${end.cidade}`);
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao ler endereço:", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const savedPix = localStorage.getItem("pedro-burger-pix");
+    if (savedPix) {
+      try {
+        const parsedPix = JSON.parse(savedPix);
+        setPixData(parsedPix);
+        setPixStatus("pendente");
+
+        const interval = setInterval(async () => {
+          try {
+            const checkRes = await fetch(`/api/checkout/pix?id=${parsedPix.paymentId}`, {
+              cache: 'no-store',
+              headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+            });
+            
+            if (!checkRes.ok) throw new Error("Falha na consulta");
+            const checkData = await checkRes.json();
+            
+            if (checkData.status === "approved") {
+              clearInterval(interval);
+              setPixStatus("aprovado");
+              localStorage.removeItem("pedro-burger-pix"); 
+              
+              const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+              const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
+              const realUserId = match ? match[2] : (checkData as any).external_reference;
+              
+              await createOrder("PIX", address, `MP: ${parsedPix.paymentId} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
+              setTimeout(() => { router.push("/my-orders"); }, 3000);
+              
+            } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
+              clearInterval(interval);
+              localStorage.removeItem("pedro-burger-pix");
+              setPixData(null);
+            }
+          } catch (e) {
+            console.error("Erro na verificação background:", e);
+          }
+        }, 5000);
+
+        return () => clearInterval(interval);
+      } catch (e) {
+        localStorage.removeItem("pedro-burger-pix");
+      }
+    }
+  }, [createOrder, router, address, deliveryNotes]);
+
   const handleCopyPix = async () => {
     if (!pixData) return;
     try {
@@ -2249,7 +2831,6 @@ export default function Carrinho() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      // Fallback para navegadores de celular que bloqueiam o clipboard direto
       const textArea = document.createElement("textarea");
       textArea.value = pixData.qrCode;
       document.body.appendChild(textArea);
@@ -2258,14 +2839,19 @@ export default function Carrinho() {
         document.execCommand("copy");
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-      } catch (e) {
-        console.error("Erro ao copiar", e);
-      }
+      } catch (e) { console.error("Erro ao copiar", e); }
       document.body.removeChild(textArea);
     }
   };
 
   const processPixPayment = async () => {
+    // Bloqueia se o cliente veio pro carrinho sem ter endereço salvo
+    if (!address) {
+      setErrorMessage("Você precisa selecionar um endereço de entrega na página inicial.");
+      setShowPaymentModal(false);
+      return;
+    }
+
     setShowPaymentModal(false); 
     if (cart.length === 0) return;
     setErrorMessage(null);
@@ -2274,38 +2860,59 @@ export default function Carrinho() {
     try {
       const res = await fetch("/api/checkout/pix", {
         method: "POST",
-        body: JSON.stringify({ items: cart, total: totalGeral }),
+        body: JSON.stringify({ 
+          items: cart, 
+          total: totalGeral, 
+          address, 
+          notes: deliveryNotes,
+          paymentMethod: "PIX" 
+        }),
         headers: { "Content-Type": "application/json" }
       });
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || "Erro ao gerar PIX");
 
-      setPixData({ qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id });
+      const pixObj = { qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id };
+      setPixData(pixObj);
       setPixStatus("pendente");
+      localStorage.setItem("pedro-burger-pix", JSON.stringify(pixObj));
 
       const interval = setInterval(async () => {
-        const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`);
-        const checkData = await checkRes.json();
-        
-        if (checkData.status === "approved") {
-          clearInterval(interval);
-          setPixStatus("aprovado");
+        try {
+          const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`, {
+            cache: 'no-store',
+            headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+          });
           
-          const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-          await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId);
+          if (!checkRes.ok) throw new Error("Network response was not ok");
+          const checkData = await checkRes.json();
           
-          setTimeout(() => {
-            router.push("/my-orders");
-          }, 3000);
+          if (checkData.status === "approved") {
+            clearInterval(interval);
+            setPixStatus("aprovado");
+            localStorage.removeItem("pedro-burger-pix"); 
+            
+            const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+            const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
+            const realUserId = match ? match[2] : (checkData as any).external_reference;
+            
+            await createOrder("PIX", address, `MP: ${data.payment_id} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
+            setTimeout(() => { router.push("/my-orders"); }, 3000);
+          }
+        } catch (err) {
+          console.error("Erro ao checar status do PIX:", err);
         }
       }, 5000);
 
-      setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
+      setTimeout(() => {
+        clearInterval(interval);
+        localStorage.removeItem("pedro-burger-pix"); 
+        setIsSubmitting(false);
+      }, 5 * 60 * 1000);
 
     } catch (error: any) {
       setErrorMessage(error.message);
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -2364,8 +2971,6 @@ export default function Carrinho() {
           .cart-item img { width: 100% !important; height: 180px !important; margin-bottom: 15px; }
           .qty-row { width: 100% !important; justify-content: space-between !important; margin-top: 15px !important; }
         }
-
-        /* # ALTERAÇÃO SOLICITADA: Layout responsivo para o Modal do PIX */
         .pix-responsive-layout {
           display: flex;
           flex-direction: column;
@@ -2393,6 +2998,10 @@ export default function Carrinho() {
           .pix-text-section {
             flex: 1;
           }
+        }
+        .delivery-input:focus {
+            border-color: #b91c1c !important;
+            box-shadow: 0 0 10px rgba(185, 28, 28, 0.2);
         }
       `}</style>
 
@@ -2456,6 +3065,39 @@ export default function Carrinho() {
               </div>
             ))}
 
+            {/* # ALTERAÇÃO SOLICITADA: Bloco de endereço puxado da memória */}
+            <div style={deliverySectionStyle}>
+                <div style={sectionTitleStyles}>
+                    <MapPin size={16} /> ENTREGAR EM:
+                </div>
+                
+                {address ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#000", padding: "16px", borderRadius: "10px", border: "1px solid #222", marginTop: "10px" }}>
+                    <span style={{ fontSize: "14px", fontWeight: "bold", color: "#ccc" }}>{address}</span>
+                    <Link href="/" style={{ fontSize: "12px", color: "#b91c1c", fontWeight: "bold", textDecoration: "none" }}>TROCAR</Link>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: "10px", padding: "20px", background: "#220000", borderRadius: "10px", border: "1px dashed #b91c1c", textAlign: "center" }}>
+                    <p style={{ color: "#ffaaaa", fontSize: "14px", marginBottom: "15px", fontWeight: "bold" }}>Nenhum endereço selecionado.</p>
+                    <Link href="/" style={{ color: "#fff", background: "#b91c1c", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontSize: "13px", fontWeight: "900", textTransform: "uppercase" }}>
+                      SELECIONAR NA PÁGINA INICIAL
+                    </Link>
+                  </div>
+                )}
+                
+                <div style={{ ...sectionTitleStyles, marginTop: '20px' }}>
+                    <MessageSquare size={16} /> OBSERVAÇÕES PARA O MOTOBOY (Opcional)
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="Ex: Apartamento, Bloco, Chamar no portão..." 
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                    className="delivery-input"
+                    style={deliveryInputStyle}
+                />
+            </div>
+
             <div style={resumoStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'baseline' }}>
                 <span style={{ fontSize: "16px", fontWeight: "bold", color: '#555' }}>SUBTOTAL DO PEDIDO:</span>
@@ -2476,11 +3118,13 @@ export default function Carrinho() {
               
               <button 
                 onClick={() => setShowPaymentModal(true)} 
-                disabled={isSubmitting}
+                disabled={isSubmitting || !address}
                 style={{
                   ...checkoutBtn,
-                  background: isSubmitting ? "#222" : "#b91c1c",
-                  boxShadow: isSubmitting ? "none" : "0 10px 40px rgba(185,28,28,0.3)",
+                  background: isSubmitting || !address ? "#222" : "#b91c1c",
+                  color: isSubmitting || !address ? "#555" : "#fff",
+                  boxShadow: isSubmitting || !address ? "none" : "0 10px 40px rgba(185,28,28,0.3)",
+                  cursor: isSubmitting || !address ? "not-allowed" : "pointer"
                 }}
               >
                 {isSubmitting ? (
@@ -2502,6 +3146,7 @@ export default function Carrinho() {
         )}
       </section>
 
+      {/* Modais mantidos iguais (Edit, Payment, Pix) */}
       {editingItem && (
         <div style={modalOverlayStyles}>
           <div className="modal-content" style={modalContentStyles}>
@@ -2544,7 +3189,6 @@ export default function Carrinho() {
         </div>
       )}
 
-      {/* # ALTERAÇÃO SOLICITADA: Modal de Formas de Pagamento */}
       {showPaymentModal && (
         <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '30px' }}>
@@ -2579,9 +3223,13 @@ export default function Carrinho() {
         </div>
       )}
 
-      {/* # ALTERAÇÃO SOLICITADA: Modal do PIX Responsivo com Cópia aprimorada */}
       {pixData && (
-        <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget && pixStatus !== 'aprovado') setPixData(null); }}>
+        <div style={modalOverlayStyles} onClick={(e) => { 
+          if (e.target === e.currentTarget && pixStatus !== 'aprovado') {
+            setPixData(null); 
+            localStorage.removeItem("pedro-burger-pix");
+          }
+        }}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '650px' }}>
             <h2 style={{ 
               fontSize: '28px', fontWeight: '900', fontStyle: 'italic', marginBottom: '10px',
@@ -2593,39 +3241,24 @@ export default function Carrinho() {
             {pixStatus === "pendente" ? (
               <div style={{ marginTop: '20px' }}>
                 <p style={{ color: '#888', fontSize: '14px', marginBottom: '30px' }}>Escaneie o QR Code ou use o botão Copia e Cola.</p>
-                
                 <div className="pix-responsive-layout">
                   <div className="pix-qr-container">
                     <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '200px', height: '200px', display: 'block' }} />
                   </div>
-                  
                   <div className="pix-text-section">
                     <div className="custom-scrollbar" style={{ background: '#111', border: '1px solid #333', padding: '15px', borderRadius: '8px', wordBreak: 'break-all', fontSize: '12px', color: '#aaa', maxHeight: '100px', overflowY: 'auto' }}>
                       {pixData.qrCode}
                     </div>
-                    
-                    <button 
-                      onClick={handleCopyPix} 
-                      style={{ 
-                        ...confirmBtnStyles, 
-                        fontSize: '14px', 
-                        padding: '16px',
-                        background: copied ? '#22c55e' : '#b91c1c',
-                        boxShadow: copied ? '0 4px 15px rgba(34, 197, 94, 0.3)' : '0 4px 15px rgba(185, 28, 28, 0.3)',
-                        transition: 'all 0.3s ease'
-                      }}
-                    >
+                    <button onClick={handleCopyPix} style={{ ...confirmBtnStyles, fontSize: '14px', padding: '16px', background: copied ? '#22c55e' : '#b91c1c', boxShadow: copied ? '0 4px 15px rgba(34, 197, 94, 0.3)' : '0 4px 15px rgba(185, 28, 28, 0.3)', transition: 'all 0.3s ease' }}>
                       {copied ? "✅ CÓDIGO COPIADO!" : "📋 COPIAR CÓDIGO PIX"}
                     </button>
-                    
-                    <button onClick={() => setPixData(null)} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '10px', cursor: 'pointer', fontWeight: 'bold', width: '100%', padding: '10px' }}>
+                    <button onClick={() => { setPixData(null); localStorage.removeItem("pedro-burger-pix"); }} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '10px', cursor: 'pointer', fontWeight: 'bold', width: '100%', padding: '10px' }}>
                       Cancelar e voltar
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              // ALTERAÇÃO SOLICITADA: Layout profissional e centralizado para o status "Aprovado"
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 0', animation: 'fadeIn 0.5s ease' }}>
                 <div style={{ width: '90px', height: '90px', background: 'rgba(34, 197, 94, 0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 0 30px rgba(34, 197, 94, 0.2)' }}>
                   <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -2649,7 +3282,11 @@ export default function Carrinho() {
   );
 }
 
-// Estilos
+// Estilos extras
+const deliverySectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px solid #1a1a1a", marginBottom: "10px" };
+const deliveryInputStyle: React.CSSProperties = { width: "100%", backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none", marginTop: "10px", transition: "all 0.2s" };
+
+// Estilos mantidos originais
 const headerSection: React.CSSProperties = { height: "220px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: 'relative', overflow: 'hidden', borderBottom: '1px solid #1a1a1a' };
 const subtitleStyle: React.CSSProperties = { color: '#555', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '6px', fontWeight: 'bold' };
 const titleStyle: React.CSSProperties = { fontSize: '60px', fontWeight: '900', color: '#fff', fontStyle: 'italic', lineHeight: '1', margin: '5px 0' };
@@ -2670,7 +3307,7 @@ const modalOverlayStyles: React.CSSProperties = { position: 'fixed', inset: 0, b
 const modalContentStyles: React.CSSProperties = { backgroundColor: '#0a0a0a', width: '100%', maxWidth: '500px', borderRadius: '30px', border: '1px solid #222', position: 'relative', overflow: 'hidden' };
 const closeBtnStyles: React.CSSProperties = { position: 'absolute', top: '20px', right: '20px', background: '#1a1a1a', border: 'none', color: '#fff', cursor: 'pointer', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 };
 const modalSectionStyles: React.CSSProperties = { marginBottom: '30px' };
-const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '18px', fontWeight: '900', textTransform: 'uppercase' };
+const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '18px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' };
 const optionRowStyles: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #151515' };
 const counterContainer: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#000', padding: '6px 15px', borderRadius: '30px', border: '1px solid #222' };
 const miniBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };
@@ -2798,125 +3435,142 @@ const btnStyle = {
 
 
 --------------------------------------------------------------------------------
-ARQUIVO: .\src\app\entregador\[id]\page.tsx
+ARQUIVO: .\src\app\delivery\track\[token]\page.tsx
 --------------------------------------------------------------------------------
 
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { CheckCircle, Bike, MapPin, Package, Loader2, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Navigation, CheckCircle, Phone, MapPin, Loader2, AlertTriangle, XCircle } from "lucide-react";
+import { toast, Toaster } from "sonner";
+import { useParams } from "next/navigation"; // # ALTERAÇÃO: Leitura segura de URL
 
-export default function EntregadorPage() {
+export default function CourierTrackingPage() {
   const params = useParams();
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [order, setOrder] = useState<any>(null);
-  const [error, setError] = useState("");
+  const token = params?.token as string;
 
-  const fetchOrder = async () => {
-    try {
-      const res = await fetch(`/api/orders/user`); // Reutilizando a rota que busca pedidos
-      const data = await res.json();
-      const currentOrder = data.find((o: any) => o.id === params.id);
-      
-      if (!currentOrder) throw new Error("Pedido não encontrado.");
-      setOrder(currentOrder);
-    } catch (err) {
-      setError("Erro ao carregar dados da entrega.");
-    } finally {
-      setLoading(false);
-    }
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [completing, setCompleting] = useState(false);
+  
+  // # ALTERAÇÃO: Estado dedicado para sabermos exatamente o que deu errado
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+
+    // Força a URL a ignorar cache
+    fetch(`/api/delivery/info?token=${token}&t=${Date.now()}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          setErrorMsg(data.error); // Salva o erro real que a API devolveu
+        } else {
+          setOrder(data);
+        }
+      })
+      .catch(err => {
+        setErrorMsg("Falha ao conectar com o banco de dados.");
+      })
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const openGPS = () => {
+    if (!order?.address) return toast.error("Endereço não cadastrado");
+    const encodedAddr = encodeURIComponent(order.address);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddr}`, "_blank");
   };
 
-  useEffect(() => { fetchOrder(); }, [params.id]);
-
-  const finalizarEntrega = async () => {
-    setUpdating(true);
+  const handleFinish = async () => {
+    if (!confirm("Confirmar entrega?")) return;
+    setCompleting(true);
     try {
-      const res = await fetch(`/api/orders/${params.id}`, {
+      const res = await fetch("/api/delivery/complete", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "DONE" }),
+        body: JSON.stringify({ token }),
+        headers: { "Content-Type": "application/json" }
       });
-
       if (res.ok) {
         setOrder({ ...order, status: "DONE" });
-        alert("Entrega confirmada com sucesso! Bom trabalho.");
+        toast.success("Entregue!");
+      } else {
+        toast.error("Erro na API de finalizar.");
       }
-    } catch (err) {
-      alert("Erro ao confirmar entrega. Tente novamente.");
+    } catch (e) {
+      toast.error("Erro ao finalizar");
     } finally {
-      setUpdating(false);
+      setCompleting(false);
     }
   };
 
-  if (loading) return <div style={containerStyle}><Loader2 className="animate-spin" color="#b91c1c" /></div>;
-  if (error || !order) return <div style={containerStyle}><p>{error || "Pedido não encontrado"}</p></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Loader2 className="animate-spin text-[#b91c1c]" size={40} />
+    </div>
+  );
 
+  // # ALTERAÇÃO: Tela de ERRO REAL
+  if (errorMsg) return (
+    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center justify-center text-center font-[family-name:var(--font-oswald)]">
+      <XCircle size={80} className="text-red-500 mb-4" />
+      <h1 className="text-3xl font-black uppercase italic">ERRO NO LINK</h1>
+      <p className="text-gray-400 mt-2 font-sans">{errorMsg}</p>
+      <p className="text-red-900 text-xs mt-4">Debug: {token}</p>
+    </div>
+  );
+
+  // # ALTERAÇÃO: Só mostra "Concluída" se tivermos certeza que o status é DONE
+  if (order?.status === "DONE" || order?.status === "CANCELLED") return (
+    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center justify-center text-center font-[family-name:var(--font-oswald)]">
+      <CheckCircle size={80} className="text-green-500 mb-4" />
+      <h1 className="text-3xl font-black uppercase italic">ENTREGA CONCLUÍDA</h1>
+      <p className="text-gray-500 mt-2 font-sans">Este pedido já foi finalizado no sistema.</p>
+    </div>
+  );
+
+  // Se passou pelos erros, mostra a página normalmente
   return (
-    <div style={containerStyle}>
-      <header style={headerStyle}>
-        <Bike size={24} color="#b91c1c" />
-        <h1 style={{ fontSize: '18px', fontWeight: '900', margin: 0 }}>ENTREGA: #{order.id.slice(-6).toUpperCase()}</h1>
-      </header>
+    <div className="min-h-screen bg-[#0a0a0a] text-white p-4 font-[family-name:var(--font-oswald)]">
+      <Toaster theme="dark" position="top-center" richColors />
+      
+      <div className="bg-[#b91c1c] p-6 rounded-2xl mb-6">
+        <span className="text-[10px] font-black uppercase opacity-80">Total a Cobrar</span>
+        <h2 className="text-5xl font-black italic">R$ {order?.total?.toFixed(2)}</h2>
+        <p className="text-xs font-bold mt-2 uppercase">Pagamento: {order?.paymentMethod}</p>
+      </div>
 
-      <main style={{ width: '100%', maxWidth: '400px', padding: '20px' }}>
-        <div style={cardStyle}>
-          <div style={sectionStyle}>
-            <MapPin size={16} color="#b91c1c" />
-            <div>
-              <p style={labelStyle}>CLIENTE</p>
-              <p style={valueStyle}>{order.user?.name || "Cliente"}</p>
-            </div>
+      <div className="bg-[#111] border border-[#222] p-5 rounded-2xl mb-4">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-[#555] text-[10px] font-black uppercase mb-1">Cliente</h3>
+            <p className="text-xl font-bold uppercase">{order?.user?.name || "Sem Nome"}</p>
           </div>
-
-          <div style={sectionStyle}>
-            <Package size={16} color="#b91c1c" />
-            <div>
-              <p style={labelStyle}>ITENS</p>
-              {order.items.map((item: any) => (
-                <p key={item.id} style={{ fontSize: '14px', color: '#ccc' }}>{item.quantity}x {item.product?.name}</p>
-              ))}
-            </div>
+          {order?.user?.phone && (
+            <a href={`tel:${order.user.phone}`} className="bg-[#222] p-3 rounded-full text-green-500"><Phone size={24} /></a>
+          )}
+        </div>
+        
+        <div className="flex gap-3 items-start bg-black/30 p-4 rounded-xl border border-[#1a1a1a]">
+          <MapPin className="text-[#b91c1c] shrink-0 mt-1" size={20} />
+          <div>
+             <p className="text-lg font-bold leading-tight uppercase">{order?.address || "Endereço não informado"}</p>
+             {order?.notes && <p className="text-yellow-500 text-sm mt-2">Obs: {order.notes}</p>}
           </div>
         </div>
+      </div>
 
-        {order.status !== "DONE" ? (
-          <button 
-            onClick={finalizarEntrega} 
-            disabled={updating}
-            style={btnConfirmarStyle}
-          >
-            {updating ? <Loader2 className="animate-spin" /> : <CheckCircle size={20} />}
-            CONFIRMAR ENTREGA
-          </button>
-        ) : (
-          <div style={statusFinalizadoStyle}>
-            <CheckCircle size={32} color="#22c55e" />
-            <p>ENTREGA FINALIZADA</p>
-          </div>
-        )}
-        
-        <button onClick={() => router.back()} style={btnVoltarStyle}>
-          <ArrowLeft size={16} /> Voltar
+      <div className="grid gap-4 mt-8">
+        <button onClick={openGPS} className="w-full bg-[#3b82f6] h-20 rounded-2xl flex items-center justify-center gap-4 text-2xl font-black italic uppercase shadow-lg">
+          <Navigation size={32} /> ABRIR GPS
         </button>
-      </main>
+
+        <button onClick={handleFinish} disabled={completing} className="w-full bg-[#22c55e] h-20 rounded-2xl flex items-center justify-center gap-4 text-2xl font-black italic uppercase shadow-lg disabled:opacity-50">
+          {completing ? <Loader2 className="animate-spin" size={32} /> : <><CheckCircle size={32} /> FINALIZAR ENTREGA</>}
+        </button>
+      </div>
     </div>
   );
 }
-
-// Estilos Mobile-First
-const containerStyle: React.CSSProperties = { minHeight: '100vh', background: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: 'sans-serif' };
-const headerStyle: React.CSSProperties = { width: '100%', padding: '25px', background: '#0e0e0e', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: '15px' };
-const cardStyle: React.CSSProperties = { background: '#0e0e0e', borderRadius: '15px', padding: '20px', border: '1px solid #1a1a1a', marginBottom: '20px' };
-const sectionStyle: React.CSSProperties = { display: 'flex', gap: '12px', marginBottom: '20px' };
-const labelStyle: React.CSSProperties = { fontSize: '10px', color: '#555', fontWeight: 'bold', letterSpacing: '1px' };
-const valueStyle: React.CSSProperties = { fontSize: '16px', fontWeight: 'bold', color: '#fff' };
-const btnConfirmarStyle: React.CSSProperties = { width: '100%', padding: '20px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' };
-const statusFinalizadoStyle: React.CSSProperties = { textAlign: 'center', padding: '30px', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '12px', border: '1px solid #22c55e44', color: '#22c55e', fontWeight: 'bold' };
-const btnVoltarStyle: React.CSSProperties = { width: '100%', background: 'transparent', border: 'none', color: '#444', marginTop: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px' };
 
 
 --------------------------------------------------------------------------------
@@ -3044,10 +3698,11 @@ ARQUIVO: .\src\app\my-orders\page.tsx
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle } from "lucide-react";
+import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle, Bell } from "lucide-react";
+import { Toaster, toast } from 'sonner';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 interface OrderItem {
@@ -3074,6 +3729,15 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string
   CANCELLED:        { label: "Cancelado",           color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
 };
 
+// # ALTERAÇÃO SOLICITADA: Adicionado a notificação para o status RECEIVED no Sonner In-App
+const STATUS_TOASTS: Record<string, { title: string; desc: string; icon: string }> = {
+  RECEIVED:         { title: "Pedido na Fila! 👀", desc: "Recebemos seu pedido e ele já será preparado.", icon: "🔥" },
+  PREPARING:        { title: "Fogo na Grelha! 🔥", desc: "Seu pedido começou a ser preparado.", icon: "👨‍🍳" },
+  OUT_FOR_DELIVERY: { title: "Saiu para Entrega! 🛵", desc: "O motoboy já está a caminho.", icon: "📦" },
+  DONE:             { title: "Pedido Entregue! ✅", desc: "Bom apetite! Cuidado para não queimar a língua.", icon: "🍔" },
+  CANCELLED:        { title: "Pedido Cancelado ❌", desc: "Seu pedido foi cancelado no sistema.", icon: "😔" }
+};
+
 // ─── Progress bar ───────────────────────────────────────────────────────────────
 function OrderProgress({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.RECEIVED;
@@ -3089,7 +3753,6 @@ function OrderProgress({ status }: { status: string }) {
       {steps.map((s, i) => {
         const active = cfg.step >= s.step;
         const current = cfg.step === s.step;
-        
         const isLineActive = cfg.step > s.step;
         const isOrderDone = cfg.step === 4;
 
@@ -3201,31 +3864,117 @@ function SkeletonCard() {
   );
 }
 
+// ─── Auxiliar Web Push ──────────────────────────────────────────────────────────
+const urlBase64ToUint8Array = (base64String: string) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function MyOrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const previousStatuses = useRef<Record<string, string>>({});
+
+  const [permissionStatus, setPermissionStatus] = useState<string>("default");
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
-    // Busca os pedidos do banco de dados
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPermissionStatus(Notification.permission);
+    }
+
     const fetchOrders = () => {
       fetch("/api/orders/user")
         .then((res) => res.json())
         .then((data) => { 
-          setOrders(Array.isArray(data) ? data : []); 
+          const newData = Array.isArray(data) ? data : [];
+          
+          newData.forEach(order => {
+            const oldStatus = previousStatuses.current[order.id];
+            
+            if (oldStatus && oldStatus !== order.status) {
+              const toastInfo = STATUS_TOASTS[order.status];
+              if (toastInfo) {
+                toast(toastInfo.title, {
+                  description: toastInfo.desc,
+                  icon: toastInfo.icon,
+                });
+                const audio = new Audio('/notification.mp3');
+                audio.play().catch(e => console.log('Bloqueado:', e));
+              }
+            }
+            previousStatuses.current[order.id] = order.status;
+          });
+
+          setOrders(newData);
           setLoading(false);
         })
         .catch(() => setLoading(false));
     };
 
     fetchOrders();
-
-    // Loop de atualização (Polling) a cada 5 segundos para refletir mudanças do Admin
     const interval = setInterval(fetchOrders, 5000);
-
     return () => clearInterval(interval);
   }, []);
+
+  const handleSubscribe = async () => {
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      toast.error("Conexão Insegura 🔒", { 
+        description: "Notificações push só funcionam em sites com HTTPS (como na Vercel)." 
+      });
+      return;
+    }
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (isIOS) {
+        toast.error("Adicione à Tela de Início! 📱", { 
+          description: "No iPhone, clique em 'Compartilhar' > 'Adicionar à Tela de Início' para liberar notificações.",
+          duration: 8000
+        });
+      } else {
+        toast.error("Navegador não suportado.", { description: "Seu navegador não permite notificações em segundo plano." });
+      }
+      return;
+    }
+    
+    setIsSubscribing(true);
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BGDxT31aOk5hDpKskaRXj63fMgv5LFplmJ8ZmYLpA0xRUdG3VwORWr4Kv6BpSwRgHcVfYoheyGrwJl16HjldaZ0")
+      });
+
+      const response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(sub),
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        setPermissionStatus("granted");
+        toast.success("Notificações ativadas!", { description: "Você será avisado mesmo com a aba fechada." });
+      } else {
+        throw new Error("Erro na API ao salvar no banco.");
+      }
+    } catch (error: any) {
+      console.error("Erro Push:", error);
+      toast.error("Erro ao ativar", { description: error.message || "Tente novamente mais tarde." });
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
 
   return (
     <>
@@ -3238,6 +3987,8 @@ export default function MyOrdersPage() {
           100% { background-position: 100% 0; }
         }
       `}</style>
+      
+      <Toaster theme="dark" position="top-center" richColors />
 
       <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'Oswald', sans-serif" }}>
         <div style={{ height: 90 }} />
@@ -3250,6 +4001,27 @@ export default function MyOrdersPage() {
               MEUS <span style={{ color: "#b91c1c" }}>PEDIDOS</span>
             </h1>
           </header>
+
+          {permissionStatus !== "granted" && !loading && (
+            <div style={{ background: "#0e0e0e", border: "1px solid #1e1e1e", borderRadius: 12, padding: "16px 20px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", animation: "fadeSlideUp 0.4s ease" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ background: "#b91c1c22", padding: 10, borderRadius: 50, border: "1px solid #b91c1c55" }}>
+                  <Bell color="#b91c1c" size={20} />
+                </div>
+                <div>
+                  <span style={{ display: "block", color: "#fff", fontWeight: 800, fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase" }}>Ativar Notificações</span>
+                  <span style={{ color: "#777", fontSize: 11, fontWeight: 600 }}>Avisamos você fora do site!</span>
+                </div>
+              </div>
+              <button 
+                onClick={handleSubscribe} 
+                disabled={isSubscribing}
+                style={{ background: "#b91c1c", border: "none", color: "#fff", fontWeight: 900, fontSize: 11, letterSpacing: "0.1em", padding: "10px 20px", borderRadius: 30, cursor: isSubscribing ? "not-allowed" : "pointer", textTransform: "uppercase", opacity: isSubscribing ? 0.7 : 1, transition: "0.2s" }}
+              >
+                {isSubscribing ? "Ativando..." : "Permitir"}
+              </button>
+            </div>
+          )}
 
           {loading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -6522,6 +7294,37 @@ const badgeStyle: React.CSSProperties = {
 
 
 --------------------------------------------------------------------------------
+ARQUIVO: .\src\components\SecurityConsole.tsx
+--------------------------------------------------------------------------------
+
+"use client";
+
+import { useEffect } from "react";
+
+export default function SecurityConsole() {
+  useEffect(() => {
+    // Limpa o console ao carregar para o aviso ser o primeiro
+    console.clear();
+
+    // Estilo do aviso (Estilo Facebook/Discord)
+    const titleStyle = "color: #b91c1c; font-size: 40px; font-weight: bold; text-shadow: 2px 2px 0px black;";
+    const warningStyle = "color: white; font-size: 18px; font-weight: bold; background: #b91c1c; padding: 5px 10px; border-radius: 5px;";
+    const textStyle = "color: #888; font-size: 14px; font-weight: 500;";
+
+    console.log("%cPARE!", titleStyle);
+    console.log("%cEsta é uma ferramenta de desenvolvedor.", warningStyle);
+    console.log(
+      "%cSe alguém disse para você copiar e colar algo aqui para 'ganhar descontos' ou 'hackear' o site, é um GOLPE e dará a eles acesso à sua conta do The Flame Grill.",
+      textStyle
+    );
+    console.log("%cSaia daqui agora para sua própria segurança.", textStyle);
+  }, []);
+
+  return null; // Componente invisível
+}
+
+
+--------------------------------------------------------------------------------
 ARQUIVO: .\src\config\site-config.ts
 --------------------------------------------------------------------------------
 
@@ -6557,10 +7360,9 @@ ARQUIVO: .\src\context\CartContext.tsx
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-// Definição da interface do item do carrinho
 interface CartItem {
-  id: string;        // ID único para controle de lista (ex: id-timestamp)
-  productId: string; // ID real do produto no banco de dados (Prisma)
+  id: string;
+  productId: string;
   name: string;
   price: number;
   image: string;
@@ -6579,7 +7381,8 @@ interface CartContextType {
   updateQuantity: (id: string, quantity: number) => void;
   updateItemCustomization: (id: string, newCustomization: any, newPrice: number) => void;
   clearCart: () => void;
-  createOrder: (paymentMethod: string, notes?: string, restaurantId?: string) => Promise<any>;
+  // # ALTERAÇÃO SOLICITADA: Adicionado address aos parâmetros
+  createOrder: (paymentMethod: string, address: string, notes?: string, restaurantId?: string, userId?: string) => Promise<any>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -6587,7 +7390,6 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // 1. Carregar carrinho do LocalStorage ao iniciar
   useEffect(() => {
     const savedCart = localStorage.getItem("pedro-burger-cart");
     if (savedCart) {
@@ -6600,7 +7402,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // 2. Salvar no LocalStorage sempre que o carrinho mudar
   useEffect(() => {
     localStorage.setItem("pedro-burger-cart", JSON.stringify(cart));
   }, [cart]);
@@ -6644,39 +7445,43 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem("pedro-burger-cart");
   };
 
-  // 3. Função para criar o pedido enviando para a API (Sem trava de login para teste)
   const createOrder = async (
     paymentMethod: string, 
+    address: string, // # ALTERAÇÃO SOLICITADA: Novo parâmetro obrigatório
     notes: string = "", 
-    restaurantId: string = "cmmcpmk4q000087yw0dvvdonb"
+    restaurantId: string = "cmmcpmk4q000087yw0dvvdonb",
+    userId?: string 
   ) => {
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-    // Mapeamos os itens para o formato que o Prisma espera
     const formattedItems = cart.map(item => {
       if (!item.productId) {
         throw new Error(`Produto ${item.name} inválido. Remova-o do carrinho.`);
       }
       return {
+        id: item.productId, // O Mercado Pago e sua API esperam 'id' ou 'productId'
         productId: item.productId,
+        name: item.name,
         quantity: Number(item.quantity),
-        unitPrice: Number(item.price)
+        price: Number(item.price)
       };
     });
 
     try {
-      const response = await fetch("/api/orders", {
+      // # ALTERAÇÃO SOLICITADA: Chamando a API de PIX que criamos, enviando o endereço
+      const response = await fetch("/api/checkout/pix", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          // Removida a necessidade de Authorization para o teste com userId fixo
         },
         body: JSON.stringify({
           items: formattedItems,
           total: Number(total),
+          address, // # ALTERAÇÃO SOLICITADA: Enviando para salvar no Prisma
           notes,
           paymentMethod,
-          restaurantId, 
+          restaurantId,
+          userId,
         }),
       });
 
@@ -6686,7 +7491,11 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error(data.error || "Erro ao criar pedido");
       }
 
-      clearCart(); 
+      // Nota: Não limpe o carrinho aqui se o pagamento for PIX, 
+      // limpe apenas após a confirmação do pagamento se preferir, 
+      // ou mantenha o clearCart se o redirecionamento for imediato.
+      // clearCart(); 
+      
       return data;
     } catch (error: any) {
       console.error("Erro no checkout:", error);
@@ -6788,9 +7597,33 @@ export const prisma =
 // 3. Em desenvolvimento, salva no global para não estourar o limite de conexões do Neon
 if (process.env.NODE_ENV !== 'production') global.prisma = prisma
 
+
+--------------------------------------------------------------------------------
+ARQUIVO: .\src\lib\rate-limit.ts
+--------------------------------------------------------------------------------
+
+import { LRUCache } from 'lru-cache';
+
+// Configuração: Máximo de 500 IPs na memória, cada um expira em 1 minuto
+const tokenCache = new LRUCache<string, number>({
+  max: 500,
+  ttl: 60 * 1000, 
+});
+
+export async function rateLimit(ip: string, limit: number = 5) {
+  const currentUsage = tokenCache.get(ip) || 0;
+  
+  if (currentUsage >= limit) {
+    return { success: false };
+  }
+
+  tokenCache.set(ip, currentUsage + 1);
+  return { success: true };
+}
+
 ================================================================================
 RESUMO
 ================================================================================
 
-Total de arquivos exportados: 51
-Total de linhas de código: 6311
+Total de arquivos exportados: 60
+Total de linhas de código: 7063
