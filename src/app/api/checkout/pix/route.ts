@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"; // # ALTERAÇÃO: Importação do banco
+import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { cookies } from "next/headers";
@@ -15,7 +15,6 @@ const payment = new Payment(client);
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    // # ALTERAÇÃO: Agora recebemos address e notes do front-end
     const { items, total, address, notes, paymentMethod } = body;
 
     const cookieStore = await cookies();
@@ -25,23 +24,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Você precisa estar logado para pedir." }, { status: 401 });
     }
 
-    // O cookie guarda um JSON, vamos extrair o ID do usuário
     const userData = JSON.parse(sessionCookie.value);
     const userId = userData.id;
 
-    // # ALTERAÇÃO: 1. CRIAR O PEDIDO NO BANCO ANTES DE GERAR O PIX
-    // Criamos o pedido primeiro para ter o ID dele e passar para o Mercado Pago
+    // 1. CRIA O PEDIDO COMO "PENDENTE" (Não vai aparecer na cozinha ainda)
     const order = await prisma.order.create({
       data: {
         userId: userId,
-        restaurantId: "cmmcpmk4q000087yw0dvvdonb", // Certifique-se de ter um ID válido aqui
+        restaurantId: "cmmcpmk4q000087yw0dvvdonb", 
         total: total,
-        address: address || "Retirada no Local", // Salva o endereço aqui!
+        address: address || "Retirada no Local", 
         notes: notes || "",
         paymentMethod: paymentMethod || "PIX",
-        status: "RECEIVED",
+        status: "PENDING", // <--- ALTERAÇÃO OBRIGATÓRIA AQUI
         items: {
-          // # ALTERAÇÃO SOLICITADA: Ajuste para ler productId e unitPrice corretamente, aceitando os dois padrões
           create: items.map((item: any) => ({
             productId: item.productId || item.id,
             quantity: item.quantity,
@@ -51,17 +47,15 @@ export async function POST(request: Request) {
       },
     });
 
-    // # ALTERAÇÃO SOLICITADA: Forçando 1 centavo para testes (Lembre-se de voltar para 'total' em produção)
-    const transactionAmount = 0.01; 
-    const description = `Pedido #${order.id.slice(-6)} - The Flame Grill (TESTE)`;
+    const transactionAmount = total; 
+    const description = `Pedido #${order.id.slice(-6)} - The Flame Grill`;
 
-    // # ALTERAÇÃO: Enviar o ID do PEDIDO (order.id) como external_reference
     const result = await payment.create({
       body: {
         transaction_amount: transactionAmount,
         description: description,
         payment_method_id: "pix",
-        external_reference: order.id, // VINCULA O PAGAMENTO AO PEDIDO
+        external_reference: order.id, 
         notification_url: "https://theflamegrill.vercel.app/api/webhooks/mercadopago", 
         payer: {
           email: userData.email || "cliente@email.com", 
@@ -73,7 +67,7 @@ export async function POST(request: Request) {
 
     if (result.status === "pending" || result.status === "created") {
       return NextResponse.json({
-        order_id: order.id, // Retornamos o ID do nosso banco
+        order_id: order.id,
         payment_id: result.id,
         qr_code: result.point_of_interaction?.transaction_data?.qr_code,
         qr_code_base64: result.point_of_interaction?.transaction_data?.qr_code_base64,
@@ -89,13 +83,22 @@ export async function POST(request: Request) {
   }
 }
 
-// O GET continua igual para consulta manual
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const paymentId = searchParams.get("id");
     if (!paymentId) return NextResponse.json({ error: "ID ausente" }, { status: 400 });
+    
     const result = await payment.get({ id: paymentId });
+    
+    // # ALTERAÇÃO: Se o PIX foi pago, atualiza o pedido para RECEIVED para apitar na cozinha!
+    if (result.status === "approved" && result.external_reference) {
+      await prisma.order.updateMany({
+        where: { id: result.external_reference, status: "PENDING" },
+        data: { status: "RECEIVED" }
+      });
+    }
+
     return NextResponse.json({ status: result.status, payment_id: result.id, external_reference: result.external_reference });
   } catch (error: any) {
     return NextResponse.json({ error: "Erro ao buscar PIX" }, { status: 500 });
