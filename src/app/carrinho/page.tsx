@@ -35,7 +35,7 @@ export default function Carrinho() {
     complementos: [{ nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }]
   };
 
-  const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const totalGeral = 0.01
   const taxaEntregaFixa = 5.00;
   
   let valorFrete = address ? taxaEntregaFixa : 0;
