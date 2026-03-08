@@ -36,12 +36,19 @@ export async function POST(request: Request) {
         address: address || "Retirada no Local", 
         notes: notes || "",
         paymentMethod: paymentMethod || "PIX",
-        status: "PENDING", // <--- ALTERAÇÃO OBRIGATÓRIA AQUI
+        status: "PENDING",
         items: {
           create: items.map((item: any) => ({
             productId: item.productId || item.id,
             quantity: item.quantity,
             unitPrice: item.unitPrice || item.price,
+            // # ALTERAÇÃO SOLICITADA: Formata e salva os extras e observações do lanche
+            observations: item.customization
+              ? [
+                  item.customization.extras?.length ? `Extras: ${item.customization.extras.join(", ")}` : null,
+                  item.customization.obs ? `Obs: ${item.customization.obs}` : null
+                ].filter(Boolean).join(" | ") || null
+              : null,
           })),
         },
       },

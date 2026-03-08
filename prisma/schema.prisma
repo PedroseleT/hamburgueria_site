@@ -92,7 +92,9 @@ model OrderItem {
   id        String @id @default(cuid())
   quantity  Int
   unitPrice Float
-  
+  // # ALTERAÇÃO SOLICITADA: Campo para guardar adicionais e observações do item
+  observations String? 
+
   productId String
   product   Menu   @relation(fields: [productId], references: [id])
   
