@@ -35,7 +35,8 @@ export default function Carrinho() {
     complementos: [{ nome: "Hambúrguer Extra 180g", preco: 12.00 }, { nome: "Bacon em Tiras", preco: 6.00 }, { nome: "Queijo Cheddar", preco: 5.00 }, { nome: "Salada Fresca", preco: 3.00 }]
   };
 
-  const totalGeral = 0.01
+  // CÁLCULO REAL PARA EXIBIÇÃO
+  const subtotalReal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const taxaEntregaFixa = 5.00;
   
   let valorFrete = address ? taxaEntregaFixa : 0;
@@ -45,10 +46,10 @@ export default function Carrinho() {
 
   let valorDesconto = 0;
   if (appliedCoupon?.type === 'discount' && appliedCoupon.value) {
-    valorDesconto = totalGeral * (appliedCoupon.value / 100);
+    valorDesconto = subtotalReal * (appliedCoupon.value / 100);
   }
 
-  const totalComFrete = totalGeral - valorDesconto + valorFrete;
+  const totalExibicao = subtotalReal - valorDesconto + valorFrete;
 
   const handleApplyCoupon = () => {
     const code = couponInput.trim().toUpperCase();
@@ -75,7 +76,6 @@ export default function Carrinho() {
     setCouponError("");
   };
 
-  // # ALTERAÇÃO SOLICITADA: Carregamento de endereço mais robusto
   useEffect(() => {
     const loadData = () => {
       const saved = localStorage.getItem("flame_enderecos");
@@ -94,7 +94,6 @@ export default function Carrinho() {
       }
     };
     loadData();
-    // Pequeno delay para garantir que o LocalStorage esteja disponível em navegadores mobile
     const t = setTimeout(loadData, 200);
     return () => clearTimeout(t);
   }, []);
@@ -155,7 +154,13 @@ export default function Carrinho() {
       const finalNotes = appliedCoupon ? `[CUPOM: ${appliedCoupon.code}] ${deliveryNotes}` : deliveryNotes;
       const res = await fetch("/api/checkout/pix", {
         method: "POST",
-        body: JSON.stringify({ items: cart, total: totalComFrete, address, notes: finalNotes, paymentMethod: "PIX" }),
+        body: JSON.stringify({ 
+          items: cart, 
+          total: 0.01, // VALOR FORÇADO PARA TESTE
+          address, 
+          notes: finalNotes, 
+          paymentMethod: "PIX" 
+        }),
         headers: { "Content-Type": "application/json" }
       });
       const data = await res.json();
@@ -299,7 +304,7 @@ export default function Carrinho() {
             <div style={resumoStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: '12px' }}>
                 <span style={{ fontSize: "14px", fontWeight: "bold", color: '#888' }}>SUBTOTAL:</span>
-                <span style={{ color: "#ccc", fontSize: "16px", fontWeight: "bold" }}>R$ {totalGeral.toFixed(2).replace('.', ',')}</span>
+                <span style={{ color: "#ccc", fontSize: "16px", fontWeight: "bold" }}>R$ {subtotalReal.toFixed(2).replace('.', ',')}</span>
               </div>
               {valorDesconto > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: '12px', color: '#22c55e' }}>
@@ -314,11 +319,10 @@ export default function Carrinho() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'baseline' }}>
                 <span style={{ fontSize: "16px", fontWeight: "bold", color: '#555' }}>TOTAL:</span>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ color: "#fff", fontSize: "36px", fontWeight: "900", fontStyle: 'italic' }}>R$ {totalComFrete.toFixed(2).replace('.', ',')}</span>
+                  <span style={{ color: "#fff", fontSize: "36px", fontWeight: "900", fontStyle: 'italic' }}>R$ {totalExibicao.toFixed(2).replace('.', ',')}</span>
                 </div>
               </div>
               
-              {/* # ALTERAÇÃO SOLICITADA: Botão com verificação de erro ao clicar */}
               <button 
                 onClick={() => {
                    if (!address) {
@@ -339,7 +343,6 @@ export default function Carrinho() {
         )}
       </section>
 
-      {/* Modais de Pagamento e PIX corrigidos */}
       {showPaymentModal && (
         <div style={modalOverlayStyles} onClick={() => setShowPaymentModal(false)}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '30px' }} onClick={e => e.stopPropagation()}>
@@ -384,7 +387,6 @@ export default function Carrinho() {
   );
 }
 
-// Estilos originais preservados
 const deliverySectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px solid #1a1a1a", marginBottom: "10px" };
 const deliveryInputStyle: React.CSSProperties = { width: "100%", backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none", marginTop: "10px" };
 const couponSectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px dashed #222", marginBottom: "10px" };
@@ -411,5 +413,4 @@ const modalOverlayStyles: React.CSSProperties = { position: 'fixed', inset: 0, b
 const modalContentStyles: React.CSSProperties = { backgroundColor: '#0a0a0a', width: '100%', maxWidth: '500px', borderRadius: '30px', border: '1px solid #222', position: 'relative', overflow: 'hidden' };
 const closeBtnStyles: React.CSSProperties = { position: 'absolute', top: '20px', right: '20px', background: '#1a1a1a', border: 'none', color: '#fff', cursor: 'pointer', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 };
 const confirmBtnStyles: React.CSSProperties = { backgroundColor: '#b91c1c', border: 'none', color: '#fff', fontWeight: '900', padding: '20px', borderRadius: '15px', cursor: 'pointer', width: '100%', textTransform: 'uppercase', fontStyle: 'italic' };
-// ADICIONE ESTA LINHA JUNTO COM OS OUTROS ESTILOS NO FINAL DO ARQUIVO
 const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' };
