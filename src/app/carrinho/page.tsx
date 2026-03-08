@@ -29,54 +29,53 @@ export default function Carrinho() {
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  // Tratamento Robusto de Recuperação de PIX
+  // # CORREÇÃO: Recupera o PIX e o QR Code se o usuário fechar a aba
   useEffect(() => {
-    const savedPixId = localStorage.getItem("pedro-burger-pix-id");
-    if (savedPixId) {
-      // Reabre o modal informando que está verificando
-      setShowPaymentModal(true);
-      setPixStatus("pendente");
+    const savedPix = localStorage.getItem("pedro-burger-pix");
+    if (savedPix) {
+      try {
+        const parsedPix = JSON.parse(savedPix);
+        setPixData(parsedPix); // Restaura o QR Code na tela
+        setPixStatus("pendente");
 
-      const interval = setInterval(async () => {
-        try {
-          // # SOLUÇÃO VERCEL: Força o navegador a ignorar o cache local
-          const checkRes = await fetch(`/api/checkout/pix?id=${savedPixId}`, {
-            cache: 'no-store',
-            headers: { 'Pragma': 'no-cache' }
-          });
-          
-          if (!checkRes.ok) throw new Error("Falha na consulta");
-          
-          const checkData = await checkRes.json();
-          
-          if (checkData.status === "approved") {
-            clearInterval(interval);
-            setPixStatus("aprovado");
-            localStorage.removeItem("pedro-burger-pix-id"); 
+        const interval = setInterval(async () => {
+          try {
+            // Força a Vercel a não usar cache na checagem
+            const checkRes = await fetch(`/api/checkout/pix?id=${parsedPix.paymentId}`, {
+              cache: 'no-store',
+              headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+            });
             
-            const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-            const realUserId = (checkData as any).external_reference; 
+            if (!checkRes.ok) throw new Error("Falha na consulta");
+            const checkData = await checkRes.json();
             
-            await createOrder("PIX", `MercadoPago: ${savedPixId}`, restaurantId, realUserId);
-            setTimeout(() => { router.push("/my-orders"); }, 3000);
-            
-          } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
-            // Se foi rejeitado ou expirou, limpa e solta a tela
-            clearInterval(interval);
-            localStorage.removeItem("pedro-burger-pix-id");
-            setShowPaymentModal(false);
+            if (checkData.status === "approved") {
+              clearInterval(interval);
+              setPixStatus("aprovado");
+              localStorage.removeItem("pedro-burger-pix"); 
+              
+              const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+              // Garante a leitura do ID do usuário diretamente do celular, sem depender da API
+              const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
+              const realUserId = match ? match[2] : (checkData as any).external_reference;
+              
+              await createOrder("PIX", `MercadoPago: ${parsedPix.paymentId}`, restaurantId, realUserId);
+              setTimeout(() => { router.push("/my-orders"); }, 3000);
+              
+            } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
+              clearInterval(interval);
+              localStorage.removeItem("pedro-burger-pix");
+              setPixData(null);
+            }
+          } catch (e) {
+            console.error("Erro na verificação background:", e);
           }
-        } catch (e) {
-          // Tratamento de exceção invisível: se a Vercel/Net falhar, destrava a tela
-          console.error("Erro na verificação background:", e);
-          clearInterval(interval);
-          localStorage.removeItem("pedro-burger-pix-id");
-          setShowPaymentModal(false);
-          setIsSubmitting(false);
-        }
-      }, 5000);
+        }, 5000);
 
-      return () => clearInterval(interval);
+        return () => clearInterval(interval);
+      } catch (e) {
+        localStorage.removeItem("pedro-burger-pix");
+      }
     }
   }, [createOrder, router]);
 
@@ -116,42 +115,43 @@ export default function Carrinho() {
 
       if (!res.ok) throw new Error(data.error || "Erro ao gerar PIX");
 
-      setPixData({ qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id });
+      const pixObj = { qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id };
+      setPixData(pixObj);
       setPixStatus("pendente");
-      localStorage.setItem("pedro-burger-pix-id", data.payment_id);
+      // Salva o objeto inteiro na memória do celular
+      localStorage.setItem("pedro-burger-pix", JSON.stringify(pixObj));
 
       const interval = setInterval(async () => {
         try {
           const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`, {
             cache: 'no-store',
-            headers: { 'Pragma': 'no-cache' }
+            headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
           });
           
           if (!checkRes.ok) throw new Error("Network response was not ok");
-          
           const checkData = await checkRes.json();
           
           if (checkData.status === "approved") {
             clearInterval(interval);
             setPixStatus("aprovado");
-            localStorage.removeItem("pedro-burger-pix-id"); 
+            localStorage.removeItem("pedro-burger-pix"); 
             
             const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-            const realUserId = (checkData as any).external_reference; 
+            const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
+            const realUserId = match ? match[2] : (checkData as any).external_reference;
             
             await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId, realUserId);
             setTimeout(() => { router.push("/my-orders"); }, 3000);
           }
         } catch (err) {
           console.error("Erro ao checar status do PIX:", err);
-          clearInterval(interval);
         }
       }, 5000);
 
       setTimeout(() => {
         clearInterval(interval);
-        localStorage.removeItem("pedro-burger-pix-id"); 
-        setIsSubmitting(false); // Libera o botão "Finalizar Pedido" se demorar muito
+        localStorage.removeItem("pedro-burger-pix"); 
+        setIsSubmitting(false);
       }, 5 * 60 * 1000);
 
     } catch (error: any) {
@@ -427,7 +427,13 @@ export default function Carrinho() {
       )}
 
       {pixData && (
-        <div style={modalOverlayStyles} onClick={(e) => { if (e.target === e.currentTarget && pixStatus !== 'aprovado') setPixData(null); }}>
+        <div style={modalOverlayStyles} onClick={(e) => { 
+          if (e.target === e.currentTarget && pixStatus !== 'aprovado') {
+            setPixData(null); 
+            // Opcional: Se ele fechar o modal, paramos de verificar (para não gerar compras fantasmas)
+            localStorage.removeItem("pedro-burger-pix");
+          }
+        }}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '650px' }}>
             <h2 style={{ 
               fontSize: '28px', fontWeight: '900', fontStyle: 'italic', marginBottom: '10px',
@@ -464,7 +470,7 @@ export default function Carrinho() {
                       {copied ? "✅ CÓDIGO COPIADO!" : "📋 COPIAR CÓDIGO PIX"}
                     </button>
                     
-                    <button onClick={() => setPixData(null)} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '10px', cursor: 'pointer', fontWeight: 'bold', width: '100%', padding: '10px' }}>
+                    <button onClick={() => { setPixData(null); localStorage.removeItem("pedro-burger-pix"); }} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '10px', cursor: 'pointer', fontWeight: 'bold', width: '100%', padding: '10px' }}>
                       Cancelar e voltar
                     </button>
                   </div>
@@ -494,7 +500,7 @@ export default function Carrinho() {
   );
 }
 
-// Estilos
+// Estilos mantidos 100% iguais
 const headerSection: React.CSSProperties = { height: "220px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: 'relative', overflow: 'hidden', borderBottom: '1px solid #1a1a1a' };
 const subtitleStyle: React.CSSProperties = { color: '#555', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '6px', fontWeight: 'bold' };
 const titleStyle: React.CSSProperties = { fontSize: '60px', fontWeight: '900', color: '#fff', fontStyle: 'italic', lineHeight: '1', margin: '5px 0' };
