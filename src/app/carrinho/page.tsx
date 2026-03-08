@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
-import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle } from "lucide-react";
+import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function Carrinho() {
@@ -15,6 +15,10 @@ export default function Carrinho() {
   const [obsEdit, setObsEdit] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // # ALTERAÇÃO SOLICITADA: Estados para captura de endereço de entrega
+  const [address, setAddress] = useState("");
+  const [deliveryNotes, setDeliveryNotes] = useState("");
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
@@ -29,18 +33,16 @@ export default function Carrinho() {
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  // # CORREÇÃO: Recupera o PIX e o QR Code se o usuário fechar a aba
   useEffect(() => {
     const savedPix = localStorage.getItem("pedro-burger-pix");
     if (savedPix) {
       try {
         const parsedPix = JSON.parse(savedPix);
-        setPixData(parsedPix); // Restaura o QR Code na tela
+        setPixData(parsedPix);
         setPixStatus("pendente");
 
         const interval = setInterval(async () => {
           try {
-            // Força a Vercel a não usar cache na checagem
             const checkRes = await fetch(`/api/checkout/pix?id=${parsedPix.paymentId}`, {
               cache: 'no-store',
               headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
@@ -55,11 +57,11 @@ export default function Carrinho() {
               localStorage.removeItem("pedro-burger-pix"); 
               
               const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-              // Garante a leitura do ID do usuário diretamente do celular, sem depender da API
               const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
               const realUserId = match ? match[2] : (checkData as any).external_reference;
               
-              await createOrder("PIX", `MercadoPago: ${parsedPix.paymentId}`, restaurantId, realUserId);
+              // # ALTERAÇÃO SOLICITADA: Incluído o address na criação final do pedido
+              await createOrder("PIX", address, `MP: ${parsedPix.paymentId} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
               setTimeout(() => { router.push("/my-orders"); }, 3000);
               
             } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
@@ -77,7 +79,7 @@ export default function Carrinho() {
         localStorage.removeItem("pedro-burger-pix");
       }
     }
-  }, [createOrder, router]);
+  }, [createOrder, router, address, deliveryNotes]);
 
   const handleCopyPix = async () => {
     if (!pixData) return;
@@ -100,6 +102,13 @@ export default function Carrinho() {
   };
 
   const processPixPayment = async () => {
+    // # ALTERAÇÃO SOLICITADA: Validação de endereço obrigatório
+    if (!address.trim()) {
+      setErrorMessage("Por favor, informe o endereço de entrega.");
+      setShowPaymentModal(false);
+      return;
+    }
+
     setShowPaymentModal(false); 
     if (cart.length === 0) return;
     setErrorMessage(null);
@@ -108,7 +117,14 @@ export default function Carrinho() {
     try {
       const res = await fetch("/api/checkout/pix", {
         method: "POST",
-        body: JSON.stringify({ items: cart, total: totalGeral }),
+        // # ALTERAÇÃO SOLICITADA: Enviando address e notes para a API de PIX
+        body: JSON.stringify({ 
+          items: cart, 
+          total: totalGeral, 
+          address, 
+          notes: deliveryNotes,
+          paymentMethod: "PIX" 
+        }),
         headers: { "Content-Type": "application/json" }
       });
       const data = await res.json();
@@ -118,7 +134,6 @@ export default function Carrinho() {
       const pixObj = { qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id };
       setPixData(pixObj);
       setPixStatus("pendente");
-      // Salva o objeto inteiro na memória do celular
       localStorage.setItem("pedro-burger-pix", JSON.stringify(pixObj));
 
       const interval = setInterval(async () => {
@@ -140,7 +155,8 @@ export default function Carrinho() {
             const match = document.cookie.match(new RegExp('(^| )user_session=([^;]+)'));
             const realUserId = match ? match[2] : (checkData as any).external_reference;
             
-            await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId, realUserId);
+            // # ALTERAÇÃO SOLICITADA: Incluído o address na criação final do pedido
+            await createOrder("PIX", address, `MP: ${data.payment_id} | Obs: ${deliveryNotes}`, restaurantId, realUserId);
             setTimeout(() => { router.push("/my-orders"); }, 3000);
           }
         } catch (err) {
@@ -242,6 +258,10 @@ export default function Carrinho() {
             flex: 1;
           }
         }
+        .delivery-input:focus {
+            border-color: #b91c1c !important;
+            box-shadow: 0 0 10px rgba(185, 28, 28, 0.2);
+        }
       `}</style>
 
       <section style={headerSection}>
@@ -304,6 +324,33 @@ export default function Carrinho() {
               </div>
             ))}
 
+            {/* # ALTERAÇÃO SOLICITADA: BLOCO DE INFORMAÇÕES DE ENTREGA */}
+            <div style={deliverySectionStyle}>
+                <div style={sectionTitleStyles}>
+                    <MapPin size={16} /> ENDEREÇO DE ENTREGA
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="Rua, Número, Bairro, Cidade..." 
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="delivery-input"
+                    style={deliveryInputStyle}
+                />
+                
+                <div style={{ ...sectionTitleStyles, marginTop: '20px' }}>
+                    <MessageSquare size={16} /> OBSERVAÇÕES DE ENTREGA
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="Ex: Apartamento, Bloco, Ponto de referência..." 
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                    className="delivery-input"
+                    style={deliveryInputStyle}
+                />
+            </div>
+
             <div style={resumoStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: 'baseline' }}>
                 <span style={{ fontSize: "16px", fontWeight: "bold", color: '#555' }}>SUBTOTAL DO PEDIDO:</span>
@@ -350,6 +397,7 @@ export default function Carrinho() {
         )}
       </section>
 
+      {/* Restante dos modais mantido igual (Edit, Payment, Pix) */}
       {editingItem && (
         <div style={modalOverlayStyles}>
           <div className="modal-content" style={modalContentStyles}>
@@ -430,7 +478,6 @@ export default function Carrinho() {
         <div style={modalOverlayStyles} onClick={(e) => { 
           if (e.target === e.currentTarget && pixStatus !== 'aprovado') {
             setPixData(null); 
-            // Opcional: Se ele fechar o modal, paramos de verificar (para não gerar compras fantasmas)
             localStorage.removeItem("pedro-burger-pix");
           }
         }}>
@@ -445,31 +492,17 @@ export default function Carrinho() {
             {pixStatus === "pendente" ? (
               <div style={{ marginTop: '20px' }}>
                 <p style={{ color: '#888', fontSize: '14px', marginBottom: '30px' }}>Escaneie o QR Code ou use o botão Copia e Cola.</p>
-                
                 <div className="pix-responsive-layout">
                   <div className="pix-qr-container">
                     <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '200px', height: '200px', display: 'block' }} />
                   </div>
-                  
                   <div className="pix-text-section">
                     <div className="custom-scrollbar" style={{ background: '#111', border: '1px solid #333', padding: '15px', borderRadius: '8px', wordBreak: 'break-all', fontSize: '12px', color: '#aaa', maxHeight: '100px', overflowY: 'auto' }}>
                       {pixData.qrCode}
                     </div>
-                    
-                    <button 
-                      onClick={handleCopyPix} 
-                      style={{ 
-                        ...confirmBtnStyles, 
-                        fontSize: '14px', 
-                        padding: '16px',
-                        background: copied ? '#22c55e' : '#b91c1c',
-                        boxShadow: copied ? '0 4px 15px rgba(34, 197, 94, 0.3)' : '0 4px 15px rgba(185, 28, 28, 0.3)',
-                        transition: 'all 0.3s ease'
-                      }}
-                    >
+                    <button onClick={handleCopyPix} style={{ ...confirmBtnStyles, fontSize: '14px', padding: '16px', background: copied ? '#22c55e' : '#b91c1c', boxShadow: copied ? '0 4px 15px rgba(34, 197, 94, 0.3)' : '0 4px 15px rgba(185, 28, 28, 0.3)', transition: 'all 0.3s ease' }}>
                       {copied ? "✅ CÓDIGO COPIADO!" : "📋 COPIAR CÓDIGO PIX"}
                     </button>
-                    
                     <button onClick={() => { setPixData(null); localStorage.removeItem("pedro-burger-pix"); }} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '10px', cursor: 'pointer', fontWeight: 'bold', width: '100%', padding: '10px' }}>
                       Cancelar e voltar
                     </button>
@@ -500,7 +533,29 @@ export default function Carrinho() {
   );
 }
 
-// Estilos mantidos 100% iguais
+// Estilos extras para a seção de entrega
+const deliverySectionStyle: React.CSSProperties = {
+    background: "#0f0f0f",
+    padding: "25px",
+    borderRadius: "20px",
+    border: "1px solid #1a1a1a",
+    marginBottom: "10px"
+};
+
+const deliveryInputStyle: React.CSSProperties = {
+    width: "100%",
+    backgroundColor: "#000",
+    border: "1px solid #222",
+    borderRadius: "10px",
+    padding: "15px",
+    color: "#fff",
+    fontSize: "14px",
+    outline: "none",
+    marginTop: "10px",
+    transition: "all 0.2s"
+};
+
+// Estilos mantidos originais
 const headerSection: React.CSSProperties = { height: "220px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: 'relative', overflow: 'hidden', borderBottom: '1px solid #1a1a1a' };
 const subtitleStyle: React.CSSProperties = { color: '#555', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '6px', fontWeight: 'bold' };
 const titleStyle: React.CSSProperties = { fontSize: '60px', fontWeight: '900', color: '#fff', fontStyle: 'italic', lineHeight: '1', margin: '5px 0' };
@@ -521,7 +576,7 @@ const modalOverlayStyles: React.CSSProperties = { position: 'fixed', inset: 0, b
 const modalContentStyles: React.CSSProperties = { backgroundColor: '#0a0a0a', width: '100%', maxWidth: '500px', borderRadius: '30px', border: '1px solid #222', position: 'relative', overflow: 'hidden' };
 const closeBtnStyles: React.CSSProperties = { position: 'absolute', top: '20px', right: '20px', background: '#1a1a1a', border: 'none', color: '#fff', cursor: 'pointer', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 };
 const modalSectionStyles: React.CSSProperties = { marginBottom: '30px' };
-const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '18px', fontWeight: '900', textTransform: 'uppercase' };
+const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', marginBottom: '18px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' };
 const optionRowStyles: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #151515' };
 const counterContainer: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '15px', background: '#000', padding: '6px 15px', borderRadius: '30px', border: '1px solid #222' };
 const miniBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' };

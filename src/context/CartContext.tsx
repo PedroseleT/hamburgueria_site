@@ -2,10 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-// Definição da interface do item do carrinho
 interface CartItem {
-  id: string;        // ID único para controle de lista (ex: id-timestamp)
-  productId: string; // ID real do produto no banco de dados (Prisma)
+  id: string;
+  productId: string;
   name: string;
   price: number;
   image: string;
@@ -24,8 +23,8 @@ interface CartContextType {
   updateQuantity: (id: string, quantity: number) => void;
   updateItemCustomization: (id: string, newCustomization: any, newPrice: number) => void;
   clearCart: () => void;
-  // # ALTERAÇÃO: Adicionado userId como parâmetro opcional
-  createOrder: (paymentMethod: string, notes?: string, restaurantId?: string, userId?: string) => Promise<any>;
+  // # ALTERAÇÃO SOLICITADA: Adicionado address aos parâmetros
+  createOrder: (paymentMethod: string, address: string, notes?: string, restaurantId?: string, userId?: string) => Promise<any>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -33,7 +32,6 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // 1. Carregar carrinho do LocalStorage ao iniciar
   useEffect(() => {
     const savedCart = localStorage.getItem("pedro-burger-cart");
     if (savedCart) {
@@ -46,7 +44,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // 2. Salvar no LocalStorage sempre que o carrinho mudar
   useEffect(() => {
     localStorage.setItem("pedro-burger-cart", JSON.stringify(cart));
   }, [cart]);
@@ -90,12 +87,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem("pedro-burger-cart");
   };
 
-  // 3. Função para criar o pedido enviando para a API
   const createOrder = async (
     paymentMethod: string, 
+    address: string, // # ALTERAÇÃO SOLICITADA: Novo parâmetro obrigatório
     notes: string = "", 
     restaurantId: string = "cmmcpmk4q000087yw0dvvdonb",
-    userId?: string // # ALTERAÇÃO: Novo parâmetro recebido do Checkout
+    userId?: string 
   ) => {
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
@@ -104,14 +101,17 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error(`Produto ${item.name} inválido. Remova-o do carrinho.`);
       }
       return {
+        id: item.productId, // O Mercado Pago e sua API esperam 'id' ou 'productId'
         productId: item.productId,
+        name: item.name,
         quantity: Number(item.quantity),
-        unitPrice: Number(item.price)
+        price: Number(item.price)
       };
     });
 
     try {
-      const response = await fetch("/api/orders", {
+      // # ALTERAÇÃO SOLICITADA: Chamando a API de PIX que criamos, enviando o endereço
+      const response = await fetch("/api/checkout/pix", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -119,10 +119,11 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         body: JSON.stringify({
           items: formattedItems,
           total: Number(total),
+          address, // # ALTERAÇÃO SOLICITADA: Enviando para salvar no Prisma
           notes,
           paymentMethod,
           restaurantId,
-          userId, // # ALTERAÇÃO: Enviamos o ID real para a API
+          userId,
         }),
       });
 
@@ -132,7 +133,11 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error(data.error || "Erro ao criar pedido");
       }
 
-      clearCart(); 
+      // Nota: Não limpe o carrinho aqui se o pagamento for PIX, 
+      // limpe apenas após a confirmação do pagamento se preferir, 
+      // ou mantenha o clearCart se o redirecionamento for imediato.
+      // clearCart(); 
+      
       return data;
     } catch (error: any) {
       console.error("Erro no checkout:", error);
