@@ -31,7 +31,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string
   CANCELLED:        { label: "Cancelado",           color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
 };
 
+// # ALTERAÇÃO SOLICITADA: Adicionado a notificação para o status RECEIVED no Sonner In-App
 const STATUS_TOASTS: Record<string, { title: string; desc: string; icon: string }> = {
+  RECEIVED:         { title: "Pedido na Fila! 👀", desc: "Recebemos seu pedido e ele já será preparado.", icon: "🔥" },
   PREPARING:        { title: "Fogo na Grelha! 🔥", desc: "Seu pedido começou a ser preparado.", icon: "👨‍🍳" },
   OUT_FOR_DELIVERY: { title: "Saiu para Entrega! 🛵", desc: "O motoboy já está a caminho.", icon: "📦" },
   DONE:             { title: "Pedido Entregue! ✅", desc: "Bom apetite! Cuidado para não queimar a língua.", icon: "🍔" },
@@ -182,7 +184,6 @@ export default function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Ref para guardar o status dos pedidos e evitar notificação duplicada
   const previousStatuses = useRef<Record<string, string>>({});
 
   const [permissionStatus, setPermissionStatus] = useState<string>("default");
@@ -202,7 +203,6 @@ export default function MyOrdersPage() {
           newData.forEach(order => {
             const oldStatus = previousStatuses.current[order.id];
             
-            // Se o status mudou (ou seja, é diferente do que estava gravado no useRef)
             if (oldStatus && oldStatus !== order.status) {
               const toastInfo = STATUS_TOASTS[order.status];
               if (toastInfo) {
@@ -214,7 +214,6 @@ export default function MyOrdersPage() {
                 audio.play().catch(e => console.log('Bloqueado:', e));
               }
             }
-            // Atualiza a memória para não tocar de novo na próxima checagem
             previousStatuses.current[order.id] = order.status;
           });
 
@@ -230,7 +229,6 @@ export default function MyOrdersPage() {
   }, []);
 
   const handleSubscribe = async () => {
-    // Tratamento de segurança: HTTP vs HTTPS
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
       toast.error("Conexão Insegura 🔒", { 
         description: "Notificações push só funcionam em sites com HTTPS (como na Vercel)." 

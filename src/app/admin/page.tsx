@@ -59,7 +59,9 @@ function StatusSelector({ orderId, current, onUpdate }: { orderId: string; curre
   };
 
   const cfg = STATUS_CONFIG[current];
-  const isDisabled = loading || current === "DONE" || current === "CANCELLED";
+  
+  // # ALTERAÇÃO SOLICITADA: Removida a trava de "DONE" e "CANCELLED" para o atendente ter controle total
+  const isDisabled = loading; 
   const isAnimated = !["DONE", "CANCELLED"].includes(current);
 
   const modal = open ? createPortal(

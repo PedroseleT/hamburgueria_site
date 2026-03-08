@@ -26,7 +26,9 @@ export async function PATCH(
       }
     });
 
+    // # ALTERAÇÃO SOLICITADA: Adicionado a mensagem de push para o status RECEIVED
     const statusMessages: Record<string, string> = {
+      RECEIVED: "🔥 Recebemos seu pedido e ele já está na fila!",
       PREPARING: "👨‍🍳 Seu pedido foi para a grelha!",
       OUT_FOR_DELIVERY: "🛵 O motoboy está a caminho com seu lanche!",
       DONE: "✅ Pedido entregue. Bom apetite!",
@@ -36,7 +38,6 @@ export async function PATCH(
     const message = statusMessages[status];
 
     if (message && updated.user.pushSubscriptions.length > 0) {
-      // # CORREÇÃO: Lê as chaves apenas na hora de usar
       const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       const privateKey = process.env.VAPID_PRIVATE_KEY;
 
