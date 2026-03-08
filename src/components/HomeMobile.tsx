@@ -212,6 +212,9 @@ export default function HomeMobile() {
         .m-pedir-btn:active { transform: scale(0.97); background: #991b1b !important; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Feedback visual ao clicar nos botões dos apps */
+        .app-btn-active:active { transform: scale(0.96); }
       `}</style>
 
       <main style={{ backgroundColor: "#080808", minHeight: "100svh", color: "#fff", fontFamily: "sans-serif", paddingTop: 0, paddingBottom: "calc(72px + env(safe-area-inset-bottom))", overflowX: "hidden" }}>
@@ -225,10 +228,10 @@ export default function HomeMobile() {
           pointerEvents: showAddressBar ? "auto" : "none",
         }}>
           <button onClick={() => {
-  const isLogged = document.cookie.includes("user_session");
-  if (!isLogged) { router.push("/login?callback=/"); return; }
-  enderecoSalvo ? setShowAddressPanel(!showAddressPanel) : setShowCepModal(true);
-}} style={{
+            const isLogged = document.cookie.includes("user_session");
+            if (!isLogged) { router.push("/login?callback=/"); return; }
+            enderecoSalvo ? setShowAddressPanel(!showAddressPanel) : setShowCepModal(true);
+          }} style={{
             width: "100%", background: "#111", border: "none", borderBottom: "1px solid #1a1a1a",
             padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer",
           }}>
@@ -305,30 +308,30 @@ export default function HomeMobile() {
                           <span style={{ background: "#b91c1c", color: "#fff", fontSize: 9, fontWeight: 900, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>ATIVO</span>
                         )}
                         <button onClick={(e) => { e.stopPropagation(); setEditingIdx(idx); setEditingEndereco({ ...end }); }}
-  style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
-  EDITAR
-</button>
-<button onClick={(e) => {
-  e.stopPropagation();
-  const updated = enderecosSalvos.filter((_, i) => i !== idx);
-  setEnderecosSalvos(updated);
-  localStorage.setItem("flame_enderecos", JSON.stringify(updated));
-  if (updated.length === 0) {
-    setEnderecoSalvo(null);
-    setEnderecoAtivoIdx(0);
-    localStorage.removeItem("flame_enderecos");
-    localStorage.removeItem("flame_endereco_ativo");
-    setShowAddressPanel(false);
-  } else {
-    const newIdx = Math.min(enderecoAtivoIdx, updated.length - 1);
-    setEnderecoAtivoIdx(newIdx);
-    setEnderecoSalvo(updated[newIdx]);
-    localStorage.setItem("flame_endereco_ativo", String(newIdx));
-  }
-}}
-  style={{ background: "none", border: "none", color: "#b91c1c55", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
-  EXCLUIR
-</button>
+                          style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
+                          EDITAR
+                        </button>
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          const updated = enderecosSalvos.filter((_, i) => i !== idx);
+                          setEnderecosSalvos(updated);
+                          localStorage.setItem("flame_enderecos", JSON.stringify(updated));
+                          if (updated.length === 0) {
+                            setEnderecoSalvo(null);
+                            setEnderecoAtivoIdx(0);
+                            localStorage.removeItem("flame_enderecos");
+                            localStorage.removeItem("flame_endereco_ativo");
+                            setShowAddressPanel(false);
+                          } else {
+                            const newIdx = Math.min(enderecoAtivoIdx, updated.length - 1);
+                            setEnderecoAtivoIdx(newIdx);
+                            setEnderecoSalvo(updated[newIdx]);
+                            localStorage.setItem("flame_endereco_ativo", String(newIdx));
+                          }
+                        }}
+                          style={{ background: "none", border: "none", color: "#b91c1c55", cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0, padding: "4px 8px" }}>
+                          EXCLUIR
+                        </button>
                       </div>
                     )}
                   </div>
@@ -364,13 +367,32 @@ export default function HomeMobile() {
           <p style={{ color: "#ef4444", fontWeight: 500, fontSize: 14, marginTop: 8, marginBottom: 0 }}>Fechado • Abrimos amanhã às 18h30</p>
         </div>
 
+        {/* # ALTERAÇÃO SOLICITADA: Botões iFood e 99Food com Logos Reais */}
+        <div style={{ padding: "0 16px", marginTop: 24, display: "flex", gap: 12 }}>
+          {/* iFood */}
+          <a href="#" target="_blank" rel="noopener noreferrer" className="app-btn-active"
+            style={{ flex: 1, backgroundColor: "#ea1d2c", borderRadius: 10, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#fff", textDecoration: "none", fontWeight: 800, fontSize: 13, letterSpacing: "0.05em" }}>
+            {/* Usando a imagem PNG da pasta public */}
+            <img src="/ifood-logo.png" alt="iFood" style={{ height: 50, width: 'auto' }} />
+            PEDIR NO IFOOD
+          </a>
+          
+          {/* 99Food - Botão Mais Amarelo */}
+          <a href="#" target="_blank" rel="noopener noreferrer" className="app-btn-active"
+            style={{ flex: 1, backgroundColor: "#FFB800", borderRadius: 10, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#fff", textDecoration: "none", fontWeight: 800, fontSize: 13, letterSpacing: "0.05em" }}>
+            {/* Usando a imagem PNG da pasta public */}
+            <img src="/99food.png" alt="99Food" style={{ height: 50, width: 'auto' }} />
+            PEDIR NO 99FOOD
+          </a>
+        </div>
+
         {/* ── Botão taxa ── */}
         <div style={{ padding: "0 16px", marginTop: 24 }}>
           <button onClick={() => {
-  const isLogged = document.cookie.includes("user_session");
-  if (!isLogged) { router.push("/login?callback=/"); return; }
-  setShowCepModal(true);
-}} style={{ width: "100%", backgroundColor: "#171717", border: "1px solid #262626", borderRadius: 12, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", cursor: "pointer" }}>
+            const isLogged = document.cookie.includes("user_session");
+            if (!isLogged) { router.push("/login?callback=/"); return; }
+            setShowCepModal(true);
+          }} style={{ width: "100%", backgroundColor: "#171717", border: "1px solid #262626", borderRadius: 12, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#fff", cursor: "pointer" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <MapPin size={20} color="#a3a3a3" />
               <span style={{ fontWeight: 500, fontSize: 14 }}>Calcular taxa e tempo de entrega</span>
