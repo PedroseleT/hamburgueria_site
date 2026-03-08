@@ -26,16 +26,19 @@ enum OrderStatus {
 
 // 3. Modelos de Dados
 model User {
-  id         String      @id @default(cuid())
-  name       String
-  email      String      @unique
-  password   String
-  phone      String?
-  role       Role        @default(CLIENT)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  phone     String?
+  role      Role     @default(CLIENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   restaurant Restaurant?
   orders     Order[]
+  
+  // # ALTERAÇÃO SOLICITADA: Relação com as inscrições de notificação (um usuário pode ter celular e PC)
+  pushSubscriptions PushSubscription[]
 }
 
 model Restaurant {
@@ -89,4 +92,17 @@ model OrderItem {
   orderId   String
   // # ALTERAÇÃO SOLICITADA
   order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// # ALTERAÇÃO SOLICITADA: Nova tabela para salvar as chaves do navegador/celular do cliente
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
 }
