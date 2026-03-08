@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
-import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare, Ticket, CheckCircle, ShieldCheck } from "lucide-react";
+import { Trash2, Plus, Minus, Edit2, X, ArrowLeft, Loader2, Flame, AlertCircle, MapPin, MessageSquare, Ticket, CheckCircle, ShieldCheck, Home } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from "sonner";
 
 export default function Carrinho() {
-  const { cart, removeFromCart, updateQuantity, updateItemCustomization, createOrder } = useCart();
+  const { cart, removeFromCart, updateQuantity, updateItemCustomization } = useCart();
   const router = useRouter();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -16,19 +16,24 @@ export default function Carrinho() {
   const [tempOptions, setTempOptions] = useState<any[]>([]);
   const [obsEdit, setObsEdit] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [address, setAddress] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
 
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: 'discount' | 'free_shipping'; value?: number } | null>(null);
-  const [couponError, setCouponError] = useState("");
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
   const [pixStatus, setPixStatus] = useState<string>("pendente");
   const [copied, setCopied] = useState(false);
+
+  // # ALTERAÇÃO SOLICITADA: Estados para o Modal de Endereço
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [cep, setCep] = useState("");
+  const [numero, setNumero] = useState("");
+  const [loadingCep, setLoadingCep] = useState(false);
+  const [addressData, setAddressData] = useState<{ rua: string; bairro: string; cidade: string } | null>(null);
 
   const baseOptions = {
     molhosGratis: [{ nome: "Ketchup", preco: 0 }, { nome: "Mostarda", preco: 0 }, { nome: "Maionese Tradicional", preco: 0 }],
@@ -49,7 +54,6 @@ export default function Carrinho() {
 
   const totalExibicao = subtotalReal - valorDesconto + valorFrete;
 
-  // FUNÇÃO PARA PARAR A VERIFICAÇÃO
   const stopPolling = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -57,7 +61,6 @@ export default function Carrinho() {
     }
   };
 
-  // VERIFICAÇÃO DE STATUS COM TRATAMENTO DE ERROS
   const checkPaymentStatus = async (paymentId: string) => {
     try {
       const checkRes = await fetch(`/api/checkout/pix?id=${paymentId}&t=${Date.now()}`, {
@@ -73,7 +76,6 @@ export default function Carrinho() {
         setPixStatus("aprovado");
         localStorage.removeItem("pedro-burger-pix"); 
         
-        // Limpa o carrinho local
         cart.forEach(item => removeFromCart(item.id));
         router.refresh();
         
@@ -90,25 +92,24 @@ export default function Carrinho() {
     }
   };
 
-  // CARREGAMENTO INICIAL E RECUPERAÇÃO DE SESSÃO PENDENTE
-  useEffect(() => {
-    const loadData = () => {
-      const saved = localStorage.getItem("flame_enderecos");
-      const activeIdx = localStorage.getItem("flame_endereco_ativo");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.length > 0) {
-            const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
-            const end = parsed[idx];
-            if (end && end.rua) setAddress(`${end.rua}, ${end.numero} - ${end.bairro}, ${end.cidade}`);
-          }
-        } catch (e) { console.error(e); }
-      }
-    };
-    loadData();
+  // # ALTERAÇÃO SOLICITADA: Função encapsulada para recarregar o endereço salvo
+  const loadAddressData = () => {
+    const saved = localStorage.getItem("flame_enderecos");
+    const activeIdx = localStorage.getItem("flame_endereco_ativo");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          const idx = activeIdx ? parseInt(activeIdx, 10) : 0;
+          const end = parsed[idx];
+          if (end && end.rua) setAddress(`${end.rua}, ${end.numero} - ${end.bairro}, ${end.cidade}`);
+        }
+      } catch (e) { console.error(e); }
+    }
+  };
 
-    // Recupera PIX que estava em aberto caso a página tenha sido atualizada
+  useEffect(() => {
+    loadAddressData();
     const savedPix = localStorage.getItem("pedro-burger-pix");
     if (savedPix) {
       try {
@@ -119,9 +120,52 @@ export default function Carrinho() {
         intervalRef.current = setInterval(() => checkPaymentStatus(parsedPix.paymentId), 5000);
       } catch (e) { localStorage.removeItem("pedro-burger-pix"); }
     }
-
     return () => stopPolling();
   }, []);
+
+  // # ALTERAÇÃO SOLICITADA: Funções do Modal de Endereço
+  const buscarCep = async (cepd: string) => {
+    const cleanCep = cepd.replace(/\D/g, "");
+    setCep(cleanCep);
+    if (cleanCep.length === 8) {
+      setLoadingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const data = await res.json();
+        if (data.erro) {
+          toast.error("CEP não encontrado.");
+          setAddressData(null);
+        } else {
+          setAddressData({ rua: data.logradouro, bairro: data.bairro, cidade: data.localidade });
+          toast.success("Endereço encontrado!");
+        }
+      } catch {
+        toast.error("Erro ao buscar CEP.");
+      } finally {
+        setLoadingCep(false);
+      }
+    } else {
+      setAddressData(null);
+    }
+  };
+
+  const salvarNovoEndereco = () => {
+    if (!addressData || !numero) {
+      toast.error("Preencha o CEP e o Número.");
+      return;
+    }
+    const novoEnd = { ...addressData, numero, cep };
+    const saved = localStorage.getItem("flame_enderecos");
+    const arr = saved ? JSON.parse(saved) : [];
+    arr.push(novoEnd);
+    localStorage.setItem("flame_enderecos", JSON.stringify(arr));
+    localStorage.setItem("flame_endereco_ativo", String(arr.length - 1));
+    
+    loadAddressData(); // Recarrega o estado do Carrinho
+    setShowAddressModal(false);
+    setCep(""); setNumero(""); setAddressData(null);
+    toast.success("Endereço adicionado com sucesso!");
+  };
 
   const handleApplyCoupon = () => {
     const code = couponInput.trim().toUpperCase();
@@ -151,7 +195,7 @@ export default function Carrinho() {
         method: "POST",
         body: JSON.stringify({ 
           items: cart, 
-          total: 0.01, // VALOR PARA TESTE
+          total: 0.01, 
           address, 
           notes: finalNotes, 
           paymentMethod: "PIX" 
@@ -167,7 +211,6 @@ export default function Carrinho() {
       setPixStatus("pendente");
       localStorage.setItem("pedro-burger-pix", JSON.stringify(pixObj));
 
-      // Inicia verificação automática
       stopPolling();
       intervalRef.current = setInterval(() => checkPaymentStatus(data.payment_id), 5000);
 
@@ -193,7 +236,6 @@ export default function Carrinho() {
     <main className="carrinho-container" style={{ backgroundColor: "#0a0a0a", minHeight: "100vh", color: "#fff", fontFamily: "'Oswald', sans-serif" }}>
       <Toaster theme="dark" position="top-center" richColors />
       
-      {/* OVERLAY DE PROCESSAMENTO (IMPEDE DUPLO CLIQUE) */}
       {isSubmitting && !pixData && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
             <Loader2 className="animate-spin text-[#b91c1c] mb-4" size={50} />
@@ -235,7 +277,6 @@ export default function Carrinho() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {/* Lista de Itens com bloqueio visual se estiver pagando */}
             <div style={{ opacity: pixData ? 0.3 : 1, pointerEvents: pixData ? 'none' : 'auto' }}>
                 {cart.map((item) => (
                 <div key={item.id} className="cart-item" style={cartItemStyle}>
@@ -244,7 +285,6 @@ export default function Carrinho() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                         <h3 style={{ margin: 0, fontSize: "22px", fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase' }}>{item.name}</h3>
-                        <button onClick={() => setEditingItem(item)} style={editBtnSmall}><Edit2 size={12}/> Ajustar Ingredientes</button>
                         </div>
                         <button onClick={() => removeFromCart(item.id)} style={deleteBtn}><Trash2 size={20}/></button>
                     </div>
@@ -270,16 +310,32 @@ export default function Carrinho() {
                 {address ? (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#000", padding: "16px", borderRadius: "10px", border: "1px solid #222", marginTop: "10px" }}>
                     <span style={{ fontSize: "14px", fontWeight: "bold", color: "#ccc" }}>{address}</span>
-                    <Link href="/" style={{ fontSize: "12px", color: "#b91c1c", fontWeight: "bold", textDecoration: "none" }}>TROCAR</Link>
+                    <button onClick={() => setShowAddressModal(true)} style={{ background: "none", border: "none", fontSize: "12px", color: "#b91c1c", fontWeight: "bold", cursor: "pointer" }}>TROCAR</button>
                   </div>
                 ) : (
                   <div style={{ marginTop: "10px", padding: "20px", background: "#220000", borderRadius: "10px", border: "1px dashed #b91c1c", textAlign: "center" }}>
                     <p style={{ color: "#ffaaaa", fontSize: "14px", marginBottom: "15px", fontWeight: "bold" }}>Nenhum endereço selecionado.</p>
-                    <Link href="/" style={{ color: "#fff", background: "#b91c1c", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontSize: "13px", fontWeight: "900" }}>SELECIONAR NA HOME</Link>
+                    {/* # ALTERAÇÃO SOLICITADA: Botão abre o modal de endereço direto no carrinho */}
+                    <button onClick={() => setShowAddressModal(true)} style={{ color: "#fff", background: "#b91c1c", padding: "10px 20px", borderRadius: "8px", border: "none", fontSize: "13px", fontWeight: "900", cursor: "pointer" }}>
+                      ADICIONAR ENDEREÇO
+                    </button>
                   </div>
                 )}
                 <div style={{ ...sectionTitleStyles, marginTop: '20px' }}><MessageSquare size={16} /> OBSERVAÇÕES (Opcional)</div>
                 <input type="text" placeholder="Ex: Apto, portão..." value={deliveryNotes} onChange={(e) => setDeliveryNotes(e.target.value)} className="delivery-input" style={deliveryInputStyle} />
+            </div>
+
+            <div style={{ ...couponSectionStyle, opacity: pixData ? 0.3 : 1, pointerEvents: pixData ? 'none' : 'auto' }}>
+              <div style={{ ...sectionTitleStyles, marginBottom: '10px' }}><Ticket size={16} /> CUPOM</div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input type="text" placeholder="CÓDIGO" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} className="coupon-input" style={couponInputStyle} disabled={!!appliedCoupon} />
+                {appliedCoupon ? <button onClick={() => setAppliedCoupon(null)} style={removeBtnStyle}>REMOVER</button> : <button onClick={handleApplyCoupon} style={applyBtnStyle}>APLICAR</button>}
+              </div>
+              {appliedCoupon && (
+                <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: '#22c55e', fontSize: '13px', fontWeight: 'bold' }}>
+                  <CheckCircle size={16} /> {appliedCoupon.type === 'discount' ? `Cupom ${appliedCoupon.value}% aplicado!` : 'Frete Grátis aplicado!'}
+                </div>
+              )}
             </div>
 
             <div style={resumoStyle}>
@@ -306,11 +362,8 @@ export default function Carrinho() {
               
               <button 
                 onClick={() => {
-                   if (!address) {
-                      toast.error("Selecione o endereço primeiro!");
-                      return;
-                   }
-                   if (pixData) return; // Impede abrir se já estiver em checkout
+                   if (!address) return toast.error("Selecione o endereço primeiro!");
+                   if (pixData) return;
                    setShowPaymentModal(true);
                 }} 
                 disabled={isSubmitting} 
@@ -325,7 +378,48 @@ export default function Carrinho() {
         )}
       </section>
 
-      {/* MODAL DE SELEÇÃO DE PAGAMENTO */}
+      {/* # ALTERAÇÃO SOLICITADA: MODAL DE ADICIONAR ENDEREÇO */}
+      {showAddressModal && (
+        <div style={modalOverlayStyles} onClick={() => setShowAddressModal(false)}>
+          <div style={{ ...modalContentStyles, padding: "30px", background: "#0a0a0a" }} onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowAddressModal(false)} style={closeBtnStyles}><X size={20} /></button>
+            <h2 style={{ fontSize: "24px", fontWeight: "900", color: "#fff", fontStyle: "italic", marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <Home size={24} color="#b91c1c" /> NOVO ENDEREÇO
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+              <div style={{ position: "relative" }}>
+                <input 
+                  type="text" 
+                  placeholder="Digite seu CEP (Apenas números)" 
+                  value={cep} 
+                  onChange={(e) => buscarCep(e.target.value)} 
+                  maxLength={9}
+                  style={deliveryInputStyle} 
+                />
+                {loadingCep && <Loader2 size={18} className="animate-spin" style={{ position: "absolute", right: "15px", top: "25px", color: "#b91c1c" }} />}
+              </div>
+              
+              {addressData && (
+                <div style={{ background: "#111", padding: "15px", borderRadius: "10px", border: "1px solid #222" }}>
+                  <p style={{ color: "#fff", fontSize: "14px", fontWeight: "bold", margin: "0 0 5px 0" }}>{addressData.rua}</p>
+                  <p style={{ color: "#888", fontSize: "12px", margin: 0 }}>{addressData.bairro}, {addressData.cidade}</p>
+                  <input 
+                    type="text" 
+                    placeholder="Número da casa/prédio" 
+                    value={numero} 
+                    onChange={(e) => setNumero(e.target.value)} 
+                    style={{ ...deliveryInputStyle, marginTop: "15px", border: "1px solid #b91c1c" }} 
+                  />
+                  <button onClick={salvarNovoEndereco} style={{ ...confirmBtnStyles, marginTop: "15px", padding: "15px", fontSize: "14px" }}>
+                    SALVAR E USAR
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPaymentModal && (
         <div style={modalOverlayStyles} onClick={() => setShowPaymentModal(false)}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '30px' }} onClick={e => e.stopPropagation()}>
@@ -344,7 +438,6 @@ export default function Carrinho() {
         </div>
       )}
 
-      {/* MODAL DE PIX COM STATUS EM TEMPO REAL */}
       {pixData && (
         <div style={modalOverlayStyles}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '500px' }}>
@@ -352,15 +445,12 @@ export default function Carrinho() {
               <>
                 <h2 style={{ fontSize: '24px', fontWeight: '900', fontStyle: 'italic', marginBottom: '10px', color: '#f59e0b' }}>AGUARDANDO PAGAMENTO</h2>
                 <p style={{ color: '#888', fontSize: '14px', marginBottom: '30px' }}>A tela atualizará sozinha após o pagamento.</p>
-                
                 <div className="pix-qr-container" style={{ margin: '0 auto 30px', background: '#fff', padding: '15px', borderRadius: '15px' }}>
                     <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '220px', height: '220px', display: 'block' }} />
                 </div>
-                
                 <button onClick={handleCopyPix} style={{ ...confirmBtnStyles, background: copied ? '#22c55e' : '#b91c1c' }}>
                     {copied ? "CÓDIGO COPIADO!" : "COPIAR CÓDIGO PIX"}
                 </button>
-                
                 <button onClick={() => { setPixData(null); setIsSubmitting(false); stopPolling(); localStorage.removeItem("pedro-burger-pix"); }} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                     CANCELAR E VOLTAR
                 </button>
@@ -388,7 +478,7 @@ export default function Carrinho() {
 // ESTILOS FINAIS
 const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' };
 const deliverySectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px solid #1a1a1a", marginBottom: "10px" };
-const deliveryInputStyle: React.CSSProperties = { width: "100%", backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none", marginTop: "10px" };
+const deliveryInputStyle: React.CSSProperties = { width: "100%", backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none" };
 const couponSectionStyle: React.CSSProperties = { background: "#0f0f0f", padding: "25px", borderRadius: "20px", border: "1px dashed #222", marginBottom: "10px" };
 const couponInputStyle: React.CSSProperties = { flex: 1, backgroundColor: "#000", border: "1px solid #222", borderRadius: "10px", padding: "15px", color: "#fff", fontSize: "14px", outline: "none" };
 const applyBtnStyle: React.CSSProperties = { backgroundColor: "#1a1a1a", border: "1px solid #333", color: "#fff", fontWeight: "900", padding: "0 20px", borderRadius: "10px", cursor: "pointer" };
