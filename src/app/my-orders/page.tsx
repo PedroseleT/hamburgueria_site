@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle, Bell } from "lucide-react";
+import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle, Bell, Loader2 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
@@ -24,14 +24,14 @@ interface Order {
 
 // ─── Status config ──────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string; icon: React.ReactNode; step: number }> = {
+  PENDING:          { label: "Aguardando",      color: "#666",    glow: "#666555", icon: <Clock size={13} />,         step: 0 },
   RECEIVED:         { label: "Recebido",          color: "#f59e0b", glow: "#f59e0b55", icon: <Flame size={13} />,         step: 1 },
   PREPARING:        { label: "Em Preparo",         color: "#f97316", glow: "#f9731655", icon: <ChefHat size={13} />,      step: 2 },
   OUT_FOR_DELIVERY: { label: "Saiu para Entrega",  color: "#3b82f6", glow: "#3b82f655", icon: <Bike size={13} />,          step: 3 },
   DONE:             { label: "Entregue",            color: "#22c55e", glow: "#22c55e55", icon: <CheckCircle2 size={13} />, step: 4 },
-  CANCELLED:        { label: "Cancelado",           color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,     step: 0 },
+  CANCELLED:        { label: "Cancelado",           color: "#ef4444", glow: "#ef444455", icon: <XCircle size={13} />,      step: 0 },
 };
 
-// # ALTERAÇÃO SOLICITADA: Adicionado a notificação para o status RECEIVED no Sonner In-App
 const STATUS_TOASTS: Record<string, { title: string; desc: string; icon: string }> = {
   RECEIVED:         { title: "Pedido na Fila! 👀", desc: "Recebemos seu pedido e ele já será preparado.", icon: "🔥" },
   PREPARING:        { title: "Fogo na Grelha! 🔥", desc: "Seu pedido começou a ser preparado.", icon: "👨‍🍳" },
@@ -43,7 +43,7 @@ const STATUS_TOASTS: Record<string, { title: string; desc: string; icon: string 
 // ─── Progress bar ───────────────────────────────────────────────────────────────
 function OrderProgress({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.RECEIVED;
-  if (status === "CANCELLED") return null;
+  if (status === "CANCELLED" || status === "PENDING") return null;
   const steps = [
     { label: "Recebido", step: 1 },
     { label: "Preparo",  step: 2 },
@@ -166,7 +166,6 @@ function SkeletonCard() {
   );
 }
 
-// ─── Auxiliar Web Push ──────────────────────────────────────────────────────────
 const urlBase64ToUint8Array = (base64String: string) => {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -185,7 +184,6 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
   
   const previousStatuses = useRef<Record<string, string>>({});
-
   const [permissionStatus, setPermissionStatus] = useState<string>("default");
   const [isSubscribing, setIsSubscribing] = useState(false);
 
@@ -194,33 +192,41 @@ export default function MyOrdersPage() {
       setPermissionStatus(Notification.permission);
     }
 
-    const fetchOrders = () => {
-      fetch("/api/orders/user")
-        .then((res) => res.json())
-        .then((data) => { 
-          const newData = Array.isArray(data) ? data : [];
-          
-          newData.forEach(order => {
-            const oldStatus = previousStatuses.current[order.id];
-            
-            if (oldStatus && oldStatus !== order.status) {
-              const toastInfo = STATUS_TOASTS[order.status];
-              if (toastInfo) {
-                toast(toastInfo.title, {
-                  description: toastInfo.desc,
-                  icon: toastInfo.icon,
-                });
-                const audio = new Audio('/notification.mp3');
-                audio.play().catch(e => console.log('Bloqueado:', e));
-              }
+    // # ALTERAÇÃO SOLICITADA: Anti-Cache para iPhone e filtro de ID real
+    const fetchOrders = async () => {
+      try {
+        // O parâmetro 't' impede que o Safari/Chrome Mobile mostre dados antigos guardados na memória do celular
+        const res = await fetch(`/api/orders/user?t=${Date.now()}`, {
+           cache: 'no-store', // Força o Next.js a não guardar essa resposta
+           headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+        });
+        
+        const data = await res.json();
+        const newData = Array.isArray(data) ? data : [];
+        
+        // Verifica mudança de status para disparar sons e avisos
+        newData.forEach(order => {
+          const oldStatus = previousStatuses.current[order.id];
+          if (oldStatus && oldStatus !== order.status) {
+            const toastInfo = STATUS_TOASTS[order.status];
+            if (toastInfo) {
+              toast(toastInfo.title, {
+                description: toastInfo.desc,
+                icon: toastInfo.icon,
+              });
+              const audio = new Audio('/notification.mp3');
+              audio.play().catch(e => console.log('Sinal sonoro bloqueado pelo navegador.'));
             }
-            previousStatuses.current[order.id] = order.status;
-          });
+          }
+          previousStatuses.current[order.id] = order.status;
+        });
 
-          setOrders(newData);
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
+        setOrders(newData);
+      } catch (err) {
+        console.error("Erro ao carregar pedidos:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchOrders();
@@ -231,7 +237,7 @@ export default function MyOrdersPage() {
   const handleSubscribe = async () => {
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
       toast.error("Conexão Insegura 🔒", { 
-        description: "Notificações push só funcionam em sites com HTTPS (como na Vercel)." 
+        description: "Notificações push só funcionam em sites com HTTPS." 
       });
       return;
     }
@@ -241,11 +247,11 @@ export default function MyOrdersPage() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       if (isIOS) {
         toast.error("Adicione à Tela de Início! 📱", { 
-          description: "No iPhone, clique em 'Compartilhar' > 'Adicionar à Tela de Início' para liberar notificações.",
+          description: "No iPhone, use 'Compartilhar' > 'Adicionar à Tela de Início' para ativar as notificações.",
           duration: 8000
         });
       } else {
-        toast.error("Navegador não suportado.", { description: "Seu navegador não permite notificações em segundo plano." });
+        toast.error("Navegador não suportado.");
       }
       return;
     }
@@ -266,13 +272,10 @@ export default function MyOrdersPage() {
 
       if (response.ok) {
         setPermissionStatus("granted");
-        toast.success("Notificações ativadas!", { description: "Você será avisado mesmo com a aba fechada." });
-      } else {
-        throw new Error("Erro na API ao salvar no banco.");
+        toast.success("Notificações ativadas!");
       }
     } catch (error: any) {
-      console.error("Erro Push:", error);
-      toast.error("Erro ao ativar", { description: error.message || "Tente novamente mais tarde." });
+      toast.error("Erro ao ativar notificações.");
     } finally {
       setIsSubscribing(false);
     }
@@ -284,10 +287,7 @@ export default function MyOrdersPage() {
         @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         @keyframes flamePulse { 0%, 100% { text-shadow: 0 0 20px #b91c1c88; } 50% { text-shadow: 0 0 40px #b91c1ccc, 0 0 80px #b91c1c44; } }
-        @keyframes shimmerBar {
-          0% { background-position: 0% 0; }
-          100% { background-position: 100% 0; }
-        }
+        @keyframes shimmerBar { 0% { background-position: 0% 0; } 100% { background-position: 100% 0; } }
       `}</style>
       
       <Toaster theme="dark" position="top-center" richColors />
@@ -312,15 +312,15 @@ export default function MyOrdersPage() {
                 </div>
                 <div>
                   <span style={{ display: "block", color: "#fff", fontWeight: 800, fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase" }}>Ativar Notificações</span>
-                  <span style={{ color: "#777", fontSize: 11, fontWeight: 600 }}>Avisamos você fora do site!</span>
+                  <span style={{ color: "#777", fontSize: 11, fontWeight: 600 }}>Acompanhe em tempo real!</span>
                 </div>
               </div>
               <button 
                 onClick={handleSubscribe} 
                 disabled={isSubscribing}
-                style={{ background: "#b91c1c", border: "none", color: "#fff", fontWeight: 900, fontSize: 11, letterSpacing: "0.1em", padding: "10px 20px", borderRadius: 30, cursor: isSubscribing ? "not-allowed" : "pointer", textTransform: "uppercase", opacity: isSubscribing ? 0.7 : 1, transition: "0.2s" }}
+                style={{ background: "#b91c1c", border: "none", color: "#fff", fontWeight: 900, fontSize: 11, letterSpacing: "0.1em", padding: "10px 20px", borderRadius: 30, cursor: isSubscribing ? "not-allowed" : "pointer", textTransform: "uppercase" }}
               >
-                {isSubscribing ? "Ativando..." : "Permitir"}
+                {isSubscribing ? "..." : "Permitir"}
               </button>
             </div>
           )}
