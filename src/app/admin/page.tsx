@@ -4,11 +4,10 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Flame, ChefHat, Bike, CheckCircle2, XCircle,
   ChevronDown, Calendar, Search, RefreshCw, User, Phone, Mail,
-  Package, Clock, Filter, X, Share2, Copy, ExternalLink
+  Package, Clock, Filter, X, Share2, Copy, ExternalLink, AlertCircle // ADICIONADO ALERTCIRCLE
 } from "lucide-react";
 
 import { createPortal } from "react-dom";
-// # ALTERAÇÃO SOLICITADA: Importação para notificações in-app no admin
 import { Toaster, toast } from 'sonner';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -17,6 +16,7 @@ interface OrderItem {
   quantity: number;
   unitPrice: number;
   product: { name: string };
+  observations?: string | null; // # ALTERAÇÃO SOLICITADA: Adicionado para ler as customizações do lanche
 }
 
 interface Order {
@@ -26,8 +26,8 @@ interface Order {
   createdAt: string;
   paymentMethod: string;
   notes?: string;
-  address?: string; // # ADICIONADO PARA LOGÍSTICA
-  deliveryToken?: string; // # ADICIONADO PARA LOGÍSTICA
+  address?: string;
+  deliveryToken?: string;
   user: { name: string; email: string; phone?: string };
   items: OrderItem[];
 }
@@ -43,7 +43,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 const STATUS_ORDER = ["RECEIVED", "PREPARING", "OUT_FOR_DELIVERY", "DONE", "CANCELLED"];
 
-// ── StatusSelector — ATUALIZADO COM FLUXO DE DESPACHO ─────────────────────────
+// ── StatusSelector ────────────────────────────────────────────────────────────
 function StatusSelector({ order, onUpdate }: { order: Order; onUpdate: (id: string, status: string, extra?: any) => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -53,7 +53,6 @@ function StatusSelector({ order, onUpdate }: { order: Order; onUpdate: (id: stri
   const handleSelect = async (newStatus: string) => {
     if (newStatus === order.status) { setOpen(false); return; }
 
-    // # ALTERAÇÃO SOLICITADA: Intercepta o status de entrega para mostrar opções de despacho
     if (newStatus === "OUT_FOR_DELIVERY" && !order.deliveryToken) {
       setShowDispatchOptions(true);
       return;
@@ -72,7 +71,6 @@ function StatusSelector({ order, onUpdate }: { order: Order; onUpdate: (id: stri
     finally { setLoading(false); }
   };
 
-  // # ALTERAÇÃO SOLICITADA: Função para gerar o link e despachar
   const handleGenerateDispatch = async () => {
     setLoading(true);
     try {
@@ -268,12 +266,27 @@ function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onU
                   <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>Itens do Pedido</span>
                 </div>
                 {order.items.map(item => (
-                  <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #111" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ background: "#b91c1c", color: "#fff", fontSize: 9, fontWeight: 900, width: 22, height: 22, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontStyle: "italic" }}>{item.quantity}x</span>
-                      <span style={{ color: "#bbb", fontSize: 13, fontWeight: 600, textTransform: "uppercase" }}>{item.product?.name}</span>
+                  <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: "12px 0", borderBottom: "1px dashed #1a1a1a" }}>
+                    
+                    {/* Linha Principal do Produto */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ background: "#b91c1c", color: "#fff", fontSize: 10, fontWeight: 900, width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontStyle: "italic" }}>{item.quantity}x</span>
+                        <span style={{ color: "#eee", fontSize: 14, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.02em" }}>{item.product?.name}</span>
+                      </div>
+                      <span style={{ color: "#888", fontSize: 12, fontFamily: "monospace" }}>R$ {(item.unitPrice * item.quantity).toFixed(2)}</span>
                     </div>
-                    <span style={{ color: "#444", fontSize: 12, fontFamily: "monospace" }}>R$ {(item.unitPrice * item.quantity).toFixed(2)}</span>
+
+                    {/* # ALTERAÇÃO SOLICITADA: Renderiza os extras e observações logo abaixo do lanche */}
+                    {item.observations && (
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 8, paddingLeft: 32 }}>
+                        <AlertCircle size={14} color="#f59e0b" style={{ marginTop: 2, flexShrink: 0 }} />
+                        <span style={{ color: "#f59e0b", fontSize: 12, fontWeight: 600, fontStyle: "italic", lineHeight: 1.4 }}>
+                           {item.observations}
+                        </span>
+                      </div>
+                    )}
+                    
                   </div>
                 ))}
               </div>
@@ -282,21 +295,37 @@ function OrderRow({ order, index, onUpdate }: { order: Order; index: number; onU
                   <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>Cliente</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}><User size={13} color="#b91c1c" /> {order.user.name}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}><Mail size={13} color="#b91c1c" /> {order.user.email}</div>
-                  {order.user.phone && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#666", fontSize: 12 }}><Phone size={13} color="#b91c1c" /> {order.user.phone}</div>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#aaa", fontSize: 13 }}><User size={14} color="#b91c1c" /> {order.user.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 12 }}><Mail size={14} color="#b91c1c" /> {order.user.email}</div>
+                  {order.user.phone && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 12 }}><Phone size={14} color="#b91c1c" /> {order.user.phone}</div>}
                 </div>
+                
+                {/* Endereço de Entrega */}
+                {order.address && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ borderLeft: "2px solid #3b82f6", paddingLeft: 10, marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#3b82f6" }}>Endereço de Entrega</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#111", padding: "10px", borderRadius: "6px", border: "1px solid #1a1a1a" }}>
+                       <MapPin size={14} color="#3b82f6" style={{ marginTop: 2, flexShrink: 0 }} />
+                       <span style={{ color: "#ccc", fontSize: 12, lineHeight: 1.4 }}>{order.address}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Observações Gerais do Pedido */}
                 {order.notes && (
                   <div style={{ marginTop: 16 }}>
                     <div style={{ borderLeft: "2px solid #b91c1c", paddingLeft: 10, marginBottom: 8 }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>Observações</span>
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#555" }}>Observações do Entregador</span>
                     </div>
-                    <p style={{ color: "#555", fontSize: 12, fontStyle: "italic", margin: 0 }}>"{order.notes}"</p>
+                    <p style={{ color: "#888", fontSize: 12, fontStyle: "italic", margin: 0, background: "#111", padding: "10px", borderRadius: "6px" }}>"{order.notes}"</p>
                   </div>
                 )}
-                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 10, color: "#333", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Pagamento:</span>
-                  <span style={{ fontSize: 11, color: "#555", fontWeight: 700 }}>{order.paymentMethod}</span>
+                
+                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6, background: "#111", padding: "8px 10px", borderRadius: "6px", width: "fit-content" }}>
+                  <span style={{ fontSize: 10, color: "#555", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Pagamento:</span>
+                  <span style={{ fontSize: 12, color: "#fff", fontWeight: 800 }}>{order.paymentMethod}</span>
                 </div>
               </div>
             </div>
