@@ -41,10 +41,11 @@ export async function POST(request: Request) {
         paymentMethod: paymentMethod || "PIX",
         status: "RECEIVED",
         items: {
+          // # ALTERAÇÃO SOLICITADA: Ajuste para ler productId e unitPrice corretamente, aceitando os dois padrões
           create: items.map((item: any) => ({
-            productId: item.id,
+            productId: item.productId || item.id,
             quantity: item.quantity,
-            unitPrice: item.price,
+            unitPrice: item.unitPrice || item.price,
           })),
         },
       },
