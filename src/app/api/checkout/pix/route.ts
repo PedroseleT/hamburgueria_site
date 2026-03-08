@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const order = await prisma.order.create({
       data: {
         userId: userId,
-        restaurantId: "id_do_seu_restaurante", // Certifique-se de ter um ID válido aqui
+        restaurantId: "cmmcpmk4q000087yw0dvvdonb", // Certifique-se de ter um ID válido aqui
         total: total,
         address: address || "Retirada no Local", // Salva o endereço aqui!
         notes: notes || "",
