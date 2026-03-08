@@ -29,36 +29,50 @@ export default function Carrinho() {
 
   const totalGeral = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  // # ALTERAÇÃO: RECUPERAÇÃO DE PIX (Se o cliente fechou o navegador para ir pro app do banco)
+  // Tratamento Robusto de Recuperação de PIX
   useEffect(() => {
     const savedPixId = localStorage.getItem("pedro-burger-pix-id");
     if (savedPixId) {
+      // Reabre o modal informando que está verificando
       setShowPaymentModal(true);
       setPixStatus("pendente");
 
       const interval = setInterval(async () => {
         try {
-          const checkRes = await fetch(`/api/checkout/pix?id=${savedPixId}`);
+          // # SOLUÇÃO VERCEL: Força o navegador a ignorar o cache local
+          const checkRes = await fetch(`/api/checkout/pix?id=${savedPixId}`, {
+            cache: 'no-store',
+            headers: { 'Pragma': 'no-cache' }
+          });
+          
+          if (!checkRes.ok) throw new Error("Falha na consulta");
+          
           const checkData = await checkRes.json();
           
           if (checkData.status === "approved") {
             clearInterval(interval);
             setPixStatus("aprovado");
-            localStorage.removeItem("pedro-burger-pix-id"); // Limpa da memória pois já foi pago
+            localStorage.removeItem("pedro-burger-pix-id"); 
             
             const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-            const realUserId = (checkData as any).external_reference; // Evita erro de tipagem
+            const realUserId = (checkData as any).external_reference; 
             
             await createOrder("PIX", `MercadoPago: ${savedPixId}`, restaurantId, realUserId);
-            
             setTimeout(() => { router.push("/my-orders"); }, 3000);
+            
           } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
+            // Se foi rejeitado ou expirou, limpa e solta a tela
             clearInterval(interval);
             localStorage.removeItem("pedro-burger-pix-id");
             setShowPaymentModal(false);
           }
         } catch (e) {
-          console.error("Erro ao verificar PIX recuperado:", e);
+          // Tratamento de exceção invisível: se a Vercel/Net falhar, destrava a tela
+          console.error("Erro na verificação background:", e);
+          clearInterval(interval);
+          localStorage.removeItem("pedro-burger-pix-id");
+          setShowPaymentModal(false);
+          setIsSubmitting(false);
         }
       }, 5000);
 
@@ -104,36 +118,44 @@ export default function Carrinho() {
 
       setPixData({ qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id });
       setPixStatus("pendente");
-      
-      // # ALTERAÇÃO: Salva o ID do PIX na memória para o caso da janela fechar
       localStorage.setItem("pedro-burger-pix-id", data.payment_id);
 
       const interval = setInterval(async () => {
-        const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`);
-        const checkData = await checkRes.json();
-        
-        if (checkData.status === "approved") {
+        try {
+          const checkRes = await fetch(`/api/checkout/pix?id=${data.payment_id}`, {
+            cache: 'no-store',
+            headers: { 'Pragma': 'no-cache' }
+          });
+          
+          if (!checkRes.ok) throw new Error("Network response was not ok");
+          
+          const checkData = await checkRes.json();
+          
+          if (checkData.status === "approved") {
+            clearInterval(interval);
+            setPixStatus("aprovado");
+            localStorage.removeItem("pedro-burger-pix-id"); 
+            
+            const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
+            const realUserId = (checkData as any).external_reference; 
+            
+            await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId, realUserId);
+            setTimeout(() => { router.push("/my-orders"); }, 3000);
+          }
+        } catch (err) {
+          console.error("Erro ao checar status do PIX:", err);
           clearInterval(interval);
-          setPixStatus("aprovado");
-          localStorage.removeItem("pedro-burger-pix-id"); // Limpa ao aprovar
-          
-          const restaurantId = "cmmcpmk4q000087yw0dvvdonb"; 
-          const realUserId = (checkData as any).external_reference; // Evita erro de tipagem
-          
-          await createOrder("PIX", `MercadoPago: ${data.payment_id}`, restaurantId, realUserId);
-          
-          setTimeout(() => { router.push("/my-orders"); }, 3000);
         }
       }, 5000);
 
       setTimeout(() => {
         clearInterval(interval);
-        localStorage.removeItem("pedro-burger-pix-id"); // Limpa se demorar muito (expirou)
+        localStorage.removeItem("pedro-burger-pix-id"); 
+        setIsSubmitting(false); // Libera o botão "Finalizar Pedido" se demorar muito
       }, 5 * 60 * 1000);
 
     } catch (error: any) {
       setErrorMessage(error.message);
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -192,7 +214,6 @@ export default function Carrinho() {
           .cart-item img { width: 100% !important; height: 180px !important; margin-bottom: 15px; }
           .qty-row { width: 100% !important; justify-content: space-between !important; margin-top: 15px !important; }
         }
-
         .pix-responsive-layout {
           display: flex;
           flex-direction: column;

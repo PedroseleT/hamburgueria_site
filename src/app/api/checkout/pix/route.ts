@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { cookies } from "next/headers"; // # ADICIONADO: Para identificar o usuário
+import { cookies } from "next/headers";
+
+// # SOLUÇÃO VERCEL: Proíbe o cache agressivo de requisições GET
+export const dynamic = "force-dynamic";
 
 const client = new MercadoPagoConfig({ 
   accessToken: process.env.MP_ACCESS_TOKEN || "",
@@ -14,7 +17,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { items, total } = body;
 
-    // # ALTERAÇÃO SOLICITADA: Captura o ID do usuário logado através do cookie
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get("user_session");
     
@@ -23,24 +25,20 @@ export async function POST(request: Request) {
     }
 
     const userId = sessionCookie.value;
-
     const transactionAmount = 0.01; 
     const description = `Pedido: ${items.map((i: any) => `${i.quantity}x ${i.name}`).join(', ')}`;
 
-    // Criando a cobrança no Mercado Pago
     const result = await payment.create({
       body: {
         transaction_amount: transactionAmount,
         description: description,
         payment_method_id: "pix",
-        // # O SEGREDO ESTÁ AQUI: Enviamos o userId para o MP
         external_reference: userId, 
         payer: {
           email: "cliente_loja@sandbox.mercadopago.com", 
           first_name: "Cliente",
           last_name: "Web"
         },
-        // Metadata ajuda a guardar informações extras que o Webhook pode ler
         metadata: {
           user_id: userId
         }
@@ -78,7 +76,6 @@ export async function GET(request: Request) {
     return NextResponse.json({
       status: result.status,
       payment_id: result.id,
-      // # Opcional: retornar o external_reference para confirmar o dono
       external_reference: result.external_reference 
     });
 
