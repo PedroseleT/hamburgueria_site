@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle, Bell, Loader2 } from "lucide-react";
+import { Package, Calendar, Clock, Flame, CheckCircle2, ChefHat, Bike, XCircle, Bell, Loader2, AlertCircle } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
@@ -12,6 +12,7 @@ interface OrderItem {
   quantity: number;
   unitPrice: number;
   product: { name: string };
+  observations?: string | null; // # ALTERAÇÃO SOLICITADA: Tipo atualizado para suportar observações
 }
 
 interface Order {
@@ -120,12 +121,24 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
         </div>
         <div style={{ marginBottom: 20 }}>
           {(expanded ? order.items : order.items.slice(0, 2)).map((item) => (
-            <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #141414" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ background: "#b91c1c", color: "#fff", fontSize: 10, fontWeight: 800, width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontStyle: "italic" }}>{item.quantity}x</span>
-                <span style={{ color: "#ccc", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.product?.name ?? "Produto"}</span>
+            <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: "8px 0", borderBottom: "1px solid #141414" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ background: "#b91c1c", color: "#fff", fontSize: 10, fontWeight: 800, width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontStyle: "italic" }}>{item.quantity}x</span>
+                  <span style={{ color: "#ccc", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.product?.name ?? "Produto"}</span>
+                </div>
+                <span style={{ color: "#555", fontSize: 12, fontFamily: "monospace" }}>R$ {(item.unitPrice * item.quantity).toFixed(2)}</span>
               </div>
-              <span style={{ color: "#555", fontSize: 12, fontFamily: "monospace" }}>R$ {(item.unitPrice * item.quantity).toFixed(2)}</span>
+              
+              {/* # ALTERAÇÃO SOLICITADA: Renderiza as customizações para o cliente */}
+              {item.observations && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 8, paddingLeft: 34 }}>
+                  <AlertCircle size={12} color="#f59e0b" style={{ marginTop: 2, flexShrink: 0 }} />
+                  <span style={{ color: "#f59e0b", fontSize: 11, fontWeight: 600, fontStyle: "italic", lineHeight: 1.4 }}>
+                    {item.observations}
+                  </span>
+                </div>
+              )}
             </div>
           ))}
           {order.items.length > 2 && (
@@ -192,19 +205,16 @@ export default function MyOrdersPage() {
       setPermissionStatus(Notification.permission);
     }
 
-    // # ALTERAÇÃO SOLICITADA: Anti-Cache para iPhone e filtro de ID real
     const fetchOrders = async () => {
       try {
-        // O parâmetro 't' impede que o Safari/Chrome Mobile mostre dados antigos guardados na memória do celular
         const res = await fetch(`/api/orders/user?t=${Date.now()}`, {
-           cache: 'no-store', // Força o Next.js a não guardar essa resposta
+           cache: 'no-store', 
            headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
         });
         
         const data = await res.json();
         const newData = Array.isArray(data) ? data : [];
         
-        // Verifica mudança de status para disparar sons e avisos
         newData.forEach(order => {
           const oldStatus = previousStatuses.current[order.id];
           if (oldStatus && oldStatus !== order.status) {
