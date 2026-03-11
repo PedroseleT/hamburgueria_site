@@ -250,7 +250,7 @@ export default function Carrinho() {
         method: "POST",
         body: JSON.stringify({ 
           items: cart, 
-          total: 0.01, // Envia o total correto com frete
+          total: 1.50,// Envia o total correto com frete
           address, 
           notes: finalNotes, 
           paymentMethod: "PIX" 
