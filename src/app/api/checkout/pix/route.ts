@@ -26,8 +26,8 @@ export async function POST(request: Request) {
 
     const userData = JSON.parse(sessionCookie.value);
     const userId = userData.id;
-
-    // 1. CRIA O PEDIDO COMO "PENDENTE" (Não vai aparecer na cozinha ainda)
+    
+    // 1. CRIA O PEDIDO COMO "PENDENTE"
     const order = await prisma.order.create({
       data: {
         userId: userId,
@@ -42,7 +42,6 @@ export async function POST(request: Request) {
             productId: item.productId || item.id,
             quantity: item.quantity,
             unitPrice: item.unitPrice || item.price,
-            // Mantido intacto: Formata e salva os extras e observações do lanche
             observations: item.customization
               ? [
                   item.customization.extras?.length ? `Extras: ${item.customization.extras.join(", ")}` : null,
@@ -56,8 +55,6 @@ export async function POST(request: Request) {
 
     const transactionAmount = total; 
     const description = `Pedido #${order.id.slice(-6)} - The Flame Grill`;
-
-    // # ALTERAÇÃO SOLICITADA: Cria uma data de expiração exata de 3 minutos para o PIX
     const expirationDate = new Date(Date.now() + 3 * 60 * 1000).toISOString();
 
     const result = await payment.create({
@@ -67,14 +64,22 @@ export async function POST(request: Request) {
         payment_method_id: "pix",
         external_reference: order.id, 
         notification_url: "https://theflamegrill.vercel.app/api/webhooks/mercadopago", 
-        date_of_expiration: expirationDate, // # ALTERAÇÃO SOLICITADA: Inserido aqui
-        // # ALTERAÇÃO: Forçando um e-mail genérico para não acionar o bloqueio de auto-pagamento do MP
+        date_of_expiration: expirationDate,
         payer: {
-          email: "comprador.teste123@gmail.com", 
-          first_name: userData.name.split(' ')[0],
-          last_name: userData.name.split(' ').slice(1).join(' ') || "Cliente"
+          // ALTERAÇÃO SOLICITADA: E-mail genérico para evitar auto-bloqueio
+          email: "cliente_desconhecido_teste_99@gmail.com", 
+          first_name: userData.name?.split(' ')[0] || "Cliente",
+          last_name: userData.name?.split(' ').slice(1).join(' ') || "The Flame Grill"
         }
       }
+    });
+
+    // # ALTERAÇÃO SOLICITADA: DEBUG LOG PARA VER NO PAINEL DA VERCEL
+    console.log("DEBUG MERCADO PAGO:", {
+      status: result.status,
+      status_detail: result.status_detail, 
+      id: result.id,
+      amount: transactionAmount
     });
 
     if (result.status === "pending" || result.status === "created") {
@@ -86,7 +91,11 @@ export async function POST(request: Request) {
         status: result.status
       });
     } else {
-      return NextResponse.json({ error: "Erro ao gerar PIX." }, { status: 400 });
+      // # ALTERAÇÃO: Retorna o status_detail no erro para ajudar no debug via tela se precisar
+      return NextResponse.json({ 
+        error: "Erro ao gerar PIX.", 
+        detail: result.status_detail 
+      }, { status: 400 });
     }
 
   } catch (error: any) {
