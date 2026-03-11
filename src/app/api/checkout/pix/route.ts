@@ -100,29 +100,43 @@ export async function GET(request: Request) {
     
     if (!paymentId) return NextResponse.json({ error: "ID ausente" }, { status: 400 });
     
-    // Busca o status atual no Mercado Pago
+    // Busca o status atual no Mercado Pago SEMPRE em tempo real
     const result = await payment.get({ id: paymentId });
     
-    // # DEBUG: Vamos ver o que o GET está respondendo pro seu celular
     console.log("🔍 CHECK STATUS API:", {
       id: paymentId,
       status: result.status,
       external_ref: result.external_reference
     });
 
-    // Se o PIX foi pago, atualiza o pedido para RECEIVED
+    // # ALTERAÇÃO SOLICITADA: Se aprovado, atualiza o banco e GARANTE que o status mude para RECEIVED
     if (result.status === "approved" && result.external_reference) {
-      await prisma.order.updateMany({
-        where: { id: result.external_reference, status: "PENDING" },
-        data: { status: "RECEIVED" }
+      const updated = await prisma.order.updateMany({
+        where: { 
+          id: result.external_reference, 
+          status: "PENDING" // Só atualiza se ainda estiver pendente
+        },
+        data: { 
+          status: "RECEIVED" 
+        }
       });
+      
+      if (updated.count > 0) {
+        console.log("✅ PEDIDO ATUALIZADO NO BANCO: RECEIVED");
+      }
     }
 
-    // Retorna apenas o que o frontend precisa, sem lixo
+    // # ALTERAÇÃO SOLICITADA: Adicionado headers para evitar cache agressivo da Vercel/Navegador
     return NextResponse.json({ 
       status: result.status, 
       payment_id: result.id, 
       external_reference: result.external_reference 
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
     });
 
   } catch (error: any) {
