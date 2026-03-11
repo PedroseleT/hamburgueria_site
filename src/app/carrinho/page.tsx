@@ -23,12 +23,14 @@ export default function Carrinho() {
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: 'discount' | 'free_shipping'; value?: number } | null>(null);
 
+  // ESTADOS DO PIX E CRONÔMETRO
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string } | null>(null);
+  const [pixData, setPixData] = useState<{ qrCodeBase64: string, qrCode: string, paymentId: string, orderId?: string, expiresAt?: number } | null>(null);
   const [pixStatus, setPixStatus] = useState<string>("pendente");
   const [copied, setCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(180); // 3 minutos em segundos
 
-  // # ALTERAÇÃO SOLICITADA: Estados para o Modal de Endereço
+  // Estados para o Modal de Endereço
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [cep, setCep] = useState("");
   const [numero, setNumero] = useState("");
@@ -58,6 +60,28 @@ export default function Carrinho() {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+  };
+
+  // Função central de expiração do PIX
+  const handlePixExpiration = async (orderIdToCancel?: string, isManualCancel: boolean = false) => {
+    stopPolling();
+    setPixData(null);
+    setIsSubmitting(false);
+    localStorage.removeItem("pedro-burger-pix");
+    
+    if (isManualCancel) {
+      toast.info("Pagamento cancelado.");
+    } else {
+      toast.error("Tempo esgotado! Pedido cancelado.");
+    }
+
+    if (orderIdToCancel) {
+      try {
+        await fetch(`/api/checkout/pix?orderId=${orderIdToCancel}`, { method: "DELETE" });
+      } catch (err) {
+        console.error("Erro ao deletar pedido expirado", err);
+      }
     }
   };
 
@@ -92,7 +116,7 @@ export default function Carrinho() {
     }
   };
 
-  // # ALTERAÇÃO SOLICITADA: Função encapsulada para recarregar o endereço salvo
+  // Função encapsulada para recarregar o endereço salvo
   const loadAddressData = () => {
     const saved = localStorage.getItem("flame_enderecos");
     const activeIdx = localStorage.getItem("flame_endereco_ativo");
@@ -114,16 +138,47 @@ export default function Carrinho() {
     if (savedPix) {
       try {
         const parsedPix = JSON.parse(savedPix);
-        setPixData(parsedPix);
-        setIsSubmitting(true);
-        checkPaymentStatus(parsedPix.paymentId);
-        intervalRef.current = setInterval(() => checkPaymentStatus(parsedPix.paymentId), 5000);
+        const now = Date.now();
+        
+        if (parsedPix.expiresAt && now >= parsedPix.expiresAt) {
+          handlePixExpiration(parsedPix.orderId);
+        } else {
+          setPixData(parsedPix);
+          setIsSubmitting(true);
+          checkPaymentStatus(parsedPix.paymentId);
+          intervalRef.current = setInterval(() => checkPaymentStatus(parsedPix.paymentId), 5000);
+        }
       } catch (e) { localStorage.removeItem("pedro-burger-pix"); }
     }
     return () => stopPolling();
   }, []);
 
-  // # ALTERAÇÃO SOLICITADA: Funções do Modal de Endereço
+  // Hook do Cronômetro
+  useEffect(() => {
+    if (!pixData || !pixData.expiresAt || pixStatus !== "pendente") return;
+
+    const timerInterval = setInterval(() => {
+      const now = Date.now();
+      const distance = Math.floor((pixData.expiresAt! - now) / 1000);
+
+      if (distance <= 0) {
+        clearInterval(timerInterval);
+        handlePixExpiration(pixData.orderId);
+      } else {
+        setTimeLeft(distance);
+      }
+    }, 1000);
+
+    return () => clearInterval(timerInterval);
+  }, [pixData, pixStatus]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Funções do Modal de Endereço
   const buscarCep = async (cepd: string) => {
     const cleanCep = cepd.replace(/\D/g, "");
     setCep(cleanCep);
@@ -195,7 +250,7 @@ export default function Carrinho() {
         method: "POST",
         body: JSON.stringify({ 
           items: cart, 
-          total: 0.01, 
+          total: 0.01, // Envia o total correto com frete
           address, 
           notes: finalNotes, 
           paymentMethod: "PIX" 
@@ -206,7 +261,15 @@ export default function Carrinho() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao gerar PIX");
 
-      const pixObj = { qrCodeBase64: data.qr_code_base64, qrCode: data.qr_code, paymentId: data.payment_id };
+      const expiresAt = Date.now() + 3 * 60 * 1000;
+      const pixObj = { 
+        qrCodeBase64: data.qr_code_base64, 
+        qrCode: data.qr_code, 
+        paymentId: data.payment_id,
+        orderId: data.order_id,
+        expiresAt
+      };
+      
       setPixData(pixObj);
       setPixStatus("pendente");
       localStorage.setItem("pedro-burger-pix", JSON.stringify(pixObj));
@@ -315,7 +378,6 @@ export default function Carrinho() {
                 ) : (
                   <div style={{ marginTop: "10px", padding: "20px", background: "#220000", borderRadius: "10px", border: "1px dashed #b91c1c", textAlign: "center" }}>
                     <p style={{ color: "#ffaaaa", fontSize: "14px", marginBottom: "15px", fontWeight: "bold" }}>Nenhum endereço selecionado.</p>
-                    {/* # ALTERAÇÃO SOLICITADA: Botão abre o modal de endereço direto no carrinho */}
                     <button onClick={() => setShowAddressModal(true)} style={{ color: "#fff", background: "#b91c1c", padding: "10px 20px", borderRadius: "8px", border: "none", fontSize: "13px", fontWeight: "900", cursor: "pointer" }}>
                       ADICIONAR ENDEREÇO
                     </button>
@@ -378,7 +440,7 @@ export default function Carrinho() {
         )}
       </section>
 
-      {/* # ALTERAÇÃO SOLICITADA: MODAL DE ADICIONAR ENDEREÇO */}
+      {/* MODAL DE ADICIONAR ENDEREÇO */}
       {showAddressModal && (
         <div style={modalOverlayStyles} onClick={() => setShowAddressModal(false)}>
           <div style={{ ...modalContentStyles, padding: "30px", background: "#0a0a0a" }} onClick={(e) => e.stopPropagation()}>
@@ -438,20 +500,42 @@ export default function Carrinho() {
         </div>
       )}
 
+      {/* MODAL DO QR CODE PIX */}
       {pixData && (
         <div style={modalOverlayStyles}>
           <div className="modal-content" style={{ ...modalContentStyles, padding: '40px', textAlign: 'center', maxWidth: '500px' }}>
             {pixStatus === "pendente" ? (
               <>
-                <h2 style={{ fontSize: '24px', fontWeight: '900', fontStyle: 'italic', marginBottom: '10px', color: '#f59e0b' }}>AGUARDANDO PAGAMENTO</h2>
-                <p style={{ color: '#888', fontSize: '14px', marginBottom: '30px' }}>A tela atualizará sozinha após o pagamento.</p>
-                <div className="pix-qr-container" style={{ margin: '0 auto 30px', background: '#fff', padding: '15px', borderRadius: '15px' }}>
-                    <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '220px', height: '220px', display: 'block' }} />
+                <h2 style={{ fontSize: '24px', fontWeight: '900', fontStyle: 'italic', marginBottom: '15px', color: '#f59e0b' }}>AGUARDANDO PAGAMENTO</h2>
+                
+                {/* CRONÔMETRO VISUAL */}
+                <div style={{ 
+                  backgroundColor: "#b91c1c15", 
+                  border: "1px solid #b91c1c44", 
+                  color: "#ef4444", 
+                  padding: "10px 24px", 
+                  borderRadius: "12px", 
+                  display: "inline-flex", 
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "20px", 
+                  fontWeight: "900", 
+                  fontSize: "26px", 
+                  letterSpacing: "0.1em",
+                  fontFamily: "monospace"
+                }}>
+                  <ClockIcon size={24} /> {formatTime(timeLeft)}
+                </div>
+
+                <p style={{ color: '#888', fontSize: '14px', marginBottom: '24px' }}>O pedido será automaticamente cancelado se o tempo esgotar.</p>
+                
+                <div className="pix-qr-container" style={{ margin: '0 auto 24px', background: '#fff', padding: '15px', borderRadius: '15px', display: 'inline-block' }}>
+                    <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: '200px', height: '200px', display: 'block' }} />
                 </div>
                 <button onClick={handleCopyPix} style={{ ...confirmBtnStyles, background: copied ? '#22c55e' : '#b91c1c' }}>
                     {copied ? "CÓDIGO COPIADO!" : "COPIAR CÓDIGO PIX"}
                 </button>
-                <button onClick={() => { setPixData(null); setIsSubmitting(false); stopPolling(); localStorage.removeItem("pedro-burger-pix"); }} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                <button onClick={() => handlePixExpiration(pixData.orderId, true)} style={{ background: 'transparent', border: 'none', color: '#666', marginTop: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', padding: '10px' }}>
                     CANCELAR E VOLTAR
                 </button>
               </>
@@ -474,6 +558,14 @@ export default function Carrinho() {
     </main>
   );
 }
+
+// Icone do Relógio
+const ClockIcon = ({ size = 24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <polyline points="12 6 12 12 16 14"></polyline>
+  </svg>
+);
 
 // ESTILOS FINAIS
 const sectionTitleStyles: React.CSSProperties = { fontSize: '11px', color: '#b91c1c', borderLeft: '3px solid #b91c1c', paddingLeft: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' };

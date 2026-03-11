@@ -42,7 +42,7 @@ export async function POST(request: Request) {
             productId: item.productId || item.id,
             quantity: item.quantity,
             unitPrice: item.unitPrice || item.price,
-            // # ALTERAÇÃO SOLICITADA: Formata e salva os extras e observações do lanche
+            // Mantido intacto: Formata e salva os extras e observações do lanche
             observations: item.customization
               ? [
                   item.customization.extras?.length ? `Extras: ${item.customization.extras.join(", ")}` : null,
@@ -57,6 +57,9 @@ export async function POST(request: Request) {
     const transactionAmount = total; 
     const description = `Pedido #${order.id.slice(-6)} - The Flame Grill`;
 
+    // # ALTERAÇÃO SOLICITADA: Cria uma data de expiração exata de 3 minutos para o PIX
+    const expirationDate = new Date(Date.now() + 3 * 60 * 1000).toISOString();
+
     const result = await payment.create({
       body: {
         transaction_amount: transactionAmount,
@@ -64,6 +67,7 @@ export async function POST(request: Request) {
         payment_method_id: "pix",
         external_reference: order.id, 
         notification_url: "https://theflamegrill.vercel.app/api/webhooks/mercadopago", 
+        date_of_expiration: expirationDate, // # ALTERAÇÃO SOLICITADA: Inserido aqui
         payer: {
           email: userData.email || "cliente@email.com", 
           first_name: userData.name.split(' ')[0],
@@ -98,7 +102,7 @@ export async function GET(request: Request) {
     
     const result = await payment.get({ id: paymentId });
     
-    // # ALTERAÇÃO: Se o PIX foi pago, atualiza o pedido para RECEIVED para apitar na cozinha!
+    // Mantido intacto: Se o PIX foi pago, atualiza o pedido para RECEIVED para apitar na cozinha!
     if (result.status === "approved" && result.external_reference) {
       await prisma.order.updateMany({
         where: { id: result.external_reference, status: "PENDING" },
@@ -109,5 +113,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ status: result.status, payment_id: result.id, external_reference: result.external_reference });
   } catch (error: any) {
     return NextResponse.json({ error: "Erro ao buscar PIX" }, { status: 500 });
+  }
+}
+
+// # ALTERAÇÃO SOLICITADA: Nova rota DELETE para excluir o pedido pendente do banco de dados após 3 minutos ou cancelamento
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get("orderId");
+    
+    if (!orderId) return NextResponse.json({ error: "ID do pedido ausente" }, { status: 400 });
+    
+    // Trava de segurança: Só exclui se o pedido ainda for PENDING (nunca vai excluir um pedido que o cliente já pagou)
+    await prisma.order.deleteMany({
+      where: { 
+        id: orderId,
+        status: "PENDING"
+      }
+    });
+
+    return NextResponse.json({ success: true, message: "Pedido pendente removido." });
+  } catch (error: any) {
+    console.error("Erro ao deletar pedido expirado:", error);
+    return NextResponse.json({ error: "Erro ao apagar pedido" }, { status: 500 });
   }
 }
