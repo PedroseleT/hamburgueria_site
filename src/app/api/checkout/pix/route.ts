@@ -108,11 +108,20 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const paymentId = searchParams.get("id");
+    
     if (!paymentId) return NextResponse.json({ error: "ID ausente" }, { status: 400 });
     
+    // Busca o status atual no Mercado Pago
     const result = await payment.get({ id: paymentId });
     
-    // Mantido intacto: Se o PIX foi pago, atualiza o pedido para RECEIVED para apitar na cozinha!
+    // # DEBUG: Vamos ver o que o GET está respondendo pro seu celular
+    console.log("🔍 CHECK STATUS API:", {
+      id: paymentId,
+      status: result.status,
+      external_ref: result.external_reference
+    });
+
+    // Se o PIX foi pago, atualiza o pedido para RECEIVED
     if (result.status === "approved" && result.external_reference) {
       await prisma.order.updateMany({
         where: { id: result.external_reference, status: "PENDING" },
@@ -120,8 +129,15 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json({ status: result.status, payment_id: result.id, external_reference: result.external_reference });
+    // Retorna apenas o que o frontend precisa, sem lixo
+    return NextResponse.json({ 
+      status: result.status, 
+      payment_id: result.id, 
+      external_reference: result.external_reference 
+    });
+
   } catch (error: any) {
+    console.error("Erro ao buscar PIX:", error);
     return NextResponse.json({ error: "Erro ao buscar PIX" }, { status: 500 });
   }
 }
