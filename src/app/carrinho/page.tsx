@@ -95,6 +95,7 @@ export default function Carrinho() {
       if (!checkRes.ok) return;
       const checkData = await checkRes.json();
       
+      // # ALTERAÇÃO SOLICITADA: Se o pagamento foi aprovado, limpa o carrinho e redireciona
       if (checkData.status === "approved") {
         stopPolling();
         setPixStatus("aprovado");
@@ -104,12 +105,15 @@ export default function Carrinho() {
         router.refresh();
         
         setTimeout(() => { router.push("/my-orders"); }, 2500);
-      } else if (checkData.status === "cancelled" || checkData.status === "rejected") {
+      } 
+      // # ALTERAÇÃO SOLICITADA: Só interrompe o processo se o Mercado Pago confirmar CANCELADO ou REJEITADO
+      // Se estiver "pending", o código não entra em nenhum IF e continua o polling normalmente
+      else if (checkData.status === "cancelled" || checkData.status === "rejected") {
         stopPolling();
         localStorage.removeItem("pedro-burger-pix");
         setPixData(null);
         setIsSubmitting(false);
-        toast.error("O pagamento não foi aprovado ou foi cancelado.");
+        toast.error("O pagamento foi cancelado ou recusado pelo Mercado Pago.");
       }
     } catch (e) {
       console.error("Erro ao verificar status:", e);
