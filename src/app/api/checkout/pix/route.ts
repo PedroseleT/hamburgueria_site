@@ -65,12 +65,16 @@ export async function POST(request: Request) {
         external_reference: order.id, 
         notification_url: "https://theflamegrill.vercel.app/api/webhooks/mercadopago", 
         date_of_expiration: expirationDate,
-        payer: {
-          // ALTERAÇÃO SOLICITADA: E-mail genérico para evitar auto-bloqueio
-          email: "cliente_desconhecido_teste_99@gmail.com", 
-          first_name: userData.name?.split(' ')[0] || "Cliente",
-          last_name: userData.name?.split(' ').slice(1).join(' ') || "The Flame Grill"
-        }
+        // No arquivo da API, mude o payer para este formato:
+payer: {
+  email: "comprador_teste_final_2026@gmail.com", 
+  first_name: "Joao",
+  last_name: "Silva",
+  identification: {
+    type: "CPF",
+    number: "19100000000" // Um CPF fictício qualquer, mas com formato válido
+  }
+}
       }
     });
 
