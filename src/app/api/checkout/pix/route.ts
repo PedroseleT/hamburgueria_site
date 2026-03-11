@@ -21,21 +21,19 @@ export async function POST(request: Request) {
     const sessionCookie = cookieStore.get("user_session");
     
     if (!sessionCookie || !sessionCookie.value) {
-      return NextResponse.json({ error: "Você precisa estar logado para pedir." }, { status: 401 });
+      return NextResponse.json({ error: "Você precisa estar logado." }, { status: 401 });
     }
 
     const userData = JSON.parse(sessionCookie.value);
-    const userId = userData.id;
     
-    // 1. CRIA O PEDIDO COMO "PENDENTE"
     const order = await prisma.order.create({
       data: {
-        userId: userId,
+        userId: userData.id,
         restaurantId: "cmmcpmk4q000087yw0dvvdonb", 
         total: total,
         address: address || "Retirada no Local", 
         notes: notes || "",
-        paymentMethod: paymentMethod || "PIX",
+        paymentMethod: "PIX",
         status: "PENDING",
         items: {
           create: items.map((item: any) => ({
@@ -53,38 +51,29 @@ export async function POST(request: Request) {
       },
     });
 
-    const transactionAmount = total; 
-    const description = `Pedido #${order.id.slice(-6)} - The Flame Grill`;
-    const expirationDate = new Date(Date.now() + 3 * 60 * 1000).toISOString();
+    const expirationDate = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // Aumentado para 10 min
 
     const result = await payment.create({
       body: {
-        transaction_amount: transactionAmount,
-        description: description,
+        transaction_amount: Number(total), // Garante que é número
+        description: `Pedido #${order.id.slice(-6)} - The Flame Grill`,
         payment_method_id: "pix",
         external_reference: order.id, 
         notification_url: "https://theflamegrill.vercel.app/api/webhooks/mercadopago", 
         date_of_expiration: expirationDate,
-        // No arquivo da API, mude o payer para este formato:
-payer: {
-  email: "comprador_teste_final_2026@gmail.com", 
-  first_name: "Joao",
-  last_name: "Silva",
-  identification: {
-    type: "CPF",
-    number: "19100000000" // Um CPF fictício qualquer, mas com formato válido
-  }
-}
+        payer: {
+          // # AJUSTE RAIZ: O e-mail deve ser válido. SeuserData.email for seu, 
+          // use um e-mail secundário seu que NÃO seja o da conta vendedora.
+          email: userData.email || "comprador_externo@provedor.com", 
+          first_name: userData.name?.split(' ')[0] || "Cliente",
+          last_name: userData.name?.split(' ').slice(1).join(' ') || "Silva",
+          // Em produção, adicione identificação se possível. 
+          // Se não tiver o CPF do usuário, o MP pode ser rigoroso.
+        }
       }
     });
 
-    // # ALTERAÇÃO SOLICITADA: DEBUG LOG PARA VER NO PAINEL DA VERCEL
-    console.log("DEBUG MERCADO PAGO:", {
-      status: result.status,
-      status_detail: result.status_detail, 
-      id: result.id,
-      amount: transactionAmount
-    });
+    console.log("DEBUG MP CREATE:", { status: result.status, detail: result.status_detail });
 
     if (result.status === "pending" || result.status === "created") {
       return NextResponse.json({
@@ -94,13 +83,9 @@ payer: {
         qr_code_base64: result.point_of_interaction?.transaction_data?.qr_code_base64,
         status: result.status
       });
-    } else {
-      // # ALTERAÇÃO: Retorna o status_detail no erro para ajudar no debug via tela se precisar
-      return NextResponse.json({ 
-        error: "Erro ao gerar PIX.", 
-        detail: result.status_detail 
-      }, { status: 400 });
     }
+
+    return NextResponse.json({ error: "Mercado Pago recusou a criação.", detail: result.status_detail }, { status: 400 });
 
   } catch (error: any) {
     console.error("Erro Checkout:", error);
